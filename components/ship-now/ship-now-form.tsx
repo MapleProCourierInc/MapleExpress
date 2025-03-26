@@ -9,7 +9,7 @@ import { DropoffAddressForm } from "@/components/ship-now/dropoff-address-form"
 import { ReviewOrder } from "@/components/ship-now/review-order"
 import { ShippingSuccess } from "@/components/ship-now/shipping-success"
 import { Button } from "@/components/ui/button"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
 import {
   AlertDialog,
@@ -421,11 +421,11 @@ export function ShipNowForm() {
                   <div className="flex flex-col items-center gap-6">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-md">
                       <Button onClick={handleAddPackage} className="flex items-center justify-center gap-2 h-auto py-6">
-                        <Plus className="h-5 w-5" />
                         <div>
                           <div className="font-semibold">Add Package</div>
                           <div className="text-xs">Ship to another address</div>
                         </div>
+                        <Plus className="h-5 w-5 ml-2" />
                       </Button>
 
                       <Button
@@ -433,11 +433,11 @@ export function ShipNowForm() {
                           onClick={handleGoToReview}
                           className="flex items-center justify-center gap-2 h-auto py-6"
                       >
-                        <ArrowLeft className="h-5 w-5" />
                         <div>
                           <div className="font-semibold">Continue</div>
                           <div className="text-xs">Review your order</div>
                         </div>
+                        <ArrowRight className="h-5 w-5 ml-2" />
                       </Button>
                     </div>
 

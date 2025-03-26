@@ -109,78 +109,75 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
       <div className="space-y-6">
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold">Delivery Address</h1>
-          <p className="text-muted-foreground mt-2">Select an address for package delivery or add a new one</p>
         </div>
 
         {error && <p className="text-red-500 text-center">{error}</p>}
 
         {!showNewAddressForm ? (
             <div className="space-y-4">
+              {/* Add new address button at the top */}
+              <Button
+                  variant="outline"
+                  onClick={handleNewAddressClick}
+                  className="w-full flex items-center justify-center gap-2 py-6 mb-6"
+              >
+                <Plus className="h-5 w-5 text-primary" />
+                <span>Add a new address</span>
+              </Button>
+
+              {/* Divider with "or" text */}
               {savedAddresses.length > 0 && (
-                  <>
-                    <RadioGroup value={selectedAddressId || ""} onValueChange={handleAddressSelect} className="space-y-3">
-                      {savedAddresses.map((address) => (
-                          <div key={address.addressId} className="flex items-start space-x-3">
-                            <RadioGroupItem
-                                value={address.addressId || ""}
-                                id={`address-${address.addressId}`}
-                                className="mt-1"
-                            />
-                            <div className="flex-1">
-                              <Label htmlFor={`address-${address.addressId}`} className="flex items-start cursor-pointer">
-                                <Card className="w-full">
-                                  <CardContent className="p-4">
-                                    <div className="flex justify-between">
-                                      <div>
-                                        <p className="font-medium">{address.fullName}</p>
-                                        {address.company && <p className="text-muted-foreground text-sm">{address.company}</p>}
-                                        <p className="mt-1">
-                                          {address.streetAddress}
-                                          {address.addressLine2 && `, ${address.addressLine2}`}
-                                        </p>
-                                        <p>
-                                          {address.city}, {address.province} {address.postalCode}
-                                        </p>
-                                        <p>{address.country}</p>
-                                        <p className="mt-1">{address.phoneNumber}</p>
-                                        {address.deliveryInstructions && (
-                                            <p className="mt-1 text-sm italic">{address.deliveryInstructions}</p>
-                                        )}
-                                      </div>
-                                      {address.isPrimary && (
-                                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
-                                  Primary
-                                </span>
+                  <div className="relative my-6">
+                    <div className="absolute inset-0 flex items-center">
+                      <div className="w-full border-t border-gray-300"></div>
+                    </div>
+                    <div className="relative flex justify-center">
+                      <span className="bg-white px-4 text-sm text-gray-500">or select a saved address</span>
+                    </div>
+                  </div>
+              )}
+
+              {savedAddresses.length > 0 && (
+                  <RadioGroup value={selectedAddressId || ""} onValueChange={handleAddressSelect} className="space-y-3">
+                    {savedAddresses.map((address) => (
+                        <div key={address.addressId} className="flex items-start space-x-3">
+                          <RadioGroupItem
+                              value={address.addressId || ""}
+                              id={`address-${address.addressId}`}
+                              className="mt-1"
+                          />
+                          <div className="flex-1">
+                            <Label htmlFor={`address-${address.addressId}`} className="flex items-start cursor-pointer">
+                              <Card className="w-full">
+                                <CardContent className="p-4">
+                                  <div className="flex justify-between">
+                                    <div>
+                                      <p className="font-medium">{address.fullName}</p>
+                                      {address.company && <p className="text-muted-foreground text-sm">{address.company}</p>}
+                                      <p className="mt-1">
+                                        {address.streetAddress}
+                                        {address.addressLine2 && `, ${address.addressLine2}`}
+                                      </p>
+                                      <p>
+                                        {address.city}, {address.province} {address.postalCode}
+                                      </p>
+                                      <p>{address.country}</p>
+                                      <p className="mt-1">{address.phoneNumber}</p>
+                                      {address.deliveryInstructions && (
+                                          <p className="mt-1 text-sm italic">{address.deliveryInstructions}</p>
                                       )}
                                     </div>
-                                  </CardContent>
-                                </Card>
-                              </Label>
-                            </div>
+                                    {address.isPrimary && (
+                                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Primary</span>
+                                    )}
+                                  </div>
+                                </CardContent>
+                              </Card>
+                            </Label>
                           </div>
-                      ))}
-                    </RadioGroup>
-
-                    {/* Divider with "or" text */}
-                    <div className="relative my-6">
-                      <div className="absolute inset-0 flex items-center">
-                        <div className="w-full border-t border-gray-300"></div>
-                      </div>
-                      <div className="relative flex justify-center">
-                        <span className="bg-white px-4 text-sm text-gray-500">or</span>
-                      </div>
-                    </div>
-
-                    {/* Add new address button */}
-                    <Button
-                        variant="outline"
-                        onClick={handleNewAddressClick}
-                        className="w-full flex items-center justify-center gap-2 py-6"
-                    >
-                      <Plus className="h-5 w-5 text-primary" />
-                      <span>Add a new address</span>
-                    </Button>
-                  </>
+                        </div>
+                    ))}
+                  </RadioGroup>
               )}
 
               {savedAddresses.length === 0 && (
@@ -188,10 +185,7 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                     <Card className="border-dashed">
                       <CardContent className="p-6 text-center">
                         <p className="mb-4 text-muted-foreground">You don't have any saved addresses yet.</p>
-                        <Button onClick={handleNewAddressClick} className="flex items-center gap-2">
-                          <Plus className="h-4 w-4" />
-                          Add a new address
-                        </Button>
+                        <p className="text-sm text-muted-foreground">Please add a new address using the button above.</p>
                       </CardContent>
                     </Card>
                   </div>
@@ -204,7 +198,7 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                 {/* Add Continue button that's enabled only when an address is selected */}
                 <Button onClick={handleContinue} disabled={!selectedAddressId} className="flex items-center gap-2">
                   Continue
-                  <ArrowRight className="h-4 w-4" />
+                  <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>
               </div>
             </div>

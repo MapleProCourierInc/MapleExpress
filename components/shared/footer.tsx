@@ -14,7 +14,7 @@ export function Footer() {
               <span className="text-xl font-bold">MapleXpress</span>
             </div>
             <p className="text-muted-foreground mb-4">
-              Your trusted partner for all your courier and logistics needs since 2005.
+              Your trusted partner for all your courier and logistics needs since 2024.
             </p>
             <div className="flex gap-4">
               <Link href="#" className="text-muted-foreground hover:text-primary">
