@@ -1,141 +1,224 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Label } from "@/components/ui/label"
 import type { Address } from "@/components/ship-now/ship-now-form"
 import { AddressForm } from "@/components/ship-now/address-form"
-import { Plus } from "lucide-react"
+import { Plus, Loader2, ArrowRight } from "lucide-react"
+import { getAddresses } from "@/lib/address-service"
+import { useAuth } from "@/lib/auth-context"
 
 interface DropoffAddressFormProps {
   selectedAddress: Address | null
-  savedAddresses: Address[]
-  onSelectAddress: (address: Address) => void
+  onSelectAddress: (address: Address, saveForFuture: boolean) => void
   onNext: () => void
   onBack: () => void
-  canProceed: boolean
 }
 
-export function DropoffAddressForm({
-  selectedAddress,
-  savedAddresses,
-  onSelectAddress,
-  onNext,
-  onBack,
-  canProceed,
-}: DropoffAddressFormProps) {
+export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, onBack }: DropoffAddressFormProps) {
+  const { user } = useAuth()
+  const [savedAddresses, setSavedAddresses] = useState<Address[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
   const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(selectedAddress?.id || null)
 
+  // Fetch saved addresses when component mounts
+  useEffect(() => {
+    const fetchAddresses = async () => {
+      if (!user) return
+
+      try {
+        setIsLoading(true)
+        const addresses = await getAddresses(user.userId)
+        setSavedAddresses(addresses)
+      } catch (err) {
+        console.error("Error fetching addresses:", err)
+        setError("Failed to load saved addresses")
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    fetchAddresses()
+  }, [user])
+
   const handleAddressSelect = (addressId: string) => {
     setSelectedAddressId(addressId)
-    const address = savedAddresses.find((addr) => addr.id === addressId)
+    const address = savedAddresses.find((addr) => addr.addressId === addressId)
     if (address) {
-      onSelectAddress(address)
+      // Convert to the format expected by the form
+      const formattedAddress: Address = {
+        id: address.addressId,
+        fullName: address.fullName,
+        company: address.company || "",
+        streetAddress: address.streetAddress,
+        addressLine2: address.addressLine2 || "",
+        city: address.city,
+        province: address.province,
+        postalCode: address.postalCode,
+        country: address.country,
+        phoneNumber: address.phoneNumber,
+        deliveryInstructions: address.deliveryInstructions || "",
+        addressType: "shipping",
+        isPrimary: address.isPrimary || false,
+        coordinates: address.coordinates,
+      }
+      onSelectAddress(formattedAddress, false)
+      // No longer automatically proceed to next step
     }
     setShowNewAddressForm(false)
   }
 
-  const handleNewAddressSelect = () => {
+  const handleNewAddressClick = () => {
     setSelectedAddressId(null)
     setShowNewAddressForm(true)
   }
 
-  const handleAddressSubmit = (address: Address) => {
+  const handleAddressSubmit = (address: Address, saveForFuture: boolean) => {
     // Add addressType for dropoff
     const addressWithType = {
       ...address,
       addressType: "shipping",
     }
-    onSelectAddress(addressWithType)
-    setShowNewAddressForm(false)
+    onSelectAddress(addressWithType, saveForFuture)
+    // Proceed to next step - keep this behavior for new addresses
+    onNext()
+  }
+
+  // New function to handle continuing with the selected address
+  const handleContinue = () => {
+    if (selectedAddressId) {
+      onNext()
+    }
+  }
+
+  if (isLoading) {
+    return (
+        <div className="flex flex-col items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-primary mb-4" />
+          <p>Loading saved addresses...</p>
+        </div>
+    )
   }
 
   return (
-    <div className="space-y-6">
-      <div className="text-center mb-6">
-        <h1 className="text-2xl font-bold">Delivery Address</h1>
-        <p className="text-muted-foreground mt-2">Select an address for package delivery or add a new one</p>
-      </div>
+      <div className="space-y-6">
+        <div className="text-center mb-6">
+          <h1 className="text-2xl font-bold">Delivery Address</h1>
+          <p className="text-muted-foreground mt-2">Select an address for package delivery or add a new one</p>
+        </div>
 
-      <div className="space-y-4">
-        {savedAddresses.length > 0 && (
-          <RadioGroup value={selectedAddressId || ""} onValueChange={handleAddressSelect} className="space-y-3">
-            {savedAddresses.map((address) => (
-              <div key={address.id} className="flex items-start space-x-3">
-                <RadioGroupItem value={address.id || ""} id={`address-${address.id}`} className="mt-1" />
-                <div className="flex-1">
-                  <Label htmlFor={`address-${address.id}`} className="flex items-start cursor-pointer">
-                    <Card className="w-full">
-                      <CardContent className="p-4">
-                        <div className="flex justify-between">
-                          <div>
-                            <p className="font-medium">{address.fullName}</p>
-                            {address.company && <p className="text-muted-foreground text-sm">{address.company}</p>}
-                            <p className="mt-1">
-                              {address.streetAddress}
-                              {address.addressLine2 && `, ${address.addressLine2}`}
-                            </p>
-                            <p>
-                              {address.city}, {address.province} {address.postalCode}
-                            </p>
-                            <p>{address.country}</p>
-                            <p className="mt-1">{address.phoneNumber}</p>
-                            {address.deliveryInstructions && (
-                              <p className="mt-1 text-sm italic">{address.deliveryInstructions}</p>
-                            )}
+        {error && <p className="text-red-500 text-center">{error}</p>}
+
+        {!showNewAddressForm ? (
+            <div className="space-y-4">
+              {savedAddresses.length > 0 && (
+                  <>
+                    <RadioGroup value={selectedAddressId || ""} onValueChange={handleAddressSelect} className="space-y-3">
+                      {savedAddresses.map((address) => (
+                          <div key={address.addressId} className="flex items-start space-x-3">
+                            <RadioGroupItem
+                                value={address.addressId || ""}
+                                id={`address-${address.addressId}`}
+                                className="mt-1"
+                            />
+                            <div className="flex-1">
+                              <Label htmlFor={`address-${address.addressId}`} className="flex items-start cursor-pointer">
+                                <Card className="w-full">
+                                  <CardContent className="p-4">
+                                    <div className="flex justify-between">
+                                      <div>
+                                        <p className="font-medium">{address.fullName}</p>
+                                        {address.company && <p className="text-muted-foreground text-sm">{address.company}</p>}
+                                        <p className="mt-1">
+                                          {address.streetAddress}
+                                          {address.addressLine2 && `, ${address.addressLine2}`}
+                                        </p>
+                                        <p>
+                                          {address.city}, {address.province} {address.postalCode}
+                                        </p>
+                                        <p>{address.country}</p>
+                                        <p className="mt-1">{address.phoneNumber}</p>
+                                        {address.deliveryInstructions && (
+                                            <p className="mt-1 text-sm italic">{address.deliveryInstructions}</p>
+                                        )}
+                                      </div>
+                                      {address.isPrimary && (
+                                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">
+                                  Primary
+                                </span>
+                                      )}
+                                    </div>
+                                  </CardContent>
+                                </Card>
+                              </Label>
+                            </div>
                           </div>
-                          {address.isPrimary && (
-                            <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Primary</span>
-                          )}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  </Label>
-                </div>
-              </div>
-            ))}
+                      ))}
+                    </RadioGroup>
 
-            <div className="flex items-start space-x-3">
-              <RadioGroupItem
-                value="new"
-                id="address-new"
-                checked={showNewAddressForm}
-                onCheckedChange={() => handleNewAddressSelect()}
-                className="mt-1"
-              />
-              <div className="flex-1">
-                <Label htmlFor="address-new" className="flex items-center cursor-pointer">
-                  <Card className="w-full">
-                    <CardContent className="p-4 flex items-center gap-2">
+                    {/* Divider with "or" text */}
+                    <div className="relative my-6">
+                      <div className="absolute inset-0 flex items-center">
+                        <div className="w-full border-t border-gray-300"></div>
+                      </div>
+                      <div className="relative flex justify-center">
+                        <span className="bg-white px-4 text-sm text-gray-500">or</span>
+                      </div>
+                    </div>
+
+                    {/* Add new address button */}
+                    <Button
+                        variant="outline"
+                        onClick={handleNewAddressClick}
+                        className="w-full flex items-center justify-center gap-2 py-6"
+                    >
                       <Plus className="h-5 w-5 text-primary" />
                       <span>Add a new address</span>
-                    </CardContent>
-                  </Card>
-                </Label>
+                    </Button>
+                  </>
+              )}
+
+              {savedAddresses.length === 0 && (
+                  <div className="mt-6">
+                    <Card className="border-dashed">
+                      <CardContent className="p-6 text-center">
+                        <p className="mb-4 text-muted-foreground">You don't have any saved addresses yet.</p>
+                        <Button onClick={handleNewAddressClick} className="flex items-center gap-2">
+                          <Plus className="h-4 w-4" />
+                          Add a new address
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  </div>
+              )}
+
+              <div className="flex justify-between pt-4">
+                <Button variant="outline" onClick={onBack}>
+                  Back
+                </Button>
+                {/* Add Continue button that's enabled only when an address is selected */}
+                <Button onClick={handleContinue} disabled={!selectedAddressId} className="flex items-center gap-2">
+                  Continue
+                  <ArrowRight className="h-4 w-4" />
+                </Button>
               </div>
             </div>
-          </RadioGroup>
-        )}
-
-        {(showNewAddressForm || savedAddresses.length === 0) && (
-          <div className="mt-6">
-            <AddressForm onSubmit={handleAddressSubmit} addressType="shipping" initialAddress={null} />
-          </div>
+        ) : (
+            <div className="mt-6">
+              <AddressForm onSubmit={handleAddressSubmit} addressType="shipping" initialAddress={null} />
+              <div className="mt-4">
+                <Button variant="outline" onClick={() => setShowNewAddressForm(false)}>
+                  Cancel
+                </Button>
+              </div>
+            </div>
         )}
       </div>
-
-      <div className="flex justify-between pt-4">
-        <Button variant="outline" onClick={onBack}>
-          Back
-        </Button>
-        <Button onClick={onNext} disabled={!canProceed}>
-          Continue to Review
-        </Button>
-      </div>
-    </div>
   )
 }
 

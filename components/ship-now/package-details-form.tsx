@@ -16,9 +16,17 @@ interface PackageDetailsFormProps {
 
 export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canProceed }: PackageDetailsFormProps) {
   const handleInputChange = (field: keyof PackageItem, value: any) => {
-    onUpdatePackage({
-      [field]: value,
-    })
+    if (field === "length" || field === "width" || field === "height" || field === "weight") {
+      // Ensure numeric values are properly converted to numbers
+      const numValue = Number.parseFloat(value)
+      onUpdatePackage({
+        [field]: isNaN(numValue) ? 0 : numValue,
+      })
+    } else {
+      onUpdatePackage({
+        [field]: value,
+      })
+    }
   }
 
   return (
@@ -47,9 +55,10 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canP
                   id="length"
                   type="number"
                   min="0"
+                  step="0.1"
                   placeholder="0"
                   value={pkg.length || ""}
-                  onChange={(e) => handleInputChange("length", Number.parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange("length", e.target.value)}
                   className="mt-1"
               />
             </div>
@@ -59,9 +68,10 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canP
                   id="width"
                   type="number"
                   min="0"
+                  step="0.1"
                   placeholder="0"
                   value={pkg.width || ""}
-                  onChange={(e) => handleInputChange("width", Number.parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange("width", e.target.value)}
                   className="mt-1"
               />
             </div>
@@ -71,9 +81,10 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canP
                   id="height"
                   type="number"
                   min="0"
+                  step="0.1"
                   placeholder="0"
                   value={pkg.height || ""}
-                  onChange={(e) => handleInputChange("height", Number.parseFloat(e.target.value) || 0)}
+                  onChange={(e) => handleInputChange("height", e.target.value)}
                   className="mt-1"
               />
             </div>
@@ -88,7 +99,7 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canP
                 step="0.1"
                 placeholder="0"
                 value={pkg.weight || ""}
-                onChange={(e) => handleInputChange("weight", Number.parseFloat(e.target.value) || 0)}
+                onChange={(e) => handleInputChange("weight", e.target.value)}
                 className="mt-1"
             />
           </div>

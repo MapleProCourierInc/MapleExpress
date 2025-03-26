@@ -1,7 +1,6 @@
 "use client"
 
 import type React from "react"
-
 import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
@@ -49,85 +48,37 @@ export function AddressAutocomplete({
 
     setIsLoading(true)
 
-    // Define handleDocumentClick outside the try block so it's always available for cleanup
-    const handleDocumentClick = (e: MouseEvent) => {
-      // Check if the click is on a Google autocomplete suggestion
-      const target = e.target as HTMLElement
-      if (target.closest(".pac-container") || target.closest(".pac-item")) {
-        // If it is, wait a bit for the place_changed event to fire
-        setTimeout(() => {
-          // If no place was selected (place_changed didn't fire), try to get the highlighted item
-          if (autocompleteRef.current && inputRef.current) {
-            const place = autocompleteRef.current.getPlace()
-            if (!place || !place.address_components) {
-              console.log("Trying to recover from click selection...")
-              // This is a fallback in case the place_changed event doesn't fire properly
-              // We can't directly get the highlighted item, but we can try to force a selection
-              const input = inputRef.current
-              const value = input.value
-              if (value) {
-                // Simulate an Enter key press
-                const enterEvent = new KeyboardEvent("keydown", {
-                  key: "Enter",
-                  code: "Enter",
-                  keyCode: 13,
-                  which: 13,
-                  bubbles: true,
-                })
-                input.dispatchEvent(enterEvent)
-              }
-            }
-          }
-        }, 300)
-      }
-    }
-
-    // Add the document click listener
-    document.addEventListener("click", handleDocumentClick)
-
     try {
-      // Create the autocomplete instance
+      // Create Autocomplete instance
       const options = {
         fields: ["address_components", "formatted_address", "geometry", "name"],
         types: ["address"],
+        componentRestrictions: { country: "ca" },
       }
 
-      // Create the autocomplete instance
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, options)
+      autocompleteRef.current = new window.google.maps.places.Autocomplete(
+          inputRef.current,
+          options,
+      )
 
-      // Add a listener for place changes
+      // Listen for place changes
       autocompleteRef.current.addListener("place_changed", () => {
         if (!autocompleteRef.current) return
 
         const place = autocompleteRef.current.getPlace()
         console.log("Selected place:", place)
 
-        // Check if the place has details (to avoid issues with incomplete selection)
+        // If the place lacks details, skip
         if (!place || !place.address_components) {
           console.log("No place details available")
           return
         }
 
-        // Extract just the street address part
-        let streetAddress = ""
+        // Extract the final "street address" string
+        const streetAddress = extractStreetAddress(place)
 
-        // Get street number and street name
-        const streetNumber =
-            place.address_components.find((component) => component.types.includes("street_number"))?.long_name || ""
-
-        const route = place.address_components.find((component) => component.types.includes("route"))?.long_name || ""
-
-        if (streetNumber && route) {
-          streetAddress = `${streetNumber} ${route}`
-        } else {
-          // Fallback to formatted_address if we can't extract street components
-          streetAddress = place.formatted_address || ""
-        }
-
-        // Use setTimeout to ensure this runs after the click event is fully processed
-        setTimeout(() => {
-          onChange(streetAddress, place)
-        }, 0)
+        // Tell parent about it
+        onChange(streetAddress, place)
       })
     } catch (error) {
       console.error("Error initializing Google Places Autocomplete:", error)
@@ -135,18 +86,49 @@ export function AddressAutocomplete({
       setIsLoading(false)
     }
 
-    // Clean up
+    // Cleanup the event listeners on unmount
     return () => {
       if (autocompleteRef.current) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current)
       }
-      document.removeEventListener("click", handleDocumentClick)
     }
   }, [scriptStatus, onChange])
 
-  // Handle manual input changes
+  // Helper function to build a street address from place components
+  const extractStreetAddress = (place: google.maps.places.PlaceResult): string => {
+    let streetNumber = ""
+    let route = ""
+
+    if (place.address_components) {
+      for (const component of place.address_components) {
+        const types = component.types
+        if (types.includes("street_number")) {
+          streetNumber = component.long_name
+        } else if (types.includes("route")) {
+          route = component.long_name
+        }
+      }
+    }
+
+    // If we have a street number and route, combine them
+    if (streetNumber && route) {
+      return `${streetNumber} ${route}`
+    }
+
+    // Otherwise, use the first line of the formatted address as a fallback
+    const formattedParts = place.formatted_address?.split(",") || []
+    return formattedParts[0] || ""
+  }
+
+  // Handle typed input changes (user might clear the field, etc.)
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    onChange(e.target.value)
+    const userValue = e.target.value
+    // Clear place details if the user fully clears the input
+    if (userValue === "") {
+      onChange("", undefined)
+    } else {
+      onChange(userValue)
+    }
   }
 
   return (
@@ -160,7 +142,7 @@ export function AddressAutocomplete({
             required={required}
             disabled={disabled}
             className={`${className} border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary`}
-            autoComplete="off" // This helps with some browsers
+            autoComplete="off"
         />
         {isLoading && (
             <div className="absolute right-3 top-1/2 -translate-y-1/2">
@@ -170,4 +152,3 @@ export function AddressAutocomplete({
       </div>
   )
 }
-
