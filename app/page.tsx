@@ -351,7 +351,6 @@ function LandingContent() {
           </div>
         </div>
         <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-secondary/10 to-background/5 -z-10" />
-        <div className="absolute inset-0 bg-[url('/placeholder.svg?height=1080&width=1920')] bg-cover bg-center opacity-10 -z-20" />
       </section>
 
       {/* Services Section */}

@@ -49,12 +49,6 @@ const COUNTRIES = [
   { value: "USA", label: "United States" },
 ]
 
-declare global {
-  interface Window {
-    google: any
-  }
-}
-
 export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: AddressFormProps) {
   const [isBusinessAddress, setIsBusinessAddress] = useState(!!address?.company)
   const [formData, setFormData] = useState<Omit<Address, "addressId">>({
@@ -69,7 +63,7 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
     phoneNumber: address?.phoneNumber || "",
     deliveryInstructions: address?.deliveryInstructions || "",
     addressType: address?.addressType || "home",
-    isPrimary: false,
+    isPrimary: address?.isPrimary || false,
     coordinates: address?.coordinates || undefined,
   })
 
@@ -87,7 +81,7 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
         phoneNumber: address.phoneNumber,
         deliveryInstructions: address.deliveryInstructions || "",
         addressType: address.addressType,
-        isPrimary: address.isPrimary,
+        isPrimary: address.isPrimary || false,
         coordinates: address.coordinates,
       })
       setIsBusinessAddress(!!address.company)
@@ -114,7 +108,7 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
     console.log("Address changed:", value)
     console.log("Place details:", placeDetails)
 
-    // Set only the street address in the street address field
+    // Set the street address in the street address field
     setFormData((prev) => ({ ...prev, streetAddress: value }))
 
     if (placeDetails && placeDetails.address_components) {
@@ -148,11 +142,11 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
         postalCode: postalCode || prev.postalCode,
         country: country || prev.country,
         coordinates: placeDetails.geometry?.location
-          ? {
+            ? {
               latitude: placeDetails.geometry.location.lat(),
               longitude: placeDetails.geometry.location.lng(),
             }
-          : prev.coordinates,
+            : prev.coordinates,
       }))
     }
   }
@@ -163,179 +157,196 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4">
-      <div className="flex items-center space-x-2">
-        <Switch id="business-address" checked={isBusinessAddress} onCheckedChange={handleBusinessToggle} />
-        <Label htmlFor="business-address">This is a business address</Label>
-      </div>
+      <form onSubmit={handleSubmit} className="space-y-4">
+        <div className="flex items-center space-x-2">
+          <Switch id="business-address" checked={isBusinessAddress} onCheckedChange={handleBusinessToggle} />
+          <Label htmlFor="business-address">This is a business address</Label>
+        </div>
 
-      <div className="space-y-1">
-        <Label htmlFor="fullName">{isBusinessAddress ? "Point of Contact" : "Full Name"}</Label>
-        <Input
-          id="fullName"
-          name="fullName"
-          value={formData.fullName}
-          onChange={handleChange}
-          placeholder="Enter full name"
-          required
-        />
-      </div>
-
-      {isBusinessAddress && (
         <div className="space-y-1">
-          <Label htmlFor="company">Business Name</Label>
+          <Label htmlFor="fullName">{isBusinessAddress ? "Point of Contact" : "Full Name"}</Label>
           <Input
-            id="company"
-            name="company"
-            value={formData.company}
-            onChange={handleChange}
-            placeholder="Enter business name"
-            required={isBusinessAddress}
+              id="fullName"
+              name="fullName"
+              value={formData.fullName}
+              onChange={handleChange}
+              placeholder="Enter full name"
+              required
+              className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
-      )}
 
-      <div className="space-y-1">
-        <Label htmlFor="streetAddress">Street Address</Label>
-        <AddressAutocomplete
-          value={formData.streetAddress}
-          onChange={handleAddressChange}
-          placeholder="Enter street address"
-          required
-        />
-      </div>
+        {isBusinessAddress && (
+            <div className="space-y-1">
+              <Label htmlFor="company">Business Name</Label>
+              <Input
+                  id="company"
+                  name="company"
+                  value={formData.company}
+                  onChange={handleChange}
+                  placeholder="Enter business name"
+                  required={isBusinessAddress}
+                  className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+              />
+            </div>
+        )}
 
-      <div className="space-y-1">
-        <Label htmlFor="addressLine2">Apartment, Suite, etc. (optional)</Label>
-        <Input
-          id="addressLine2"
-          name="addressLine2"
-          value={formData.addressLine2}
-          onChange={handleChange}
-          placeholder="Apartment, suite, unit, building, floor, etc."
-        />
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <Label htmlFor="city">City</Label>
-          <Input
-            id="city"
-            name="city"
-            value={formData.city}
-            onChange={handleChange}
-            placeholder="Enter city"
-            required
+          <Label htmlFor="streetAddress">Street Address</Label>
+          <AddressAutocomplete
+              value={formData.streetAddress}
+              onChange={handleAddressChange}
+              placeholder="Enter street address"
+              required
+              className="border-gray-300"
           />
         </div>
 
         <div className="space-y-1">
-          <Label htmlFor="province">Province</Label>
-          <Select value={formData.province} onValueChange={(value) => handleSelectChange("province", value)} required>
-            <SelectTrigger id="province">
-              <SelectValue placeholder="Select province" />
+          <Label htmlFor="addressLine2">Apartment, Suite, etc. (optional)</Label>
+          <Input
+              id="addressLine2"
+              name="addressLine2"
+              value={formData.addressLine2}
+              onChange={handleChange}
+              placeholder="Apartment, suite, unit, building, floor, etc."
+              className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="city">City</Label>
+            <Input
+                id="city"
+                name="city"
+                value={formData.city}
+                onChange={handleChange}
+                placeholder="Enter city"
+                required
+                className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="province">Province</Label>
+            <Select value={formData.province} onValueChange={(value) => handleSelectChange("province", value)} required>
+              <SelectTrigger
+                  id="province"
+                  className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+              >
+                <SelectValue placeholder="Select province" />
+              </SelectTrigger>
+              <SelectContent>
+                {PROVINCES.map((province) => (
+                    <SelectItem key={province.value} value={province.value}>
+                      {province.label}
+                    </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-1">
+            <Label htmlFor="postalCode">Postal Code</Label>
+            <Input
+                id="postalCode"
+                name="postalCode"
+                value={formData.postalCode}
+                onChange={handleChange}
+                placeholder="Enter postal code"
+                required
+                className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+            />
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="country">Country</Label>
+            <Select value={formData.country} onValueChange={(value) => handleSelectChange("country", value)} required>
+              <SelectTrigger
+                  id="country"
+                  className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+              >
+                <SelectValue placeholder="Select country" />
+              </SelectTrigger>
+              <SelectContent>
+                {COUNTRIES.map((country) => (
+                    <SelectItem key={country.value} value={country.value}>
+                      {country.label}
+                    </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="phoneNumber">Phone Number</Label>
+          <Input
+              id="phoneNumber"
+              name="phoneNumber"
+              value={formData.phoneNumber}
+              onChange={handleChange}
+              placeholder="Enter phone number"
+              required
+              className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+          />
+        </div>
+
+        <div className="space-y-1">
+          <Label htmlFor="addressType">Address Type</Label>
+          <Select
+              value={formData.addressType}
+              onValueChange={(value) => handleSelectChange("addressType", value)}
+              required
+          >
+            <SelectTrigger
+                id="addressType"
+                className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
+            >
+              <SelectValue placeholder="Select address type" />
             </SelectTrigger>
             <SelectContent>
-              {PROVINCES.map((province) => (
-                <SelectItem key={province.value} value={province.value}>
-                  {province.label}
-                </SelectItem>
+              {ADDRESS_TYPES.map((type) => (
+                  <SelectItem key={type.value} value={type.value}>
+                    {type.label}
+                  </SelectItem>
               ))}
             </SelectContent>
           </Select>
         </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="space-y-1">
-          <Label htmlFor="postalCode">Postal Code</Label>
-          <Input
-            id="postalCode"
-            name="postalCode"
-            value={formData.postalCode}
-            onChange={handleChange}
-            placeholder="Enter postal code"
-            required
+          <Label htmlFor="deliveryInstructions">Delivery Instructions (optional)</Label>
+          <Textarea
+              id="deliveryInstructions"
+              name="deliveryInstructions"
+              value={formData.deliveryInstructions}
+              onChange={handleChange}
+              placeholder="Special instructions for delivery"
+              rows={3}
+              className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
           />
         </div>
 
-        <div className="space-y-1">
-          <Label htmlFor="country">Country</Label>
-          <Select value={formData.country} onValueChange={(value) => handleSelectChange("country", value)} required>
-            <SelectTrigger id="country">
-              <SelectValue placeholder="Select country" />
-            </SelectTrigger>
-            <SelectContent>
-              {COUNTRIES.map((country) => (
-                <SelectItem key={country.value} value={country.value}>
-                  {country.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        <div className="flex justify-end gap-4 pt-4">
+          <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting} className="border-gray-300">
+            Cancel
+          </Button>
+          <Button type="submit" disabled={isSubmitting}>
+            {isSubmitting ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  {address ? "Updating..." : "Creating..."}
+                </>
+            ) : (
+                <>{address ? "Update Address" : "Add Address"}</>
+            )}
+          </Button>
         </div>
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="phoneNumber">Phone Number</Label>
-        <Input
-          id="phoneNumber"
-          name="phoneNumber"
-          value={formData.phoneNumber}
-          onChange={handleChange}
-          placeholder="Enter phone number"
-          required
-        />
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="addressType">Address Type</Label>
-        <Select
-          value={formData.addressType}
-          onValueChange={(value) => handleSelectChange("addressType", value)}
-          required
-        >
-          <SelectTrigger id="addressType">
-            <SelectValue placeholder="Select address type" />
-          </SelectTrigger>
-          <SelectContent>
-            {ADDRESS_TYPES.map((type) => (
-              <SelectItem key={type.value} value={type.value}>
-                {type.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </div>
-
-      <div className="space-y-1">
-        <Label htmlFor="deliveryInstructions">Delivery Instructions (optional)</Label>
-        <Textarea
-          id="deliveryInstructions"
-          name="deliveryInstructions"
-          value={formData.deliveryInstructions}
-          onChange={handleChange}
-          placeholder="Special instructions for delivery"
-          rows={3}
-        />
-      </div>
-
-      <div className="flex justify-end gap-4 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel} disabled={isSubmitting}>
-          Cancel
-        </Button>
-        <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? (
-            <>
-              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              {address ? "Updating..." : "Creating..."}
-            </>
-          ) : (
-            <>{address ? "Update Address" : "Add Address"}</>
-          )}
-        </Button>
-      </div>
-    </form>
+      </form>
   )
 }
 

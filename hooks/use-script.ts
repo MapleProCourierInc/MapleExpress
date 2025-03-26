@@ -4,7 +4,13 @@ import { useState, useEffect } from "react"
 
 type ScriptStatus = "idle" | "loading" | "ready" | "error"
 
-export function useScript(src: string): ScriptStatus {
+interface ScriptOptions {
+  removeOnUnmount?: boolean
+  callbackName?: string
+}
+
+export function useScript(src: string, options: ScriptOptions = {}): ScriptStatus {
+  const { removeOnUnmount = false, callbackName } = options
   const [status, setStatus] = useState<ScriptStatus>(src ? "loading" : "idle")
 
   useEffect(() => {
@@ -13,35 +19,38 @@ export function useScript(src: string): ScriptStatus {
       return
     }
 
+    // If a callback name is provided, create a global callback function
+    if (callbackName && typeof window !== "undefined") {
+      // @ts-ignore - dynamically adding property to window
+      window[callbackName] = () => {
+        setStatus("ready")
+      }
+    }
+
     // Check if the script already exists
     let script = document.querySelector(`script[src="${src}"]`) as HTMLScriptElement
+    let isNewScript = false
 
     if (!script) {
+      isNewScript = true
       // Create script
       script = document.createElement("script")
       script.src = src
       script.async = true
+      script.defer = true
       script.setAttribute("data-status", "loading")
       document.body.appendChild(script)
-
-      // Store status in attribute on script
-      // This can be read by other instances of this hook
-      const setAttributeFromEvent = (event: Event) => {
-        script.setAttribute("data-status", event.type === "load" ? "ready" : "error")
-      }
-
-      script.addEventListener("load", setAttributeFromEvent)
-      script.addEventListener("error", setAttributeFromEvent)
     } else {
       // Grab existing script status from attribute and set to state
-      setStatus(script.getAttribute("data-status") as ScriptStatus)
+      const dataStatus = script.getAttribute("data-status")
+      if (dataStatus) setStatus(dataStatus as ScriptStatus)
     }
 
     // Script event handler to update status in state
-    // Note: Even if the script already exists we still need to add
-    // event handlers to update the state for *this* hook instance
     const setStateFromEvent = (event: Event) => {
-      setStatus(event.type === "load" ? "ready" : "error")
+      const newStatus = event.type === "load" ? "ready" : "error"
+      script.setAttribute("data-status", newStatus)
+      setStatus(newStatus)
     }
 
     // Add event listeners
@@ -54,8 +63,19 @@ export function useScript(src: string): ScriptStatus {
         script.removeEventListener("load", setStateFromEvent)
         script.removeEventListener("error", setStateFromEvent)
       }
+
+      // Clean up the global callback if it was created
+      if (callbackName && typeof window !== "undefined") {
+        // @ts-ignore - dynamically removing property from window
+        delete window[callbackName]
+      }
+
+      // Remove script if it was created by this hook instance and removeOnUnmount is true
+      if (removeOnUnmount && isNewScript && script.parentNode) {
+        script.parentNode.removeChild(script)
+      }
     }
-  }, [src])
+  }, [src, callbackName, removeOnUnmount])
 
   return status
 }
