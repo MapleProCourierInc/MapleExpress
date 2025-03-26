@@ -129,15 +129,18 @@ export default function LandingPage() {
             <Link href="#" className="text-sm font-medium hover:text-primary">
               Home
             </Link>
+            <Link href="/ship-now" className="text-sm font-medium hover:text-primary">
+              Ship Now
+            </Link>
             <Link href="#services" className="text-sm font-medium hover:text-primary">
               Services
             </Link>
             <Link href="#about" className="text-sm font-medium hover:text-primary">
               About Us
             </Link>
-            <Link href="#testimonials" className="text-sm font-medium hover:text-primary">
+{/*            <Link href="#testimonials" className="text-sm font-medium hover:text-primary">
               Testimonials
-            </Link>
+            </Link>*/}
             <Link href="#contact" className="text-sm font-medium hover:text-primary">
               Contact
             </Link>
@@ -163,12 +166,12 @@ export default function LandingPage() {
                 </Button>
               </>
             )}
-            <Button
+{/*            <Button
               className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
               asChild
             >
               <Link href="#quote">Get a Quote</Link>
-            </Button>
+            </Button>*/}
           </div>
         </div>
       </header>
@@ -343,7 +346,7 @@ function LandingContent() {
               className="border-secondary text-secondary hover:bg-secondary/10"
               asChild
             >
-              <Link href="#services">Our Services</Link>
+              <Link href="/ship-now">Ship Now</Link>
             </Button>
           </div>
         </div>
