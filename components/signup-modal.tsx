@@ -118,18 +118,18 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
   return (
       <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
         <DialogContent className="p-0 overflow-hidden border rounded-lg max-w-md">
-          <div className="relative bg-secondary text-white p-8 text-center">
+          <div className="relative bg-gradient-to-r from-primary/80 to-primary text-white p-6 text-center">
             <button onClick={onClose} className="absolute right-4 top-4 text-white/80 hover:text-white">
               <X className="h-5 w-5" />
               <span className="sr-only">Close</span>
             </button>
 
-            <div className="mx-auto bg-white rounded-full p-3 w-16 h-16 flex items-center justify-center mb-4">
-              <Truck className="h-8 w-8 text-secondary" />
+            <div className="mx-auto bg-white rounded-full p-3 w-14 h-14 flex items-center justify-center mb-3">
+              <Truck className="h-7 w-7 text-primary" />
             </div>
 
-            <h2 className="text-2xl font-bold">Create Account</h2>
-            <p className="text-white/80 mt-2">Join MapleXpress to track shipments, manage deliveries, and more</p>
+            <h2 className="text-xl font-bold">Create Account</h2>
+            <p className="text-white/90 mt-1 text-sm">Join MapleXpress to track shipments, manage deliveries, and more</p>
           </div>
 
           <div className="p-6">
@@ -147,9 +147,9 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                   </motion.div>
               )}
 
-              <div className="space-y-6">
+              <div className="space-y-4">
                 <div>
-                  <Label htmlFor="email" className="block mb-2 font-medium">
+                  <Label htmlFor="email" className="block mb-1.5 font-medium">
                     Email Address
                   </Label>
                   <Input
@@ -159,16 +159,16 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="name@example.com"
                       required
-                      className="w-full px-4 py-3 h-12 border border-gray-300 rounded-md focus:border-secondary focus:ring-1 focus:ring-secondary"
+                      className="w-full border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
                   />
                 </div>
 
                 <div>
-                  <Label htmlFor="accountType" className="block mb-2 font-medium">
+                  <Label htmlFor="accountType" className="block mb-1.5 font-medium">
                     Account Type
                   </Label>
                   <Select value={accountType} onValueChange={setAccountType}>
-                    <SelectTrigger className="w-full px-4 py-3 h-12 border border-gray-300 rounded-md focus:border-secondary focus:ring-1 focus:ring-secondary">
+                    <SelectTrigger className="w-full border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary">
                       <SelectValue placeholder="Select account type" />
                     </SelectTrigger>
                     <SelectContent>
@@ -179,7 +179,7 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                 </div>
 
                 <div>
-                  <Label htmlFor="password" className="block mb-2 font-medium">
+                  <Label htmlFor="password" className="block mb-1.5 font-medium">
                     Password
                   </Label>
                   <div className="relative">
@@ -192,21 +192,21 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                           if (e.target.value) validatePassword(e.target.value)
                         }}
                         required
-                        className="w-full px-4 py-3 h-12 border border-gray-300 rounded-md focus:border-secondary focus:ring-1 focus:ring-secondary"
+                        className="w-full border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                     <button
                         type="button"
                         onClick={() => setShowPassword(!showPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"
                     >
                       {showPassword ? "Hide" : "Show"}
                     </button>
                   </div>
-                  {passwordError && <p className="mt-2 text-sm text-red-600">{passwordError}</p>}
+                  {passwordError && <p className="mt-1.5 text-sm text-red-600">{passwordError}</p>}
                 </div>
 
                 <div>
-                  <Label htmlFor="confirmPassword" className="block mb-2 font-medium">
+                  <Label htmlFor="confirmPassword" className="block mb-1.5 font-medium">
                     Confirm Password
                   </Label>
                   <div className="relative">
@@ -216,32 +216,32 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
                         required
-                        className="w-full px-4 py-3 h-12 border border-gray-300 rounded-md focus:border-secondary focus:ring-1 focus:ring-secondary"
+                        className="w-full border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
                     />
                     <button
                         type="button"
                         onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500"
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-500 text-sm"
                     >
                       {showConfirmPassword ? "Hide" : "Show"}
                     </button>
                   </div>
                 </div>
 
-                <div className="flex items-start space-x-2">
+                <div className="flex items-start space-x-2 pt-2">
                   <Checkbox
                       id="tosAgreement"
                       checked={tosAgreement}
                       onCheckedChange={(checked) => setTosAgreement(checked === true)}
-                      className="mt-1 border-gray-300"
+                      className="mt-0.5 border-gray-300"
                   />
                   <Label htmlFor="tosAgreement" className="text-sm">
                     I agree to the{" "}
-                    <a href="/terms" className="text-secondary hover:underline">
+                    <a href="/terms" className="text-primary hover:underline">
                       Terms of Service
                     </a>{" "}
                     and{" "}
-                    <a href="/privacy" className="text-secondary hover:underline">
+                    <a href="/privacy" className="text-primary hover:underline">
                       Privacy Policy
                     </a>
                   </Label>
@@ -252,7 +252,7 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                       id="communicationConsent"
                       checked={communicationConsent}
                       onCheckedChange={(checked) => setCommunicationConsent(checked === true)}
-                      className="mt-1 border-gray-300"
+                      className="mt-0.5 border-gray-300"
                   />
                   <Label htmlFor="communicationConsent" className="text-sm">
                     I agree to receive marketing communications from MapleXpress
@@ -260,11 +260,11 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                 </div>
               </div>
 
-              <div className="mt-8">
+              <div className="mt-6">
                 <Button
                     type="submit"
                     disabled={isLoading}
-                    className="w-full bg-secondary hover:bg-secondary/90 text-white font-medium py-3 h-12 rounded-md"
+                    className="w-full bg-primary hover:bg-primary/90 text-white font-medium rounded-md"
                 >
                   {isLoading ? (
                       <>
@@ -288,7 +288,7 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                 </Button>
                 <Button
                     type="button"
-                    className="bg-orange-400 hover:bg-orange-500 text-white rounded-md"
+                    className="bg-gray-100 hover:bg-gray-200 text-gray-800 rounded-md"
                     onClick={(e) => {
                       e.preventDefault()
                       onClose()
