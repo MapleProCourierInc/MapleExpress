@@ -617,7 +617,7 @@ export default function Dashboard() {
         {/* Sidebar */}
         <div className="hidden md:flex w-64 flex-col bg-white border-r">
           <div className="flex h-16 items-center border-b px-6">
-            <div className="flex items-center gap-2 cursor-pointer" onClick={() => setActiveSection("dashboard")}>
+            <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push("/")}>
               <Truck className="h-6 w-6 text-primary" />
               <span className="text-xl font-bold">MapleXpress</span>
             </div>

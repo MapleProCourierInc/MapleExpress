@@ -7,10 +7,13 @@ import { PackageDetailsForm } from "@/components/ship-now/package-details-form"
 import { PickupAddressForm } from "@/components/ship-now/pickup-address-form"
 import { DropoffAddressForm } from "@/components/ship-now/dropoff-address-form"
 import { ReviewOrder } from "@/components/ship-now/review-order"
+import { OrderPricing } from "@/components/ship-now/order-pricing"
+import { PaymentForm } from "@/components/ship-now/payment-form"
 import { ShippingSuccess } from "@/components/ship-now/shipping-success"
 import { Button } from "@/components/ui/button"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
+import { createDraftOrder, type OrderResponse } from "@/lib/order-service"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -62,7 +65,15 @@ export type ShippingOrder = {
 }
 
 // Define the steps for the shipping process
-type ShippingStep = "PACKAGE_DETAILS" | "PICKUP_ADDRESS" | "DROPOFF_ADDRESS" | "ADD_MORE" | "REVIEW" | "SUCCESS"
+type ShippingStep =
+    | "PACKAGE_DETAILS"
+    | "PICKUP_ADDRESS"
+    | "DROPOFF_ADDRESS"
+    | "ADD_MORE"
+    | "REVIEW"
+    | "PRICING"
+    | "PAYMENT"
+    | "SUCCESS"
 
 export function ShipNowForm() {
   const { user } = useAuth()
@@ -87,6 +98,10 @@ export function ShipNowForm() {
   const [error, setError] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<number | null>(null)
+  const [isPriorityDelivery, setIsPriorityDelivery] = useState(false)
+  const [draftOrder, setDraftOrder] = useState<OrderResponse | null>(null)
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [orderId, setOrderId] = useState<string | null>(null)
 
   // Get current package
   const currentPackage = order.packages[currentPackageIndex]
@@ -196,22 +211,44 @@ export function ShipNowForm() {
     }
   }
 
-  // Handle form submission
-  const handleSubmitOrder = async () => {
-    // Here you would submit the order to your backend
+  // Handle creating draft order
+  const handleCreateDraftOrder = async () => {
     setIsSubmitting(true)
+    setError(null)
+
     try {
-      console.log("Submitting order:", order)
-      // Simulate API call
-      await new Promise((resolve) => setTimeout(resolve, 1500))
-      // For now, just move to the success step
-      setCurrentStep("SUCCESS")
+      if (!user) {
+        throw new Error("User not authenticated")
+      }
+
+      // Call the API to create a draft order
+      const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery)
+      setDraftOrder(draftOrderResponse)
+
+      // Move to the pricing step
+      setCurrentStep("PRICING")
     } catch (err) {
-      console.error("Error submitting order:", err)
-      setError("Failed to submit order. Please try again.")
+      console.error("Error creating draft order:", err)
+      setError("Failed to create order. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
+  }
+
+  // Handle updating the order (e.g., when priority delivery is toggled)
+  const handleOrderUpdate = (updatedOrder: OrderResponse) => {
+    setDraftOrder(updatedOrder)
+  }
+
+  // Handle proceeding to payment
+  const handleProceedToPayment = () => {
+    setCurrentStep("PAYMENT")
+  }
+
+  // Handle payment completion
+  const handlePaymentComplete = (completedOrderId: string) => {
+    setOrderId(completedOrderId)
+    setCurrentStep("SUCCESS")
   }
 
   // Handle continuing to add more or review
@@ -284,6 +321,9 @@ export function ShipNowForm() {
       case "ADD_MORE":
       case "REVIEW":
         return 3
+      case "PRICING":
+      case "PAYMENT":
+        return 4
       default:
         return 0
     }
@@ -332,6 +372,12 @@ export function ShipNowForm() {
       case "REVIEW":
         setCurrentStep("ADD_MORE")
         break
+      case "PRICING":
+        setCurrentStep("REVIEW")
+        break
+      case "PAYMENT":
+        setCurrentStep("PRICING")
+        break
     }
   }
 
@@ -357,13 +403,13 @@ export function ShipNowForm() {
   }
 
   return (
-      <div className="container py-12">
-        <div className="max-w-4xl mx-auto">
+      <div className="container py-16">
+        <div className="max-w-5xl mx-auto">
           <ShippingSteps currentStep={getStepNumber()} />
 
           {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">{error}</div>}
 
-          <div className="mt-8 bg-white rounded-lg shadow-md p-6 transition-all duration-300">
+          <div className="mt-10 bg-white rounded-lg shadow-lg p-8 transition-all duration-300">
             {currentStep === "PACKAGE_DETAILS" && (
                 <>
                   {order.packages.length > 1 && (
@@ -451,7 +497,7 @@ export function ShipNowForm() {
             {currentStep === "REVIEW" && (
                 <ReviewOrder
                     order={order}
-                    onSubmit={handleSubmitOrder}
+                    onSubmit={handleCreateDraftOrder}
                     onBack={handlePrevStep}
                     onEditPackage={handleEditPackage}
                     onDeletePackage={handleDeletePackage}
@@ -460,9 +506,27 @@ export function ShipNowForm() {
                 />
             )}
 
-            {currentStep === "SUCCESS" && (
-                <ShippingSuccess orderNumber={"SHP" + Math.floor(100000 + Math.random() * 900000)} />
+            {currentStep === "PRICING" && draftOrder && (
+                <OrderPricing
+                    orderData={draftOrder}
+                    onBack={handlePrevStep}
+                    onProceedToPayment={handleProceedToPayment}
+                    isLoading={isSubmitting}
+                    onOrderUpdate={handleOrderUpdate}
+                    originalOrder={order}
+                />
             )}
+
+            {currentStep === "PAYMENT" && draftOrder && (
+                <PaymentForm
+                    orderData={draftOrder}
+                    onBack={handlePrevStep}
+                    onPaymentComplete={handlePaymentComplete}
+                    isProcessing={isProcessingPayment}
+                />
+            )}
+
+            {currentStep === "SUCCESS" && <ShippingSuccess orderNumber={orderId || draftOrder?.shippingOrderId || ""} />}
           </div>
         </div>
 

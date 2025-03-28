@@ -1,6 +1,7 @@
 "use client"
 
 import type React from "react"
+
 import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -10,6 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Address } from "@/components/ship-now/ship-now-form"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
+
+interface AddressFormProps {
+    onSubmit: (address: Address, saveForFuture: boolean) => void
+    addressType: string
+    initialAddress: Address | null
+    showSaveOption?: boolean
+}
 
 // Canadian provinces
 const PROVINCES = [
@@ -27,13 +35,6 @@ const PROVINCES = [
     { value: "SK", label: "Saskatchewan" },
     { value: "YT", label: "Yukon" },
 ]
-
-interface AddressFormProps {
-    onSubmit: (address: Address, saveForFuture: boolean) => void
-    addressType: string
-    initialAddress: Address | null
-    showSaveOption?: boolean
-}
 
 export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOption = true }: AddressFormProps) {
     const [address, setAddress] = useState<Address>(
@@ -63,20 +64,23 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
     }
 
     const handleAddressChange = (value: string, placeDetails?: any) => {
-        // Set the streetAddress from the Autocomplete
+        // Update the street address with the value passed from the autocomplete component
         handleChange("streetAddress", value)
 
-        // If we got complete place data, parse out city/province/postal
+        // Store the place details for future reference
         if (placeDetails && placeDetails.address_components) {
             setLastPlaceDetails(placeDetails)
+
+            // Process and distribute the address components
             processAddressComponents(placeDetails)
         }
     }
 
-    // Distribute address_components into city, province, postalCode, etc.
+    // Process address components and distribute to respective fields
     const processAddressComponents = (placeDetails: any) => {
         if (!placeDetails || !placeDetails.address_components) return
 
+        // Extract address components
         let city = ""
         let province = ""
         let postalCode = ""
@@ -88,7 +92,7 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
             if (types.includes("locality") || types.includes("sublocality")) {
                 city = component.long_name
             } else if (types.includes("administrative_area_level_1")) {
-                // Try to match a known province code
+                // Try to match the province code
                 const provinceMatch = PROVINCES.find(
                     (p) =>
                         p.label.toLowerCase() === component.long_name.toLowerCase() ||
@@ -102,7 +106,7 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
             }
         }
 
-        // Update state with extracted pieces
+        // Update form data with extracted components
         setAddress((prev) => ({
             ...prev,
             city: city || prev.city,
@@ -118,12 +122,11 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
         }))
     }
 
-    // Re-run parsing if lastPlaceDetails changes
+    // Re-process place details when component updates
     useEffect(() => {
         if (lastPlaceDetails) {
             processAddressComponents(lastPlaceDetails)
         }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [lastPlaceDetails])
 
     const handleSubmit = (e: React.FormEvent) => {
@@ -132,6 +135,7 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
             {
                 ...address,
                 id: address.id || `new-${Date.now()}`,
+                addressType: addressType, // Ensure the correct address type is set
             },
             saveForFuture,
         )
@@ -150,6 +154,7 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
                         className="mt-1"
                     />
                 </div>
+
                 <div>
                     <Label htmlFor="company">Company (Optional)</Label>
                     <Input
@@ -193,24 +198,23 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
                         className="mt-1"
                     />
                 </div>
+
                 <div>
                     <Label htmlFor="province">Province</Label>
-                    <Select
-                        value={address.province}
-                        onValueChange={(value) => handleChange("province", value)}
-                    >
+                    <Select value={address.province} onValueChange={(value) => handleChange("province", value)}>
                         <SelectTrigger id="province" className="mt-1">
                             <SelectValue placeholder="Select province" />
                         </SelectTrigger>
                         <SelectContent>
-                            {PROVINCES.map((prov) => (
-                                <SelectItem key={prov.value} value={prov.value}>
-                                    {prov.label}
+                            {PROVINCES.map((province) => (
+                                <SelectItem key={province.value} value={province.value}>
+                                    {province.label}
                                 </SelectItem>
                             ))}
                         </SelectContent>
                     </Select>
                 </div>
+
                 <div>
                     <Label htmlFor="postalCode">Postal Code</Label>
                     <Input
@@ -273,3 +277,4 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
         </form>
     )
 }
+
