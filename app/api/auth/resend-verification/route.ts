@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,11 +11,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Email and user ID are required" }, { status: 400 })
     }
 
-    // Use the exact endpoint provided
-    const MICROSERVICE_URL = "http://192.168.50.167:30080/usermanagement/auth/resend-verification-email"
+    // Use the endpoint from our centralized configuration
+    const resendVerificationEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'resend-verification-email')
 
     // Forward the request to your microservice
-    const response = await fetch(MICROSERVICE_URL, {
+    const response = await fetch(resendVerificationEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -34,4 +35,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-

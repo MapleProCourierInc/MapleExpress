@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { AUTH_MICROSERVICE_URL, AUTH_API_KEY, getEndpointUrl } from "@/lib/config"
 
 export async function GET(request: NextRequest) {
   try {
@@ -11,16 +12,16 @@ export async function GET(request: NextRequest) {
 
     const token = authHeader.split(" ")[1]
 
-    // Replace with your actual microservice endpoint
-    const MICROSERVICE_URL = process.env.AUTH_MICROSERVICE_URL || "https://your-auth-service.com/api/validate"
+    // Use the endpoint from our centralized configuration
+    const validateEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'validate')
 
     // Forward the request to your microservice
-    const response = await fetch(MICROSERVICE_URL, {
+    const response = await fetch(validateEndpoint, {
       method: "GET",
       headers: {
         Authorization: `Bearer ${token}`,
         // You can add any additional headers your microservice requires
-        "x-api-key": process.env.AUTH_API_KEY || "",
+        "x-api-key": AUTH_API_KEY,
       },
     })
 
@@ -33,4 +34,3 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-

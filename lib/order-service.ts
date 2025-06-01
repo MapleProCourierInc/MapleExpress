@@ -1,4 +1,5 @@
 import type { ShippingOrder, Address } from "@/components/ship-now/ship-now-form"
+import { ORDER_SERVICE_URL, getEndpointUrl } from "./config"
 
 // Define the API response types based on the actual response format
 export interface OrderResponse {
@@ -122,7 +123,7 @@ export async function createDraftOrder(
         const requestBody = formatOrderRequest(order, userId, priorityDelivery, existingOrderId)
 
         // Make the API call - always use POST to the same endpoint
-        const response = await fetch(`${process.env.NEXT_PUBLIC_ORDER_SERVICE_URL}/orders`, {
+        const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, 'orders'), {
             method: "POST",
             headers: {
                 accept: "application/json",
@@ -204,4 +205,3 @@ function formatAddress(address: Address | null) {
         deliveryInstructions: address.deliveryInstructions || "",
     }
 }
-

@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { AUTH_REFRESH_URL } from "@/lib/config"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,10 +10,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Refresh token is required" }, { status: 400 })
     }
 
-    // Replace with your actual refresh token endpoint
-    const REFRESH_URL = process.env.AUTH_REFRESH_URL || "http://192.168.50.167:30080/usermanagement/auth/refresh"
+    // Use the refresh URL from our centralized configuration
 
-    const response = await fetch(REFRESH_URL, {
+    const response = await fetch(AUTH_REFRESH_URL, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -35,4 +35,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-

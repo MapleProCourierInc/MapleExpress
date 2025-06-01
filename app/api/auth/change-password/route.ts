@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
 
 export async function POST(request: NextRequest) {
   try {
@@ -17,12 +18,11 @@ export async function POST(request: NextRequest) {
 
     const token = authHeader.split(" ")[1]
 
-    // Use the correct base URL and endpoint
-    const AUTH_URL = process.env.AUTH_MICROSERVICE_URL || "http://localhost:30080/usermanagement/auth"
-    const endpoint = `${AUTH_URL}/change-password`
+    // Use the endpoint from our centralized configuration
+    const changePasswordEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'change-password')
 
     // Forward the request to your microservice
-    const response = await fetch(endpoint, {
+    const response = await fetch(changePasswordEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -46,4 +46,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-
