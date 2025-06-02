@@ -70,65 +70,48 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             })
     }, [])
 
-useEffect(() => {
-    console.log("--- Debug Moneris Init Effect ---");
-    console.log("isMonerisScriptLoaded:", isMonerisScriptLoaded);
-    console.log("user:", user ? user.userId : 'User not available'); // Log user ID or a message
-    console.log("typeof window.monerisCheckout:", typeof window.monerisCheckout);
-    console.log("window.monerisCheckout value:", window.monerisCheckout);
-    
-    const checkoutDiv = document.getElementById("monerisCheckoutDivId");
-    console.log("Checkout DIV ('monerisCheckoutDivId'):", checkoutDiv ? 'Found' : 'NOT Found');
+    useEffect(() => {
+        if (isMonerisScriptLoaded && window.monerisCheckout && user) {
+            try {
+                const mc = new window.monerisCheckout();
+                mc.setMode("qa"); // Or "prod" based on environment
+                mc.setCheckoutDiv("monerisCheckoutDivId");
 
-    if (isMonerisScriptLoaded && window.monerisCheckout && user) {
-        console.log("Moneris init conditions MET. Proceeding with initialization.");
-        try {
-            const mc = new window.monerisCheckout();
-            mc.setMode("qa"); // Or "prod" based on environment
-            mc.setCheckoutDiv("monerisCheckoutDivId");
-
-            mc.setCallback("page_loaded", (data: any) => {
-                console.log("Moneris page_loaded:", data);
-                setIsMonerisCheckoutActive(true); 
-            });
-            mc.setCallback("cancel_transaction", (data: any) => {
-                console.log("Moneris cancel_transaction:", data);
-                setMonerisError("Payment was cancelled.");
-                setIsMonerisCheckoutActive(false);
-                if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
-            });
-            mc.setCallback("error_event", (data: any) => {
-                console.error("Moneris error_event:", data);
-                setMonerisError(`Payment error (code: ${data.response_code}). Please try again.`);
-                setIsMonerisCheckoutActive(false);
-                if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
-            });
-            mc.setCallback("payment_complete", (data: any) => {
-                console.log("Moneris payment_complete:", data);
-                if (data && data.ticket && data.response_code === "001") { 
-                    handleMonerisPaymentComplete(data.ticket);
-                } else {
-                    console.error("Moneris payment_complete error or unexpected response:", data);
-                    setMonerisError("Payment completion failed or returned an unexpected status. Please contact support.");
+                mc.setCallback("page_loaded", (data: any) => {
+                    console.log("Moneris page_loaded:", data);
+                    setIsMonerisCheckoutActive(true); 
+                });
+                mc.setCallback("cancel_transaction", (data: any) => {
+                    console.log("Moneris cancel_transaction:", data);
+                    setMonerisError("Payment was cancelled.");
                     setIsMonerisCheckoutActive(false);
                     if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
-                }
-            });
-            
-            monerisCheckoutRef.current = mc;
-            console.log("monerisCheckoutRef.current ASSIGNED:", monerisCheckoutRef.current);
-        } catch (e) {
-            console.error("Error during Moneris initialization:", e);
-            setMonerisError("Failed to initialize payment module.");
+                });
+                mc.setCallback("error_event", (data: any) => {
+                    console.error("Moneris error_event:", data);
+                    setMonerisError(`Payment error (code: ${data.response_code}). Please try again.`);
+                    setIsMonerisCheckoutActive(false);
+                    if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
+                });
+                mc.setCallback("payment_complete", (data: any) => {
+                    console.log("Moneris payment_complete:", data);
+                    if (data && data.ticket && data.response_code === "001") { 
+                        handleMonerisPaymentComplete(data.ticket);
+                    } else {
+                        console.error("Moneris payment_complete error or unexpected response:", data);
+                        setMonerisError("Payment completion failed or returned an unexpected status. Please contact support.");
+                        setIsMonerisCheckoutActive(false);
+                        if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
+                    }
+                });
+                
+                monerisCheckoutRef.current = mc;
+            } catch (e) {
+                console.error("Error during Moneris initialization:", e);
+                setMonerisError("Failed to initialize payment module.");
+            }
         }
-    } else {
-        console.log("Moneris init conditions NOT MET.");
-        if (!isMonerisScriptLoaded) console.log("Reason: Moneris script not loaded.");
-        if (!window.monerisCheckout) console.log("Reason: window.monerisCheckout not available.");
-        if (!user) console.log("Reason: User not available.");
-    }
-    console.log("--- End Debug Moneris Init Effect ---");
-}, [isMonerisScriptLoaded, user]);
+    }, [isMonerisScriptLoaded, user]);
 
     const handleMonerisPaymentComplete = async (ticketId: string) => {
         if (!user) {
@@ -336,22 +319,6 @@ useEffect(() => {
     const totalTaxes = orderData.aggregatedPricing.taxes?.reduce((sum, tax) => sum + tax.amount, 0) || 0;
 
     const isLoading = isInitiatingMoneris || isFinalizingMoneris || isProcessing || isLoadingAddresses;
-
-    console.log("--- Debug PaymentForm Button State ---");
-    console.log("billingAddress:", billingAddress);
-    console.log("!billingAddress:", !billingAddress);
-    console.log("isMonerisScriptLoaded:", isMonerisScriptLoaded);
-    console.log("!isMonerisScriptLoaded:", !isMonerisScriptLoaded);
-    console.log("monerisCheckoutRef.current:", monerisCheckoutRef.current);
-    console.log("!monerisCheckoutRef.current:", !monerisCheckoutRef.current);
-
-    // isLoading and its components
-    console.log("isLoading:", isLoading);
-    console.log("  isInitiatingMoneris:", isInitiatingMoneris);
-    console.log("  isFinalizingMoneris:", isFinalizingMoneris);
-    console.log("  isProcessing (prop):", isProcessing);
-    console.log("  isLoadingAddresses:", isLoadingAddresses);
-    console.log("--- End Debug PaymentForm Button State ---");
 
     return (
         <div className="space-y-8">
