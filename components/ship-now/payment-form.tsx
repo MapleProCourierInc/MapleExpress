@@ -70,10 +70,21 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             })
     }, [])
 
-    useEffect(() => {
-        if (isMonerisScriptLoaded && window.monerisCheckout && user) {
+useEffect(() => {
+    console.log("--- Debug Moneris Init Effect ---");
+    console.log("isMonerisScriptLoaded:", isMonerisScriptLoaded);
+    console.log("user:", user ? user.userId : 'User not available'); // Log user ID or a message
+    console.log("typeof window.monerisCheckout:", typeof window.monerisCheckout);
+    console.log("window.monerisCheckout value:", window.monerisCheckout);
+    
+    const checkoutDiv = document.getElementById("monerisCheckoutDivId");
+    console.log("Checkout DIV ('monerisCheckoutDivId'):", checkoutDiv ? 'Found' : 'NOT Found');
+
+    if (isMonerisScriptLoaded && window.monerisCheckout && user) {
+        console.log("Moneris init conditions MET. Proceeding with initialization.");
+        try {
             const mc = new window.monerisCheckout();
-            mc.setMode("qa");
+            mc.setMode("qa"); // Or "prod" based on environment
             mc.setCheckoutDiv("monerisCheckoutDivId");
 
             mc.setCallback("page_loaded", (data: any) => {
@@ -105,8 +116,19 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             });
             
             monerisCheckoutRef.current = mc;
+            console.log("monerisCheckoutRef.current ASSIGNED:", monerisCheckoutRef.current);
+        } catch (e) {
+            console.error("Error during Moneris initialization:", e);
+            setMonerisError("Failed to initialize payment module.");
         }
-    }, [isMonerisScriptLoaded, user]);
+    } else {
+        console.log("Moneris init conditions NOT MET.");
+        if (!isMonerisScriptLoaded) console.log("Reason: Moneris script not loaded.");
+        if (!window.monerisCheckout) console.log("Reason: window.monerisCheckout not available.");
+        if (!user) console.log("Reason: User not available.");
+    }
+    console.log("--- End Debug Moneris Init Effect ---");
+}, [isMonerisScriptLoaded, user]);
 
     const handleMonerisPaymentComplete = async (ticketId: string) => {
         if (!user) {
