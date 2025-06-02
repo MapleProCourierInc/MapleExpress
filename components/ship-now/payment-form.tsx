@@ -315,6 +315,22 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
 
     const isLoading = isInitiatingMoneris || isFinalizingMoneris || isProcessing || isLoadingAddresses;
 
+    console.log("--- Debug PaymentForm Button State ---");
+    console.log("billingAddress:", billingAddress);
+    console.log("!billingAddress:", !billingAddress);
+    console.log("isMonerisScriptLoaded:", isMonerisScriptLoaded);
+    console.log("!isMonerisScriptLoaded:", !isMonerisScriptLoaded);
+    console.log("monerisCheckoutRef.current:", monerisCheckoutRef.current);
+    console.log("!monerisCheckoutRef.current:", !monerisCheckoutRef.current);
+
+    // isLoading and its components
+    console.log("isLoading:", isLoading);
+    console.log("  isInitiatingMoneris:", isInitiatingMoneris);
+    console.log("  isFinalizingMoneris:", isFinalizingMoneris);
+    console.log("  isProcessing (prop):", isProcessing);
+    console.log("  isLoadingAddresses:", isLoadingAddresses);
+    console.log("--- End Debug PaymentForm Button State ---");
+
     return (
         <div className="space-y-8">
             <div className="text-center mb-8">
