@@ -74,7 +74,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
         if (isMonerisScriptLoaded && window.monerisCheckout && user) {
             try {
                 const mc = new window.monerisCheckout();
-                mc.setMode("qa"); // Or "prod" based on environment
+                mc.setMode("prod"); // Or "prod" based on environment
                 mc.setCheckoutDiv("monerisCheckoutDivId");
 
                 mc.setCallback("page_loaded", (data: any) => {
