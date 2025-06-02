@@ -73,18 +73,84 @@ export async function finalizeMonerisPayment(requestData: FinalizePaymentRequest
   return response.json() as Promise<FinalizePaymentResponse>;
 }
 
+// Add these helper constants at the top of the file or within the function's scope if preferred
+const MONERIS_SCRIPT_ID = 'moneris-checkout-script';
+const MONERIS_SCRIPT_SRC = 'https://gatewayt.moneris.com/chkt/js/chkt_v1.00.js'; // Ensure this is the correct URL (test/prod)
+
+// Polling parameters
+const CHECK_INTERVAL = 100; // ms
+const MAX_ATTEMPTS = 50; // e.g., 50 attempts * 100ms = 5 seconds timeout
+
 export function loadMonerisScript(): Promise<void> {
   return new Promise((resolve, reject) => {
-    if (document.getElementById('moneris-checkout-script')) {
-      resolve(); 
+    if (typeof window === 'undefined') {
+      // Should not happen in a browser context, but good for safety
+      return reject(new Error('Window object not available. Cannot load Moneris script.'));
+    }
+
+    if (window.monerisCheckout) {
+      // If already available (e.g., loaded by a previous call or another script)
+      console.log('Moneris checkout object already available on window.');
+      return resolve();
+    }
+    
+    if (document.getElementById(MONERIS_SCRIPT_ID)) {
+      // Script tag exists, but window.monerisCheckout might not be ready yet.
+      // Start polling for window.monerisCheckout
+      console.log('Moneris script tag found. Starting to poll for window.monerisCheckout.');
+      let attempts = 0;
+      const intervalId = setInterval(() => {
+        if (window.monerisCheckout) {
+          clearInterval(intervalId);
+          console.log('Moneris checkout object became available after polling.');
+          resolve();
+        } else {
+          attempts++;
+          if (attempts >= MAX_ATTEMPTS) {
+            clearInterval(intervalId);
+            console.error('Moneris script loaded, but window.monerisCheckout did not become available within timeout.');
+            reject(new Error('Moneris script loaded, but window.monerisCheckout not found after timeout.'));
+          }
+        }
+      }, CHECK_INTERVAL);
       return;
     }
+
     const script = document.createElement('script');
-    script.id = 'moneris-checkout-script';
-    script.src = 'https://gatewayt.moneris.com/chkt/js/chkt_v1.00.js'; 
+    script.id = MONERIS_SCRIPT_ID;
+    script.src = MONERIS_SCRIPT_SRC;
     script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => reject(new Error('Failed to load Moneris script.'));
+
+    script.onload = () => {
+      console.log('Moneris script tag loaded (onload event). Starting to poll for window.monerisCheckout.');
+      let attempts = 0;
+      const intervalId = setInterval(() => {
+        if (window.monerisCheckout) {
+          clearInterval(intervalId);
+          console.log('Moneris checkout object available after script load and polling.');
+          resolve();
+        } else {
+          attempts++;
+          if (attempts >= MAX_ATTEMPTS) {
+            clearInterval(intervalId);
+            console.error('Moneris script loaded, but window.monerisCheckout did not become available within timeout (onload path).');
+            reject(new Error('Moneris script loaded, but window.monerisCheckout not found after onload timeout.'));
+          }
+        }
+      }, CHECK_INTERVAL);
+    };
+
+    script.onerror = () => {
+      console.error('Failed to load Moneris script tag (onerror event).');
+      reject(new Error('Failed to load Moneris script.'));
+    };
+
     document.head.appendChild(script);
+    console.log('Moneris script tag appended to head.');
   });
+}
+declare global {
+    interface Window {
+        monerisCheckout?: any; // Make it optional as it might not be immediately available
+    }
 }
