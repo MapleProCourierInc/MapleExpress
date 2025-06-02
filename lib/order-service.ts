@@ -122,9 +122,9 @@ export async function createDraftOrder(
         // Format the request body according to the API requirements
         const requestBody = formatOrderRequest(order, userId, priorityDelivery, existingOrderId)
 
-        // Make the API call - always use POST to the same endpoint
+        // Make the API call - use PUT if existingOrderId is provided, otherwise use POST
         const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, 'orders'), {
-            method: "POST",
+            method: existingOrderId ? "PUT" : "POST",
             headers: {
                 accept: "application/json",
                 "Content-Type": "application/json",
