@@ -26,3 +26,7 @@ export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY |
 export const getEndpointUrl = (baseUrl: string, endpoint: string): string => {
   return `${baseUrl}${endpoint.startsWith('/') ? endpoint : `/${endpoint}`}`;
 };
+
+export const MONERIS_API_CONFIG = {
+  baseUrl: "https://testapi.maplexpress.ca/pricingpayment/moneris/"
+};
