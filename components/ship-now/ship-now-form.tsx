@@ -222,7 +222,7 @@ export function ShipNowForm() {
       }
 
       // Call the API to create a draft order
-      const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery)
+      const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery, draftOrder?.shippingOrderId)
       setDraftOrder(draftOrderResponse)
 
       // Move to the pricing step
