@@ -156,8 +156,8 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     useEffect(() => {
         if (useSameAsPickup && orderData.orderItems.length > 0) {
             const pickupAddressData = orderData.orderItems[0].pickup.address;
-            const pickupAddress: Address = {
-                id: "pickup-address", 
+            const pickupAddressObj: Address = { 
+                id: "pickup-address-synced", 
                 fullName: pickupAddressData.fullName,
                 company: pickupAddressData.company || "",
                 streetAddress: pickupAddressData.streetAddress,
@@ -169,16 +169,17 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                 phoneNumber: pickupAddressData.phoneNumber,
                 deliveryInstructions: pickupAddressData.deliveryInstructions || "",
                 addressType: "billing",
-                isPrimary: false,
+                isPrimary: false, 
             };
-            setBillingAddress(pickupAddress);
-            setSelectedAddressId(null); 
-            setShowAddressList(false); 
+            setBillingAddress(pickupAddressObj);
+            setSelectedAddressId(null);
+            setShowNewAddressForm(false);
+            setShowAddressList(false);
         } else if (!useSameAsPickup && selectedAddressId) {
             const selected = savedAddresses.find(addr => addr.id === selectedAddressId || addr.addressId === selectedAddressId);
             if (selected) {
-                 const formatted: Address = {
-                    id: selected.id || selected.addressId,
+                const formatted: Address = { 
+                    id: selected.id || selected.addressId!,
                     fullName: selected.fullName,
                     company: selected.company || "",
                     streetAddress: selected.streetAddress,
@@ -193,13 +194,15 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                     isPrimary: selected.isPrimary || false,
                     coordinates: selected.coordinates,
                 };
-                setBillingAddress(formatted);
-                setShowAddressList(false);
+                setBillingAddress(formatted); 
             }
+            setShowAddressList(false); 
         } else if (!useSameAsPickup && !selectedAddressId && !showNewAddressForm) {
-            if (!billingAddress) setShowAddressList(true);
+            if (billingAddress === null) {
+                 setShowAddressList(true);
+            }
         }
-    }, [useSameAsPickup, selectedAddressId, savedAddresses, orderData.orderItems, showNewAddressForm, billingAddress]);
+    }, [useSameAsPickup, selectedAddressId, savedAddresses, orderData.orderItems, showNewAddressForm]);
 
     const handleAddressSelect = (addressId: string) => {
         setSelectedAddressId(addressId);
@@ -238,6 +241,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     const handleAddressSubmit = async (newAddress: Address, saveForFuture: boolean) => {
         const addressWithId = { ...newAddress, id: `new-${Date.now()}`, addressType: "billing" as "billing" };
         setBillingAddress(addressWithId);
+        setUseSameAsPickup(false); 
         setShowNewAddressForm(false);
         setShowAddressList(false);
 
@@ -341,10 +345,12 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                                     <Switch
                                         id="same-as-pickup"
                                         checked={useSameAsPickup}
-                                        onCheckedChange={(checked) => {
-                                            setUseSameAsPickup(checked);
-                                            if (!checked && !billingAddress) { 
-                                                setShowAddressList(true);
+                                        onCheckedChange={(newCheckedState) => {
+                                            setUseSameAsPickup(newCheckedState);
+                                            if (!newCheckedState) {
+                                                if (billingAddress && billingAddress.id === "pickup-address-synced") {
+                                                    setBillingAddress(null);
+                                                }
                                             }
                                         }}
                                         disabled={isLoading}
