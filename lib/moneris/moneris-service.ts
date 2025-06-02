@@ -74,7 +74,7 @@ export async function finalizeMonerisPayment(requestData: FinalizePaymentRequest
 }
 
 const MONERIS_SCRIPT_ID = 'moneris-checkout-script';
-const MONERIS_SCRIPT_SRC = 'https://gatewayt.moneris.com/chkt/js/chkt_v1.00.js';
+const MONERIS_SCRIPT_SRC = 'https://gateway.moneris.com/chktv2/js/chkt_v2.01.js';
 
 const CHECK_INTERVAL = 100; // ms
 const MAX_ATTEMPTS = 50; // e.g., 50 attempts * 100ms = 5 seconds timeout
