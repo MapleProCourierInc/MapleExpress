@@ -333,6 +333,12 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             };
             const { ticketId } = await initiateMonerisPayment(paymentData, accessToken);
             monerisCheckoutRef.current.startCheckout(ticketId);
+            setTimeout(() => {
+                const frame = document.querySelector(
+                    "#monerisCheckoutDivId iframe"
+                ) as HTMLIFrameElement | null;
+                if (frame) frame.style.height = "760px";   // 700–800px is safe
+            }, 100);
         } catch (error: any) {
             console.error("Initiate Moneris Payment error:", error);
             setMonerisError(error.message || "Failed to initiate payment. Please try again.");
