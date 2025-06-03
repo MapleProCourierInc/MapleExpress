@@ -78,8 +78,37 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                 mc.setCheckoutDiv("monerisCheckoutDivId");
 
                 mc.setCallback("page_loaded", (data: any) => {
-                    console.log("Moneris page_loaded:", data);
-                    setIsMonerisCheckoutActive(true); 
+                    console.log("Moneris page_loaded:", data); 
+                    setIsMonerisCheckoutActive(true);
+
+                    // Attempt to dynamically set height
+                    try {
+                        const iframeElement = document.getElementById('monerisCheckoutDivId-Frame') as HTMLIFrameElement | null;
+                        if (iframeElement) {
+                            iframeElement.onload = () => {
+                                try {
+                                    const monerisDiv = document.getElementById('monerisCheckoutDivId');
+                                    if (monerisDiv && iframeElement.contentWindow) {
+                                        // Due to cross-origin policy, accessing scrollHeight directly might be blocked.
+                                        // This is an attempt; actual height might need to be communicated by Moneris via postMessage or a callback.
+                                        const scrollHeight = iframeElement.contentWindow.document.body.scrollHeight;
+                                        if (scrollHeight > 0) {
+                                            // Set a minimum based on content, but ensure it's not too small either
+                                            const newMinHeight = Math.max(scrollHeight, 400); // Example: min of 400px
+                                            monerisDiv.style.minHeight = newMinHeight + 'px';
+                                            console.log(`Attempted to set Moneris div minHeight to: ${newMinHeight}px`);
+                                        }
+                                    }
+                                } catch (e) {
+                                    console.warn("Could not dynamically adjust Moneris iframe height due to cross-origin restrictions or other error:", e);
+                                }
+                            };
+                        } else {
+                            console.warn("Moneris iframe element 'monerisCheckoutDivId-Frame' not found for dynamic height adjustment.");
+                        }
+                    } catch (e) {
+                        console.error("Error setting up dynamic height adjustment for Moneris:", e);
+                    }
                 });
                 mc.setCallback("cancel_transaction", (data: any) => {
                     console.log("Moneris cancel_transaction:", data);
@@ -338,8 +367,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                 id="monerisCheckoutDivId" 
                 className={!isMonerisCheckoutActive ? "hidden" : ""} 
                 style={{ 
-                  minHeight: '500px',
-                  height: '100%',
+                  minHeight: '650px',
                   width: '100%'
                 }}
               ></div>
