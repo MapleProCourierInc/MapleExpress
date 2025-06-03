@@ -1,16 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
     const { email, password } = body
 
-    // Use the exact endpoint provided
-    const MICROSERVICE_URL =
-      process.env.AUTH_MICROSERVICE_URL || "http://192.168.50.167:30080/usermanagement/auth/login"
+    // Use the endpoint from our centralized configuration
+    const loginEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'login')
 
     // Forward the request to your microservice with the exact headers needed
-    const response = await fetch(MICROSERVICE_URL, {
+    const response = await fetch(loginEndpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -36,4 +36,3 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-

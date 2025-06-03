@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from 'next/navigation';
 import { useAuth } from "@/lib/auth-context"
 import { ShippingSteps } from "@/components/ship-now/shipping-steps"
 import { PackageDetailsForm } from "@/components/ship-now/package-details-form"
@@ -102,6 +103,7 @@ export function ShipNowForm() {
   const [draftOrder, setDraftOrder] = useState<OrderResponse | null>(null)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
+  const router = useRouter();
 
   // Get current package
   const currentPackage = order.packages[currentPackageIndex]
@@ -222,7 +224,7 @@ export function ShipNowForm() {
       }
 
       // Call the API to create a draft order
-      const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery)
+      const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery, draftOrder?.shippingOrderId)
       setDraftOrder(draftOrderResponse)
 
       // Move to the pricing step
@@ -247,9 +249,11 @@ export function ShipNowForm() {
 
   // Handle payment completion
   const handlePaymentComplete = (completedOrderId: string) => {
-    setOrderId(completedOrderId)
-    setCurrentStep("SUCCESS")
-  }
+    setOrderId(completedOrderId);
+    // setCurrentStep("SUCCESS"); // Optionally skip showing the success screen
+    // For now, as requested, redirect directly to home page.
+    router.push('/'); 
+  };
 
   // Handle continuing to add more or review
   const handleContinueAfterDropoff = () => {

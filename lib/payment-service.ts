@@ -1,4 +1,5 @@
 import type { Address } from "@/components/ship-now/ship-now-form"
+import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "./config"
 
 // Define the billing address type
 export interface BillingAddress {
@@ -50,7 +51,7 @@ export async function initiatePayment(
         }
 
         // Make the API call
-        const response = await fetch(`${process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL}/payment/initiatePayment`, {
+        const response = await fetch(getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, 'payment/initiatePayment'), {
             method: "POST",
             headers: {
                 accept: "application/json",
@@ -87,4 +88,3 @@ export function convertToBillingAddress(address: Address): BillingAddress {
         phoneNumber: address.phoneNumber,
     }
 }
-

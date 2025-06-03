@@ -127,3 +127,23 @@
   z-index: 50;
 }
 
+/* Styles for Moneris Checkout Container */
+.moneris-checkout-container-wrapper {
+  max-width: 600px;  /* Or your preferred max-width for desktop */
+  margin: 40px auto; /* Centers the container on the page with top/bottom margin */
+  padding: 20px;     /* Optional: Adds some spacing inside the container, around the iframe */
+  border: 1px solid #e2e8f0; /* Optional: A light border, similar to a card */
+  border-radius: 8px; /* Optional: Rounded corners */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1); /* Optional: A subtle shadow for a card-like effect */
+  background-color: #fff; /* Optional: Ensures a background color if needed */
+}
+
+/* Responsive adjustments for smaller screens (e.g., mobile) */
+@media (max-width: 768px) {
+  .moneris-checkout-container-wrapper {
+    max-width: 95%;   /* Uses more of the screen width on smaller devices */
+    margin: 20px auto; /* Adjusts margin for smaller screens */
+    padding: 15px;    /* Adjusts padding for smaller screens */
+  }
+}
+
