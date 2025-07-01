@@ -122,15 +122,37 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                     setIsMonerisCheckoutActive(false);
                     if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
                 });
-                mc.setCallback("payment_complete", (data: any) => {
-                    console.log("Moneris payment_complete:", data);
-                    if (data && data.ticket && data.response_code === "001") { 
+                mc.setCallback("payment_complete", (raw: any) => {
+                    // 1. Always log the raw payload first (handy for support)
+                    console.log("Moneris payment_complete (raw):", raw);
+
+                    // 2. Convert to object only if it’s a string
+                    let data: { ticket?: string; response_code?: string };
+                    try {
+                        data = typeof raw === "string" ? JSON.parse(raw) : raw;
+                    } catch (e) {
+                        console.error("Moneris payment_complete – invalid JSON", e, raw);
+                        setMonerisError(
+                            "We could not read the payment response. Please try again or contact support."
+                        );
+                        return;
+                    }
+
+                    // 3. Happy-path: success code 001
+                    if (data?.ticket && data.response_code === "001") {
                         handleMonerisPaymentComplete(data.ticket);
                     } else {
-                        console.error("Moneris payment_complete error or unexpected response:", data);
-                        setMonerisError("Payment completion failed or returned an unexpected status. Please contact support.");
+                        console.error(
+                            "Moneris payment_complete – error or unexpected response:",
+                            data
+                        );
+                        setMonerisError(
+                            "Payment failed or returned an unexpected status. Please contact support."
+                        );
                         setIsMonerisCheckoutActive(false);
-                        if (monerisCheckoutRef.current && data && data.ticket) monerisCheckoutRef.current.closeCheckout(data.ticket);
+                        if (monerisCheckoutRef.current && data?.ticket) {
+                            monerisCheckoutRef.current.closeCheckout(data.ticket);
+                        }
                     }
                 });
                 
