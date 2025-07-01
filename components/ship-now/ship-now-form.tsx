@@ -250,9 +250,27 @@ export function ShipNowForm() {
   // Handle payment completion
   const handlePaymentComplete = (completedOrderId: string) => {
     setOrderId(completedOrderId);
-    // setCurrentStep("SUCCESS"); // Optionally skip showing the success screen
-    // For now, as requested, redirect directly to home page.
-    router.push('/'); 
+    if (draftOrder) {
+      // Construct query parameters for the confirmation page
+      // For pickup/dropoff names, using the first item as a general representation.
+      // This might need adjustment if a more detailed breakdown is required for multi-item/multi-destination orders on the confirmation page.
+      const pickupAddress = draftOrder.orderItems[0]?.pickup?.address;
+      const dropoffAddress = draftOrder.orderItems[0]?.dropoff?.address;
+
+      const queryParams = new URLSearchParams({
+        orderId: completedOrderId,
+        total: draftOrder.aggregatedPricing.totalAmount.toString(),
+        pickup: pickupAddress?.fullName || (draftOrder.pickupAddress?.fullName || "N/A"),
+        dropoff: dropoffAddress?.fullName || "Multiple Destinations", // Fallback for multi-package different destinations
+        items: draftOrder.orderItems.length.toString()
+      }).toString();
+      router.push(`/order-confirmation?${queryParams}`);
+    } else {
+      // Fallback if draftOrder is somehow null, though it shouldn't be at this stage.
+      // Redirect with minimal info.
+      console.warn("draftOrder was null during handlePaymentComplete. Redirecting with only orderId.");
+      router.push(`/order-confirmation?orderId=${completedOrderId}`);
+    }
   };
 
   // Handle continuing to add more or review
