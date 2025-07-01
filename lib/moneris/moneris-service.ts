@@ -56,21 +56,60 @@ export async function initiateMonerisPayment(requestData: InitiatePaymentRequest
   return response.json() as Promise<InitiatePaymentResponse>;
 }
 
-export async function finalizeMonerisPayment(requestData: FinalizePaymentRequest, token: string): Promise<FinalizePaymentResponse> {
-  const response = await fetch(`${MONERIS_API_CONFIG.baseUrl}finalize`, {
-    method: 'POST',
+export async function finalizeMonerisPayment(
+    requestData: FinalizePaymentRequest,
+    token: string,
+): Promise<FinalizePaymentResponse> {
+  const res = await fetch(`${MONERIS_API_CONFIG.baseUrl}finalize`, {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`, 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(requestData),
   });
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({ message: 'Failed to parse error response from finalize payment' }));
-    throw new Error(errorData.message || 'Failed to finalize Moneris payment.');
+  /* ───── error branch ───── */
+  if (!res.ok) {
+    const raw = await res.text(); // may be empty or non-JSON
+    let msg = `Failed to finalize Moneris payment. Status ${res.status}`;
+
+    if (raw) {
+      try {
+        const errJson = JSON.parse(raw) as { message?: string };
+        msg = errJson.message ?? msg;
+      } catch {
+        // plain-text error – clip to first 200 chars
+        msg = raw.slice(0, 200);
+      }
+    }
+    throw new Error(msg);
   }
-  return response.json() as Promise<FinalizePaymentResponse>;
+
+  /* ───── success branch ───── */
+  const raw = await res.text(); // never throws even if empty
+
+  // 1. Empty body → treat as silent success
+  if (!raw) {
+    return {
+      success: true,
+      message:
+          res.status === 204
+              ? "Payment finalized successfully (no content)."
+              : `Payment finalized with status ${res.status} (empty body).`,
+    } as FinalizePaymentResponse;
+  }
+
+  // 2. Try to parse non-empty body as JSON
+  try {
+    return JSON.parse(raw) as FinalizePaymentResponse;
+  } catch (e) {
+    console.error(
+        "Finalize payment returned non-JSON payload:",
+        raw.substring(0, 200),
+    );
+    throw new Error("Received an invalid JSON response from finalize payment.");
+  }
 }
 
 const MONERIS_SCRIPT_ID = 'moneris-checkout-script';
