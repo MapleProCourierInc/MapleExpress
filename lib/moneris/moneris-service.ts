@@ -56,53 +56,59 @@ export async function initiateMonerisPayment(requestData: InitiatePaymentRequest
   return response.json() as Promise<InitiatePaymentResponse>;
 }
 
-export async function finalizeMonerisPayment(requestData: FinalizePaymentRequest, token: string): Promise<FinalizePaymentResponse> {
-  const response = await fetch(`${MONERIS_API_CONFIG.baseUrl}finalize`, {
-    method: 'POST',
+export async function finalizeMonerisPayment(
+    requestData: FinalizePaymentRequest,
+    token: string,
+): Promise<FinalizePaymentResponse> {
+  const res = await fetch(`${MONERIS_API_CONFIG.baseUrl}finalize`, {
+    method: "POST",
     headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${token}`, 
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
     },
     body: JSON.stringify(requestData),
   });
 
-  if (!response.ok) {
-    // Attempt to parse error JSON, but provide a fallback message if parsing fails or body is empty
-    const errorText = await response.text();
-    let errorData = { message: `Failed to finalize Moneris payment. Status: ${response.status}` };
-    if (errorText) {
+  /* ───── error branch ───── */
+  if (!res.ok) {
+    const raw = await res.text(); // may be empty or non-JSON
+    let msg = `Failed to finalize Moneris payment. Status ${res.status}`;
+
+    if (raw) {
       try {
-        errorData = JSON.parse(errorText);
-      } catch (e) {
-        // Use the raw text if it's not JSON, or stick to the generic error if text is also unhelpful
-        errorData.message = errorText.substring(0, 200) || errorData.message; // Limit length of non-JSON error
+        const errJson = JSON.parse(raw) as { message?: string };
+        msg = errJson.message ?? msg;
+      } catch {
+        // plain-text error – clip to first 200 chars
+        msg = raw.slice(0, 200);
       }
     }
-    throw new Error(errorData.message || 'Failed to finalize Moneris payment.');
+    throw new Error(msg);
   }
 
-  // Handle successful response (2xx status codes)
-  // Check if the response has content before trying to parse it as JSON
-  const responseText = await response.text();
-  if (responseText) {
-    try {
-      return JSON.parse(responseText) as FinalizePaymentResponse;
-    } catch (error) {
-      // If parsing fails for a 2xx response with content, this is unexpected.
-      console.error("Failed to parse JSON from a successful (2xx) finalize payment response that had content:", errorText);
-      throw new Error("Received an invalid JSON response from finalize payment.");
-    }
-  } else {
-    // If the response is OK (e.g., 200) but the body is empty,
-    // return a synthetic success response as per application logic.
-    // This handles the "Unexpected end of JSON input" for empty 200 OK.
-    if (response.status === 200 || response.status === 204) { // 204 No Content is also a possibility
-      return { success: true, message: "Payment finalized successfully (no content)." } as FinalizePaymentResponse;
-    } else {
-      // For other 2xx statuses that are expected to have content but don't
-      console.warn(`Finalize payment returned status ${response.status} with empty body.`);
-      return { success: true, message: `Payment finalized with status ${response.status} (empty body).` } as FinalizePaymentResponse;
-    }
+  /* ───── success branch ───── */
+  const raw = await res.text(); // never throws even if empty
+
+  // 1. Empty body → treat as silent success
+  if (!raw) {
+    return {
+      success: true,
+      message:
+          res.status === 204
+              ? "Payment finalized successfully (no content)."
+              : `Payment finalized with status ${res.status} (empty body).`,
+    } as FinalizePaymentResponse;
+  }
+
+  // 2. Try to parse non-empty body as JSON
+  try {
+    return JSON.parse(raw) as FinalizePaymentResponse;
+  } catch (e) {
+    console.error(
+        "Finalize payment returned non-JSON payload:",
+        raw.substring(0, 200),
+    );
+    throw new Error("Received an invalid JSON response from finalize payment.");
   }
 }
 
