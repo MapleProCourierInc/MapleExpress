@@ -87,8 +87,20 @@ export default function LandingPage() {
     setVerificationUserId("")
   }
 
-  // Determine what to show based on user status
+  // Determine what to show based on user status or signup state
   const renderContent = () => {
+    if (showVerification) {
+      return (
+        <div className="container py-20">
+          <VerificationPending
+            email={verificationEmail || "your email"}
+            userId={verificationUserId}
+            onClose={handleCloseVerification}
+          />
+        </div>
+      )
+    }
+
     if (!user) {
       return <LandingContent />
     }

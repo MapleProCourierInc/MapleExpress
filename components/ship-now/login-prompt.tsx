@@ -6,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { LoginModal } from "@/components/login-modal"
 import { SignupModal } from "@/components/signup-modal"
 import { Package } from "lucide-react"
+import { VerificationPending } from "@/components/verification-pending"
 
 export function LoginPrompt() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
@@ -13,10 +14,27 @@ export function LoginPrompt() {
   const [verificationEmail, setVerificationEmail] = useState("")
   const [verificationUserId, setVerificationUserId] = useState("")
 
+  const handleCloseVerification = () => {
+    setVerificationEmail("")
+    setVerificationUserId("")
+  }
+
   const handleSignupSuccess = (email: string, userId: string) => {
     setIsSignupModalOpen(false)
     setVerificationEmail(email)
     setVerificationUserId(userId)
+  }
+
+  if (verificationEmail) {
+    return (
+      <div className="container py-20 flex items-center justify-center">
+        <VerificationPending
+          email={verificationEmail}
+          userId={verificationUserId}
+          onClose={handleCloseVerification}
+        />
+      </div>
+    )
   }
 
   return (
