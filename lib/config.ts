@@ -18,7 +18,7 @@ export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'h
 export const PRICING_PAYMENT_SERVICE_URL = process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL || 'http://localhost:30083/paymentservice';
 
 // Google Maps API
-export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
+export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA3wSq5PrN2evVDM5MiRKPa4ZS69taWS8E';
 
 /**
  * Helper function to get the full URL for a specific endpoint
