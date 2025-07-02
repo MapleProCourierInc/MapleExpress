@@ -65,10 +65,25 @@ export function Header() {
       </div>
 
       {/* Login Modal */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onOpenSignup={() => {
+          setIsLoginModalOpen(false)
+          setIsSignupModalOpen(true)
+        }}
+      />
 
       {/* Signup Modal */}
-      <SignupModal isOpen={isSignupModalOpen} onClose={() => setIsSignupModalOpen(false)} onSignupSuccess={() => {}} />
+      <SignupModal
+        isOpen={isSignupModalOpen}
+        onClose={() => setIsSignupModalOpen(false)}
+        onSignupSuccess={() => {}}
+        onOpenLogin={() => {
+          setIsSignupModalOpen(false)
+          setIsLoginModalOpen(true)
+        }}
+      />
     </header>
   )
 }

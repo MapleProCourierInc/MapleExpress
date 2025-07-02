@@ -177,13 +177,24 @@ export default function LandingPage() {
       </header>
 
       {/* Login Modal */}
-      <LoginModal isOpen={isLoginModalOpen} onClose={() => setIsLoginModalOpen(false)} />
+      <LoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onOpenSignup={() => {
+          setIsLoginModalOpen(false)
+          setIsSignupModalOpen(true)
+        }}
+      />
 
       {/* Signup Modal */}
       <SignupModal
         isOpen={isSignupModalOpen}
         onClose={() => setIsSignupModalOpen(false)}
         onSignupSuccess={handleSignupSuccess}
+        onOpenLogin={() => {
+          setIsSignupModalOpen(false)
+          setIsLoginModalOpen(true)
+        }}
       />
 
       {/* Main Content */}
