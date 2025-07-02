@@ -78,7 +78,7 @@ export function Header() {
       <SignupModal
         isOpen={isSignupModalOpen}
         onClose={() => setIsSignupModalOpen(false)}
-        onSignupSuccess={() => {}}
+        onSignupSuccess={(email: string) => {}}
         onOpenLogin={() => {
           setIsSignupModalOpen(false)
           setIsLoginModalOpen(true)

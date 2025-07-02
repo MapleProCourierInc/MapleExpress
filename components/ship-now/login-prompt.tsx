@@ -12,17 +12,19 @@ export function LoginPrompt() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
-  const [verificationUserId, setVerificationUserId] = useState("")
 
   const handleCloseVerification = () => {
     setVerificationEmail("")
-    setVerificationUserId("")
+    try {
+      localStorage.removeItem("maplexpress_signup_email")
+    } catch (e) {
+      console.error("Failed to remove signup email", e)
+    }
   }
 
-  const handleSignupSuccess = (email: string, userId: string) => {
+  const handleSignupSuccess = (email: string) => {
     setIsSignupModalOpen(false)
     setVerificationEmail(email)
-    setVerificationUserId(userId)
   }
 
   if (verificationEmail) {
@@ -30,7 +32,6 @@ export function LoginPrompt() {
       <div className="container py-20 flex items-center justify-center">
         <VerificationPending
           email={verificationEmail}
-          userId={verificationUserId}
           onClose={handleCloseVerification}
         />
       </div>
