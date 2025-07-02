@@ -17,9 +17,10 @@ type SignupModalProps = {
   isOpen: boolean
   onClose: () => void
   onSignupSuccess: (email: string, userId: string) => void
+  onOpenLogin?: () => void
 }
 
-export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalProps) {
+export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: SignupModalProps) {
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
@@ -292,8 +293,7 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess }: SignupModalPro
                     onClick={(e) => {
                       e.preventDefault()
                       onClose()
-                      // This would typically open the login modal
-                      alert("This would open the login modal")
+                      onOpenLogin && onOpenLogin()
                     }}
                 >
                   Sign In Instead

@@ -15,9 +15,10 @@ import { motion } from "framer-motion"
 type LoginModalProps = {
   isOpen: boolean
   onClose: () => void
+  onOpenSignup?: () => void
 }
 
-export function LoginModal({ isOpen, onClose }: LoginModalProps) {
+export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
   const { login } = useAuth()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
@@ -167,8 +168,7 @@ export function LoginModal({ isOpen, onClose }: LoginModalProps) {
                     onClick={(e) => {
                       e.preventDefault()
                       onClose()
-                      // This would typically open the signup modal
-                      alert("This would open the signup modal")
+                      onOpenSignup && onOpenSignup()
                     }}
                 >
                   Create Account
