@@ -4,11 +4,11 @@ import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { email, uid } = body
+    const { email } = body
 
     // Validate required fields
-    if (!email || !uid) {
-      return NextResponse.json({ message: "Email and user ID are required" }, { status: 400 })
+    if (!email) {
+      return NextResponse.json({ message: "Email is required" }, { status: 400 })
     }
 
     // Use the endpoint from our centralized configuration
@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
         Accept: "application/json",
         "X-Real-IP": request.headers.get("x-forwarded-for") || "127.0.0.1",
       },
-      body: JSON.stringify({ email, uid }),
+      body: JSON.stringify({ email }),
     })
 
     // Get the response data

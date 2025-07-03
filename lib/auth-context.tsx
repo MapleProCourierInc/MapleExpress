@@ -93,7 +93,7 @@ type AuthContextType = {
   createOrganizationProfile: (
     profileData: Omit<OrganizationProfile, "id" | "status" | "createdAt" | "updatedAt">,
   ) => Promise<{ success: boolean; message: string; profile?: OrganizationProfile }>
-  resendVerificationEmail: (email: string, userId: string) => Promise<{ success: boolean; message: string }>
+  resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string }>
   fetchUserProfile: () => Promise<void>
 }
 
@@ -213,14 +213,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // Add function to resend verification email
-  const resendVerificationEmail = async (email: string, userId: string) => {
+  const resendVerificationEmail = async (email: string) => {
     try {
       const response = await fetch("/api/auth/resend-verification", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ email, uid: userId }),
+        body: JSON.stringify({ email }),
       })
 
       const data = await response.json()

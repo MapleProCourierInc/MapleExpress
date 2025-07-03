@@ -6,17 +6,36 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { LoginModal } from "@/components/login-modal"
 import { SignupModal } from "@/components/signup-modal"
 import { Package } from "lucide-react"
+import { VerificationPending } from "@/components/verification-pending"
 
 export function LoginPrompt() {
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
-  const [verificationUserId, setVerificationUserId] = useState("")
 
-  const handleSignupSuccess = (email: string, userId: string) => {
+  const handleCloseVerification = () => {
+    setVerificationEmail("")
+    try {
+      localStorage.removeItem("maplexpress_signup_email")
+    } catch (e) {
+      console.error("Failed to remove signup email", e)
+    }
+  }
+
+  const handleSignupSuccess = (email: string) => {
     setIsSignupModalOpen(false)
     setVerificationEmail(email)
-    setVerificationUserId(userId)
+  }
+
+  if (verificationEmail) {
+    return (
+      <div className="container py-20 flex items-center justify-center">
+        <VerificationPending
+          email={verificationEmail}
+          onClose={handleCloseVerification}
+        />
+      </div>
+    )
   }
 
   return (

@@ -16,7 +16,7 @@ import { motion } from "framer-motion"
 type SignupModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSignupSuccess: (email: string, userId: string) => void
+  onSignupSuccess: (email: string) => void
   onOpenLogin?: () => void
 }
 
@@ -96,8 +96,13 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
       const data = await response.json()
 
       if (response.ok) {
-        // Call the success callback with email and userId
-        onSignupSuccess(email, data.userId)
+        // Store email for verification purposes and notify parent
+        try {
+          localStorage.setItem("maplexpress_signup_email", email)
+        } catch (e) {
+          console.error("Failed to store signup email", e)
+        }
+        onSignupSuccess(email)
 
         // Reset form
         setEmail("")

@@ -33,7 +33,20 @@ export default function LandingPage() {
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
   const [showVerification, setShowVerification] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
-  const [verificationUserId, setVerificationUserId] = useState("")
+  // Email is enough for resending verification now
+
+  // When the page loads, check if we stored a signup email
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem("maplexpress_signup_email")
+      if (saved) {
+        setVerificationEmail(saved)
+        setShowVerification(true)
+      }
+    } catch (e) {
+      console.error("Failed to read signup email", e)
+    }
+  }, [])
 
   // Check user status when user changes
   useEffect(() => {
@@ -53,7 +66,6 @@ export default function LandingPage() {
             }
           }
 
-          setVerificationUserId(user.userId)
           setShowVerification(true)
           break
 
@@ -74,21 +86,35 @@ export default function LandingPage() {
     }
   }, [user])
 
-  const handleSignupSuccess = (email: string, userId: string) => {
+  const handleSignupSuccess = (email: string) => {
     setIsSignupModalOpen(false)
     setVerificationEmail(email)
-    setVerificationUserId(userId)
     setShowVerification(true)
   }
 
   const handleCloseVerification = () => {
     setShowVerification(false)
     setVerificationEmail("")
-    setVerificationUserId("")
+    try {
+      localStorage.removeItem("maplexpress_signup_email")
+    } catch (e) {
+      console.error("Failed to remove signup email", e)
+    }
   }
 
-  // Determine what to show based on user status
+  // Determine what to show based on user status or signup state
   const renderContent = () => {
+    if (showVerification) {
+      return (
+        <div className="container py-20">
+          <VerificationPending
+            email={verificationEmail || "your email"}
+            onClose={handleCloseVerification}
+          />
+        </div>
+      )
+    }
+
     if (!user) {
       return <LandingContent />
     }
@@ -99,7 +125,6 @@ export default function LandingPage() {
           <div className="container py-20">
             <VerificationPending
               email={verificationEmail || "your email"}
-              userId={user.userId}
               onClose={handleCloseVerification}
             />
           </div>

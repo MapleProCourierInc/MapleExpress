@@ -9,11 +9,10 @@ import { useAuth } from "@/lib/auth-context"
 
 type VerificationPendingProps = {
   email: string
-  userId: string
   onClose?: () => void
 }
 
-export function VerificationPending({ email, userId, onClose }: VerificationPendingProps) {
+export function VerificationPending({ email, onClose }: VerificationPendingProps) {
   const { resendVerificationEmail } = useAuth()
   const [isResending, setIsResending] = useState(false)
   const [resendSuccess, setResendSuccess] = useState(false)
@@ -25,7 +24,7 @@ export function VerificationPending({ email, userId, onClose }: VerificationPend
     setResendSuccess(false)
 
     try {
-      const result = await resendVerificationEmail(email, userId)
+      const result = await resendVerificationEmail(email)
 
       if (result.success) {
         setResendSuccess(true)
