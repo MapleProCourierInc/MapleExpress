@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -21,6 +22,7 @@ type LoginModalProps = {
 
 export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
   const { login } = useAuth()
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
@@ -138,8 +140,8 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
                         className="text-primary hover:underline text-sm"
                         onClick={(e) => {
                           e.preventDefault()
-                          // This would typically open a password reset flow
-                          alert("Password reset functionality would go here")
+                          onClose()
+                          router.push("/forgotpassword")
                         }}
                     >
                       Forgot password?
