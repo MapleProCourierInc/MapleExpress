@@ -64,7 +64,13 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
           }
         }}
       >
-        <DialogContent className="p-0 overflow-hidden border rounded-lg max-w-md">
+        <DialogContent
+          className="p-0 overflow-hidden border rounded-lg max-w-md"
+          {...(showVerification && {
+            onEscapeKeyDown: (e: Event) => e.preventDefault(),
+            onPointerDownOutside: (e: Event) => e.preventDefault(),
+          })}
+        >
           {showVerification ? (
             <VerificationPending
               email={email}
