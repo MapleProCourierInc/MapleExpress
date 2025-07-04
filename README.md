@@ -2,6 +2,10 @@
 
 This document provides information about the environment variables used in the MapleExpress application, where they are used in the code, and how to configure them.
 
+## Node.js Version
+
+The project is tested with **Node.js 20**. Using newer versions such as Node 24 can cause build errors (for example, `TypeError: Cannot read properties of undefined (reading 'length')`). Ensure your local environment uses Node 20 when running development or build commands.
+
 ## Environment Variables Overview
 
 The application uses several environment variables for configuration. These are defined in `lib/config.ts` and can be overridden by setting them in `.env` or `.env.local` files.

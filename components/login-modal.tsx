@@ -3,6 +3,7 @@
 import type React from "react"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -11,6 +12,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { AlertCircle, Loader2, Truck, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion } from "framer-motion"
+import { VerificationPending } from "@/components/verification-pending"
 
 type LoginModalProps = {
   isOpen: boolean
@@ -20,11 +22,13 @@ type LoginModalProps = {
 
 export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
   const { login } = useAuth()
+  const router = useRouter()
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [isLoading, setIsLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [showPassword, setShowPassword] = useState(false)
+  const [showVerification, setShowVerification] = useState(false)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -39,6 +43,9 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
         // Reset form
         setEmail("")
         setPassword("")
+      } else if (result.userStatus === "pendingEmailVerification") {
+        setError(null)
+        setShowVerification(true)
       } else {
         setError(result.message)
       }
@@ -50,24 +57,48 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
   }
 
   return (
-      <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-        <DialogContent className="p-0 overflow-hidden border rounded-lg max-w-md">
-          <div className="relative bg-primary text-white p-8 text-center">
-            <button onClick={onClose} className="absolute right-4 top-4 text-white/80 hover:text-white">
-              <X className="h-5 w-5" />
-              <span className="sr-only">Close</span>
-            </button>
+      <Dialog
+        open={isOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setShowVerification(false)
+            onClose()
+          }
+        }}
+      >
+        <DialogContent
+          className="p-0 overflow-hidden border rounded-lg max-w-md"
+          {...(showVerification && {
+            onEscapeKeyDown: (e: Event) => e.preventDefault(),
+            onPointerDownOutside: (e: Event) => e.preventDefault(),
+          })}
+        >
+          {showVerification ? (
+            <VerificationPending
+              email={email}
+              onClose={() => {
+                setShowVerification(false)
+                onClose()
+              }}
+            />
+          ) : (
+            <>
+              <div className="relative bg-primary text-white p-8 text-center">
+                <button onClick={onClose} className="absolute right-4 top-4 text-white/80 hover:text-white">
+                  <X className="h-5 w-5" />
+                  <span className="sr-only">Close</span>
+                </button>
 
-            <div className="mx-auto bg-white rounded-full p-3 w-16 h-16 flex items-center justify-center mb-4">
-              <Truck className="h-8 w-8 text-primary" />
-            </div>
+                <div className="mx-auto bg-white rounded-full p-3 w-16 h-16 flex items-center justify-center mb-4">
+                  <Truck className="h-8 w-8 text-primary" />
+                </div>
 
-            <h2 className="text-2xl font-bold">Welcome Back</h2>
-            <p className="text-white/80 mt-2">Sign in to your MapleXpress account to continue</p>
-          </div>
+                <h2 className="text-2xl font-bold">Welcome Back</h2>
+                <p className="text-white/80 mt-2">Sign in to your MapleXpress account to continue</p>
+              </div>
 
-          <div className="p-6">
-            <form onSubmit={handleSubmit}>
+              <div className="p-6">
+                <form onSubmit={handleSubmit}>
               {error && (
                   <motion.div
                       initial={{ opacity: 0, y: -10 }}
@@ -109,8 +140,8 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
                         className="text-primary hover:underline text-sm"
                         onClick={(e) => {
                           e.preventDefault()
-                          // This would typically open a password reset flow
-                          alert("Password reset functionality would go here")
+                          onClose()
+                          router.push("/forgotpassword")
                         }}
                     >
                       Forgot password?
@@ -186,7 +217,9 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
                 Privacy Policy
               </a>
             </div>
-          </div>
+            </div>
+            </>
+          )}
         </DialogContent>
       </Dialog>
   )

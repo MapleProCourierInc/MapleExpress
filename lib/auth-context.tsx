@@ -85,7 +85,10 @@ type AuthContextType = {
   isLoading: boolean
   individualProfile: IndividualProfile | null
   organizationProfile: OrganizationProfile | null
-  login: (email: string, password: string) => Promise<{ success: boolean; message: string }>
+  login: (
+    email: string,
+    password: string,
+  ) => Promise<{ success: boolean; message: string; userStatus?: string }>
   logout: () => void
   createIndividualProfile: (
     profileData: Omit<IndividualProfile, "id" | "status" | "email" | "createdAt" | "updatedAt">,
@@ -147,7 +150,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   // Update the login function to handle different user statuses:
-  const login = async (email: string, password: string) => {
+  const login = async (
+    email: string,
+    password: string,
+  ): Promise<{ success: boolean; message: string; userStatus?: string }> => {
     try {
       setIsLoading(true)
 
@@ -163,6 +169,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
+        if (data.userStatus === "pendingEmailVerification") {
+          // Do not store tokens if email not verified
+          return {
+            success: false,
+            message: "",
+            userStatus: "pendingEmailVerification",
+          }
+        }
+
         // Save tokens and user data to localStorage
         localStorage.setItem("maplexpress_access_token", data.accessToken)
         localStorage.setItem("maplexpress_refresh_token", data.refreshToken)
@@ -185,10 +200,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // If user is active, fetch their profile
           await fetchUserProfile()
         }
-        // For pendingEmailVerification and pendingProfileCompletion,
-        // the UI will handle showing the appropriate components based on user.userStatus
 
-        return { success: true, message: "Login successful" }
+        return { success: true, message: "Login successful", userStatus: user.userStatus }
       } else {
         return { success: false, message: data.message || "Login failed" }
       }
