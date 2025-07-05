@@ -54,7 +54,7 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/#track" className="text-muted-foreground hover:text-primary">
+                <Link href="/track" className="text-muted-foreground hover:text-primary">
                   Track Package
                 </Link>
               </li>
