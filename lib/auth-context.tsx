@@ -54,6 +54,7 @@ type OrganizationProfile = {
   pointOfContact: {
     name: string
     position: string
+    email: string
     phone: string
   }
   address?: Array<{

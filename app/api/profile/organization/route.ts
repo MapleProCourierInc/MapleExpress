@@ -12,6 +12,7 @@ export async function POST(request: NextRequest) {
       !pointOfContact ||
       !pointOfContact.name ||
       !pointOfContact.position ||
+      !pointOfContact.email ||
       !pointOfContact.phone
     ) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
