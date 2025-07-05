@@ -15,7 +15,7 @@ export interface TrackingEvent {
 export async function getTrackingEvents(trackingNumber: string): Promise<TrackingEvent[]> {
   const endpoint = getEndpointUrl(
     ORDER_FULFILMENT_SERVICE_URL,
-    `v1/track/${trackingNumber}`
+    `/v1/track/${trackingNumber}`
   )
 
   const res = await fetch(endpoint, {
