@@ -59,12 +59,16 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Get the userId from query params
+    // Get the userId or email from query params
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
+    const email = searchParams.get("email")
 
-    if (!userId) {
-      return NextResponse.json({ message: "userId is required" }, { status: 400 })
+    if (!userId && !email) {
+      return NextResponse.json(
+        { message: "userId or email is required" },
+        { status: 400 },
+      )
     }
 
     // Get the authorization header
@@ -76,8 +80,12 @@ export async function GET(request: NextRequest) {
     const token = authHeader.split(" ")[1]
 
     // Use the correct base URL and endpoint
-    const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = `${BASE_URL}/profile/organization?userId=${userId}`
+    const BASE_URL =
+      process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL ||
+      "http://localhost:30081/usermanagement"
+    const endpoint = userId
+      ? `${BASE_URL}/profile/organization?userId=${userId}`
+      : `${BASE_URL}/profile/organization?email=${email}`
 
     // Forward the request to your microservice
     const response = await fetch(endpoint, {
