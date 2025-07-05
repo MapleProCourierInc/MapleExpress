@@ -16,6 +16,7 @@ export function OrganizationProfileForm() {
   const [name, setName] = useState("")
   const [contactName, setContactName] = useState("")
   const [position, setPosition] = useState("")
+  const [contactEmail, setContactEmail] = useState("")
   const [phone, setPhone] = useState("")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -40,6 +41,7 @@ export function OrganizationProfileForm() {
         pointOfContact: {
           name: contactName,
           position,
+          email: contactEmail,
           phone,
         },
       })
@@ -97,6 +99,17 @@ export function OrganizationProfileForm() {
               value={position}
               onChange={(e) => setPosition(e.target.value)}
               placeholder="e.g., Director of Operations"
+              required
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="contactEmail">Email</Label>
+            <Input
+              id="contactEmail"
+              type="email"
+              value={contactEmail}
+              onChange={(e) => setContactEmail(e.target.value)}
               required
             />
           </div>
