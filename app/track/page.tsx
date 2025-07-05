@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/shared/header"
 import { Footer } from "@/components/shared/footer"
@@ -42,7 +42,7 @@ type FulfillmentStatus =
     | "CANCELLED"
     | "END_OF_DAY"
 
-export default function TrackingPage() {
+function TrackingPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const initial = searchParams.get("trackingNumber") || ""
@@ -269,54 +269,112 @@ export default function TrackingPage() {
 
             {/* Current Status Highlight */}
             {currentStatus && !loading && (
-                <div
-                    className={`mb-12 p-8 ${getStatusConfig(currentStatus.status).bgColor} rounded-3xl border border-border/50`}
-                >
-                  <div className="flex items-start gap-6">
-                    <div
-                        className={`p-4 ${getStatusConfig(currentStatus.status).bgColor} rounded-2xl ${getStatusConfig(currentStatus.status).textColor}`}
-                    >
-                      {getStatusConfig(currentStatus.status).icon}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-3 mb-2">
-                        <h3 className="text-2xl font-bold text-foreground">
-                          {getStatusConfig(currentStatus.status).label}
-                        </h3>
-                        {!getStatusConfig(currentStatus.status).isPositive && (
-                            <div className="flex items-center gap-1 text-destructive">
-                              <AlertTriangle className="h-4 w-4" />
-                              <span className="text-sm font-medium">Action Required</span>
-                            </div>
-                        )}
-                      </div>
-                      <p className="text-lg text-muted-foreground mb-4">
-                        {getStatusConfig(currentStatus.status).description}
-                      </p>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Calendar className="h-4 w-4" />
-                        {format(new Date(currentStatus.timestamp), "EEEE, MMMM do 'at' h:mm a")}
-                      </div>
+                <div className="mb-12">
+                  <div
+                      className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${
+                          getStatusConfig(currentStatus.status).isPositive
+                              ? "from-card via-card to-primary/5"
+                              : "from-card via-card to-destructive/5"
+                      } shadow-xl`}
+                  >
+                    {/* Subtle pattern overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
 
-                      {/* Special messaging for specific statuses */}
-                      {currentStatus.status.toUpperCase() === "END_OF_DAY" && (
-                          <div className="mt-4 p-3 bg-chart-3/10 rounded-lg border border-chart-3/20">
-                            <div className="flex items-center gap-2 text-chart-3">
-                              <RotateCcw className="h-4 w-4" />
-                              <span className="text-sm font-medium">Next delivery attempt scheduled for tomorrow</span>
-                            </div>
+                    <div className="relative p-8">
+                      <div className="flex items-start gap-6">
+                        {/* Status Icon with colored background */}
+                        <div className="relative">
+                          <div
+                              className={`absolute inset-0 ${getStatusConfig(currentStatus.status).bgColor} rounded-2xl blur-sm opacity-60`}
+                          />
+                          <div
+                              className={`relative p-5 ${getStatusConfig(currentStatus.status).bgColor} rounded-2xl ${getStatusConfig(currentStatus.status).textColor} shadow-lg`}
+                          >
+                            {getStatusConfig(currentStatus.status).icon}
                           </div>
-                      )}
+                        </div>
 
-                      {(currentStatus.status.toUpperCase() === "PICKUP_FAILED" ||
-                          currentStatus.status.toUpperCase() === "DROP_OFF_FAILED") && (
-                          <div className="mt-4 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
-                            <div className="flex items-center gap-2 text-destructive">
-                              <RotateCcw className="h-4 w-4" />
-                              <span className="text-sm font-medium">We'll automatically retry this delivery</span>
-                            </div>
+                        <div className="flex-1">
+                          {/* Status Header */}
+                          <div className="flex items-center gap-4 mb-4">
+                            <Badge
+                                className={`${getStatusConfig(currentStatus.status).color} px-4 py-2 text-sm font-semibold border-0 shadow-sm`}
+                            >
+                              {getStatusConfig(currentStatus.status).label}
+                            </Badge>
+
+                            {!getStatusConfig(currentStatus.status).isPositive && (
+                                <div className="flex items-center gap-2 px-3 py-1 bg-destructive/15 text-destructive rounded-full">
+                                  <AlertTriangle className="h-3 w-3" />
+                                  <span className="text-xs font-medium">Needs Attention</span>
+                                </div>
+                            )}
                           </div>
-                      )}
+
+                          {/* Main Status Text */}
+                          <h3 className="text-2xl font-bold text-foreground mb-3 leading-tight">
+                            {getStatusConfig(currentStatus.status).description}
+                          </h3>
+
+                          {/* Timestamp */}
+                          <div className="flex items-center gap-2 text-muted-foreground mb-6">
+                            <div className="p-1.5 bg-muted/50 rounded-lg">
+                              <Calendar className="h-4 w-4" />
+                            </div>
+                            <span className="text-sm">
+                          {format(new Date(currentStatus.timestamp), "EEEE, MMMM do 'at' h:mm a")}
+                        </span>
+                          </div>
+
+                          {/* Special Status Messages */}
+                          {currentStatus.status.toUpperCase() === "END_OF_DAY" && (
+                              <div className="p-4 bg-gradient-to-r from-chart-3/15 to-transparent rounded-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-chart-3/20 rounded-full">
+                                    <RotateCcw className="h-4 w-4 text-chart-3" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-chart-3">Tomorrow's Delivery</p>
+                                    <p className="text-sm text-chart-3/80">
+                                      We'll attempt delivery again during business hours
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                          )}
+
+                          {(currentStatus.status.toUpperCase() === "PICKUP_FAILED" ||
+                              currentStatus.status.toUpperCase() === "DROP_OFF_FAILED") && (
+                              <div className="p-4 bg-gradient-to-r from-destructive/15 to-transparent rounded-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-destructive/20 rounded-full">
+                                    <RotateCcw className="h-4 w-4 text-destructive" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-destructive">Automatic Retry</p>
+                                    <p className="text-sm text-destructive/80">
+                                      We'll try again automatically - no action needed
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                          )}
+
+                          {currentStatus.status.toUpperCase() === "DELIVERED" && (
+                              <div className="p-4 bg-gradient-to-r from-chart-2/15 to-transparent rounded-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-chart-2/20 rounded-full">
+                                    <CheckCircle className="h-4 w-4 text-chart-2" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-chart-2">Successfully Delivered!</p>
+                                    <p className="text-sm text-chart-2/80">Your package has reached its destination</p>
+                                  </div>
+                                </div>
+                              </div>
+                          )}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -411,5 +469,13 @@ export default function TrackingPage() {
 
         <Footer />
       </div>
+  )
+}
+
+export default function TrackingPage() {
+  return (
+      <Suspense fallback={<div>Loading tracking...</div>}>
+        <TrackingPageContent />
+      </Suspense>
   )
 }
