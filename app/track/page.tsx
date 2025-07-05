@@ -8,12 +8,39 @@ import { Header } from "@/components/shared/header"
 import { Footer } from "@/components/shared/footer"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getTrackingEvents, type TrackingEvent } from "@/lib/tracking-service"
 import { format } from "date-fns"
-import { Package, Search, Truck, MapPin, CheckCircle, Clock, AlertCircle, Loader2, Calendar, Info } from "lucide-react"
+import {
+  Package,
+  Search,
+  Truck,
+  CheckCircle,
+  AlertCircle,
+  Loader2,
+  Calendar,
+  ArrowRight,
+  Zap,
+  Star,
+  Navigation,
+  UserCheck,
+  XCircle,
+  RotateCcw,
+  Moon,
+  AlertTriangle,
+  CalendarClock,
+} from "lucide-react"
+
+type FulfillmentStatus =
+    | "SCHEDULED"
+    | "CREATED"
+    | "ASSIGNED"
+    | "IN_TRANSIT"
+    | "DELIVERED"
+    | "PICKUP_FAILED"
+    | "DROP_OFF_FAILED"
+    | "CANCELLED"
+    | "END_OF_DAY"
 
 export default function TrackingPage() {
   const searchParams = useSearchParams()
@@ -56,24 +83,111 @@ export default function TrackingPage() {
     handleTrack()
   }
 
-  const getStatusIcon = (status: string) => {
-    const statusLower = status.toLowerCase()
-    if (statusLower.includes("delivered")) return <CheckCircle className="h-4 w-4 text-chart-2" />
-    if (statusLower.includes("transit") || statusLower.includes("shipping"))
-      return <Truck className="h-4 w-4 text-chart-1" />
-    if (statusLower.includes("picked") || statusLower.includes("collected"))
-      return <Package className="h-4 w-4 text-chart-4" />
-    if (statusLower.includes("processing") || statusLower.includes("preparing"))
-      return <Clock className="h-4 w-4 text-chart-5" />
-    return <MapPin className="h-4 w-4 text-muted-foreground" />
-  }
+  const getStatusConfig = (status: string) => {
+    const statusUpper = status.toUpperCase() as FulfillmentStatus
 
-  const getStatusVariant = (status: string) => {
-    const statusLower = status.toLowerCase()
-    if (statusLower.includes("delivered")) return "default"
-    if (statusLower.includes("transit") || statusLower.includes("shipping")) return "secondary"
-    if (statusLower.includes("picked") || statusLower.includes("collected")) return "outline"
-    return "secondary"
+    switch (statusUpper) {
+      case "SCHEDULED":
+        return {
+          icon: <CalendarClock className="h-6 w-6" />,
+          color: "bg-chart-4/20 text-chart-4 border-chart-4/30",
+          bgColor: "bg-chart-4/10",
+          textColor: "text-chart-4",
+          label: "Scheduled",
+          description: "Your package pickup has been scheduled",
+          isPositive: true,
+        }
+      case "CREATED":
+        return {
+          icon: <Package className="h-6 w-6" />,
+          color: "bg-chart-5/20 text-chart-5 border-chart-5/30",
+          bgColor: "bg-chart-5/10",
+          textColor: "text-chart-5",
+          label: "Order Created",
+          description: "Your shipment has been created and is being prepared",
+          isPositive: true,
+        }
+      case "ASSIGNED":
+        return {
+          icon: <UserCheck className="h-6 w-6" />,
+          color: "bg-chart-1/20 text-chart-1 border-chart-1/30",
+          bgColor: "bg-chart-1/10",
+          textColor: "text-chart-1",
+          label: "Driver Assigned",
+          description: "A courier has been assigned to your package",
+          isPositive: true,
+        }
+      case "IN_TRANSIT":
+        return {
+          icon: <Truck className="h-6 w-6" />,
+          color: "bg-chart-1/20 text-chart-1 border-chart-1/30",
+          bgColor: "bg-chart-1/10",
+          textColor: "text-chart-1",
+          label: "In Transit",
+          description: "Your package is on its way to the destination",
+          isPositive: true,
+        }
+      case "DELIVERED":
+        return {
+          icon: <CheckCircle className="h-6 w-6" />,
+          color: "bg-chart-2/20 text-chart-2 border-chart-2/30",
+          bgColor: "bg-chart-2/10",
+          textColor: "text-chart-2",
+          label: "Delivered",
+          description: "Package successfully delivered!",
+          isPositive: true,
+        }
+      case "PICKUP_FAILED":
+        return {
+          icon: <AlertTriangle className="h-6 w-6" />,
+          color: "bg-destructive/20 text-destructive border-destructive/30",
+          bgColor: "bg-destructive/10",
+          textColor: "text-destructive",
+          label: "Pickup Failed",
+          description: "Unable to pick up the package. We'll try again soon.",
+          isPositive: false,
+        }
+      case "DROP_OFF_FAILED":
+        return {
+          icon: <XCircle className="h-6 w-6" />,
+          color: "bg-destructive/20 text-destructive border-destructive/30",
+          bgColor: "bg-destructive/10",
+          textColor: "text-destructive",
+          label: "Delivery Failed",
+          description: "Delivery attempt unsuccessful. We'll try again soon.",
+          isPositive: false,
+        }
+      case "CANCELLED":
+        return {
+          icon: <XCircle className="h-6 w-6" />,
+          color: "bg-muted text-muted-foreground border-border",
+          bgColor: "bg-muted/50",
+          textColor: "text-muted-foreground",
+          label: "Cancelled",
+          description: "This shipment has been cancelled",
+          isPositive: false,
+        }
+      case "END_OF_DAY":
+        return {
+          icon: <Moon className="h-6 w-6" />,
+          color: "bg-chart-3/20 text-chart-3 border-chart-3/30",
+          bgColor: "bg-chart-3/10",
+          textColor: "text-chart-3",
+          label: "End of Day",
+          description: "Delivery will be reattempted tomorrow during business hours",
+          isPositive: true,
+        }
+      default:
+        return {
+          icon: <Package className="h-6 w-6" />,
+          color: "bg-muted text-muted-foreground border-border",
+          bgColor: "bg-muted/50",
+          textColor: "text-muted-foreground",
+          label: status,
+          description: "Status update received",
+          isPositive: true,
+        }
+    }
   }
 
   const getCurrentStatus = () => {
@@ -84,176 +198,213 @@ export default function TrackingPage() {
   const currentStatus = getCurrentStatus()
 
   return (
-      <div className="flex flex-col min-h-screen bg-background">
+      <div className="min-h-screen bg-background">
         <Header />
 
-        <main className="flex-1 py-12 bg-muted/20">
-          <div className="container max-w-4xl mx-auto px-4">
-            {/* Hero Section */}
-            <div className="text-center mb-12">
-              <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-                <Package className="h-8 w-8 text-primary" />
+        {/* Hero Section with Floating Search */}
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-chart-1/5 to-chart-2/5" />
+          <div className="relative px-4 py-16 sm:py-24">
+            <div className="max-w-4xl mx-auto text-center">
+              <div className="inline-flex items-center gap-2 bg-primary/10 px-4 py-2 rounded-full text-sm font-medium text-primary mb-6">
+                <Zap className="h-4 w-4" />
+                Real-time tracking
               </div>
-              <h1 className="text-4xl font-bold mb-4 text-foreground">Track Your Package</h1>
-              <p className="text-lg text-muted-foreground max-w-2xl mx-auto">
-                Enter your tracking number below to get real-time updates on your package delivery status
+
+              <h1 className="text-5xl sm:text-6xl font-bold mb-6 text-foreground">
+                Where's my
+                <span className="block text-primary">package?</span>
+              </h1>
+
+              <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto">
+                Track your shipment in real-time with our lightning-fast tracking system
               </p>
+
+              {/* Floating Search Bar */}
+              <div className="relative max-w-2xl mx-auto">
+                <div className="bg-card/80 backdrop-blur-xl border border-border/50 rounded-2xl p-2 shadow-2xl">
+                  <form onSubmit={onSubmit} className="flex gap-2">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                      <Input
+                          value={trackingNumber}
+                          onChange={(e) => setTrackingNumber(e.target.value)}
+                          placeholder="Enter tracking number..."
+                          className="pl-12 h-14 text-lg border-0 bg-transparent focus-visible:ring-0 focus-visible:ring-offset-0"
+                      />
+                    </div>
+                    <Button type="submit" disabled={loading || !trackingNumber.trim()} className="h-14 px-8 rounded-xl">
+                      {loading ? (
+                          <Loader2 className="h-5 w-5 animate-spin" />
+                      ) : (
+                          <>
+                            Track
+                            <ArrowRight className="ml-2 h-5 w-5" />
+                          </>
+                      )}
+                    </Button>
+                  </form>
+                </div>
+              </div>
             </div>
+          </div>
+        </div>
 
-            {/* Search Form */}
-            <Card className="mb-8 shadow-lg">
-              <CardContent className="p-6">
-                <form onSubmit={onSubmit} className="flex flex-col sm:flex-row gap-4">
-                  <div className="relative flex-1">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                        value={trackingNumber}
-                        onChange={(e) => setTrackingNumber(e.target.value)}
-                        placeholder="Enter your tracking number"
-                        className="pl-10 h-12 text-lg"
-                    />
-                  </div>
-                  <Button type="submit" disabled={loading || !trackingNumber.trim()} className="h-12 px-8">
-                    {loading ? (
-                        <>
-                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                          Tracking...
-                        </>
-                    ) : (
-                        <>
-                          <Search className="mr-2 h-4 w-4" />
-                          Track Package
-                        </>
-                    )}
-                  </Button>
-                </form>
-              </CardContent>
-            </Card>
-
+        <main className="px-4 pb-16">
+          <div className="max-w-4xl mx-auto">
             {/* Error State */}
             {error && (
-                <Card className="mb-8 border-destructive/50 bg-destructive/10">
-                  <CardContent className="p-6">
-                    <div className="flex items-center gap-3">
+                <div className="mb-8 p-6 bg-destructive/10 border border-destructive/20 rounded-2xl">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-destructive/20 rounded-full">
                       <AlertCircle className="h-5 w-5 text-destructive" />
-                      <p className="text-destructive font-medium">{error}</p>
                     </div>
-                  </CardContent>
-                </Card>
+                    <div>
+                      <h3 className="font-semibold text-destructive">Tracking Error</h3>
+                      <p className="text-destructive/80">{error}</p>
+                    </div>
+                  </div>
+                </div>
             )}
 
-            {/* Current Status Card */}
+            {/* Current Status Highlight */}
             {currentStatus && !loading && (
-                <Card className="mb-8 shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Info className="h-5 w-5 text-primary" />
-                      Current Status
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="flex items-center justify-between flex-wrap gap-4">
-                      <div className="flex items-center gap-3">
-                        {getStatusIcon(currentStatus.status)}
-                        <div>
-                          <Badge variant={getStatusVariant(currentStatus.status)} className="font-medium">
-                            {currentStatus.status}
-                          </Badge>
-                          <p className="text-sm text-muted-foreground mt-1">{currentStatus.statusMessage}</p>
-                        </div>
+                <div
+                    className={`mb-12 p-8 ${getStatusConfig(currentStatus.status).bgColor} rounded-3xl border border-border/50`}
+                >
+                  <div className="flex items-start gap-6">
+                    <div
+                        className={`p-4 ${getStatusConfig(currentStatus.status).bgColor} rounded-2xl ${getStatusConfig(currentStatus.status).textColor}`}
+                    >
+                      {getStatusConfig(currentStatus.status).icon}
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-3 mb-2">
+                        <h3 className="text-2xl font-bold text-foreground">
+                          {getStatusConfig(currentStatus.status).label}
+                        </h3>
+                        {!getStatusConfig(currentStatus.status).isPositive && (
+                            <div className="flex items-center gap-1 text-destructive">
+                              <AlertTriangle className="h-4 w-4" />
+                              <span className="text-sm font-medium">Action Required</span>
+                            </div>
+                        )}
                       </div>
+                      <p className="text-lg text-muted-foreground mb-4">
+                        {getStatusConfig(currentStatus.status).description}
+                      </p>
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
                         <Calendar className="h-4 w-4" />
-                        {format(new Date(currentStatus.timestamp), "PPpp")}
+                        {format(new Date(currentStatus.timestamp), "EEEE, MMMM do 'at' h:mm a")}
                       </div>
+
+                      {/* Special messaging for specific statuses */}
+                      {currentStatus.status.toUpperCase() === "END_OF_DAY" && (
+                          <div className="mt-4 p-3 bg-chart-3/10 rounded-lg border border-chart-3/20">
+                            <div className="flex items-center gap-2 text-chart-3">
+                              <RotateCcw className="h-4 w-4" />
+                              <span className="text-sm font-medium">Next delivery attempt scheduled for tomorrow</span>
+                            </div>
+                          </div>
+                      )}
+
+                      {(currentStatus.status.toUpperCase() === "PICKUP_FAILED" ||
+                          currentStatus.status.toUpperCase() === "DROP_OFF_FAILED") && (
+                          <div className="mt-4 p-3 bg-destructive/10 rounded-lg border border-destructive/20">
+                            <div className="flex items-center gap-2 text-destructive">
+                              <RotateCcw className="h-4 w-4" />
+                              <span className="text-sm font-medium">We'll automatically retry this delivery</span>
+                            </div>
+                          </div>
+                      )}
                     </div>
-                  </CardContent>
-                </Card>
+                  </div>
+                </div>
             )}
 
-            {/* Tracking Timeline */}
+            {/* Timeline - Redesigned as Cards */}
             {events && events.length > 0 && !loading && (
-                <Card className="shadow-lg">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Clock className="h-5 w-5 text-primary" />
-                      Tracking History
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="p-6">
-                    <div className="relative">
-                      <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border"></div>
+                <div className="space-y-6">
+                  <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                    <Navigation className="h-6 w-6 text-primary" />
+                    Journey Timeline
+                  </h2>
 
-                      <TooltipProvider>
-                        {events.map((event, idx) => (
-                            <div key={idx} className="relative flex items-start gap-4 pb-8 last:pb-0">
-                              <div className="relative z-10 flex items-center justify-center w-12 h-12 bg-card border-4 border-muted rounded-full shadow-sm">
-                                {getStatusIcon(event.status)}
+                  <div className="grid gap-4">
+                    {events.map((event, idx) => {
+                      const config = getStatusConfig(event.status)
+                      return (
+                          <div
+                              key={idx}
+                              className={`group relative p-6 bg-card border rounded-2xl hover:shadow-lg transition-all duration-300 ${
+                                  config.isPositive ? "border-border hover:border-primary/20" : "border-destructive/20"
+                              }`}
+                          >
+                            <div className="flex items-start gap-4">
+                              <div className={`p-3 ${config.bgColor} rounded-xl ${config.textColor} transition-colors`}>
+                                {config.icon}
                               </div>
 
-                              <div className="flex-1 min-w-0 pt-1">
-                                <Tooltip>
-                                  <TooltipTrigger asChild>
-                                    <div className="cursor-default group">
-                                      <div className="flex items-center gap-2 mb-1">
-                                        <Badge variant={getStatusVariant(event.status)} className="text-xs font-medium">
-                                          {event.status}
-                                        </Badge>
-                                      </div>
-                                      <p className="text-sm text-muted-foreground mb-2 group-hover:text-foreground transition-colors">
-                                        {event.statusMessage}
-                                      </p>
-                                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                                        <Calendar className="h-3 w-3" />
-                                        {format(new Date(event.timestamp), "PPpp")}
-                                      </div>
-                                    </div>
-                                  </TooltipTrigger>
-                                  <TooltipContent side="right" className="max-w-xs">
-                                    <p className="font-medium">{event.status}</p>
-                                    <p className="text-xs opacity-90">{event.statusMessage}</p>
-                                  </TooltipContent>
-                                </Tooltip>
+                              <div className="flex-1">
+                                <div className="flex items-center justify-between mb-2">
+                                  <Badge className={`${config.color} border font-medium`}>{config.label}</Badge>
+                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                    <Star className="h-3 w-3" />
+                                    Step {idx + 1}
+                                  </div>
+                                </div>
+
+                                <p className="text-foreground font-medium mb-2">{config.description}</p>
+
+                                {event.statusMessage && event.statusMessage !== config.description && (
+                                    <p className="text-sm text-muted-foreground mb-2">{event.statusMessage}</p>
+                                )}
+
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                  <Calendar className="h-4 w-4" />
+                                  {format(new Date(event.timestamp), "PPpp")}
+                                </div>
                               </div>
                             </div>
-                        ))}
-                      </TooltipProvider>
-                    </div>
-                  </CardContent>
-                </Card>
+
+                            {/* Connecting line */}
+                            {idx < events.length - 1 && (
+                                <div className="absolute left-8 bottom-0 w-0.5 h-4 bg-border transform translate-y-full" />
+                            )}
+                          </div>
+                      )
+                    })}
+                  </div>
+                </div>
             )}
 
             {/* No Results State */}
             {events && events.length === 0 && !loading && (
-                <Card className="text-center py-12 shadow-lg">
-                  <CardContent>
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-muted rounded-full mb-4">
-                      <Package className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">No Tracking Information Found</h3>
-                    <p className="text-muted-foreground mb-4">
-                      We couldn't find any tracking events for this number. Please check the tracking number and try again.
-                    </p>
-                    <Button variant="outline" onClick={() => setTrackingNumber("")}>
-                      Try Another Number
-                    </Button>
-                  </CardContent>
-                </Card>
+                <div className="text-center py-16">
+                  <div className="inline-flex items-center justify-center w-24 h-24 bg-muted rounded-full mb-6">
+                    <Package className="h-12 w-12 text-muted-foreground" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-4">No tracking data found</h3>
+                  <p className="text-muted-foreground mb-8 max-w-md mx-auto">
+                    We couldn't locate any information for this tracking number. Double-check the number and try again.
+                  </p>
+                  <Button variant="outline" onClick={() => setTrackingNumber("")} className="rounded-xl px-8 py-3">
+                    Try Different Number
+                  </Button>
+                </div>
             )}
 
             {/* Loading State */}
             {loading && (
-                <Card className="text-center py-12 shadow-lg">
-                  <CardContent>
-                    <div className="inline-flex items-center justify-center w-16 h-16 bg-primary/10 rounded-full mb-4">
-                      <Loader2 className="h-8 w-8 text-primary animate-spin" />
-                    </div>
-                    <h3 className="text-lg font-semibold mb-2">Fetching Tracking Information</h3>
-                    <p className="text-muted-foreground">
-                      Please wait while we retrieve the latest updates for your package...
-                    </p>
-                  </CardContent>
-                </Card>
+                <div className="text-center py-16">
+                  <div className="inline-flex items-center justify-center w-24 h-24 bg-primary/10 rounded-full mb-6">
+                    <Loader2 className="h-12 w-12 text-primary animate-spin" />
+                  </div>
+                  <h3 className="text-2xl font-bold mb-4">Tracking your package...</h3>
+                  <p className="text-muted-foreground max-w-md mx-auto">
+                    Searching through our network to find the latest updates on your shipment.
+                  </p>
+                </div>
             )}
           </div>
         </main>
