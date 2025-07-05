@@ -68,7 +68,8 @@ export async function getIndividualProfileByEmail(
     throw new Error(error.message || "Failed to fetch individual profile")
   }
 
-  return response.json()
+  const data = await response.json()
+  return Array.isArray(data) ? data[0] : data
 }
 
 // Get organization profile by email
@@ -95,7 +96,8 @@ export async function getOrganizationProfileByEmail(
     throw new Error(error.message || "Failed to fetch organization profile")
   }
 
-  return response.json()
+  const data = await response.json()
+  return Array.isArray(data) ? data[0] : data
 }
 
 // Update individual profile

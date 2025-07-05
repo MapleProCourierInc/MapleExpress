@@ -278,10 +278,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Save profile data
-        setIndividualProfile(data)
-        localStorage.setItem("maplexpress_individual_profile", JSON.stringify(data))
+        setIndividualProfile(profile)
+        localStorage.setItem("maplexpress_individual_profile", JSON.stringify(profile))
 
-        return { success: true, message: "Profile created successfully", profile: data }
+        return { success: true, message: "Profile created successfully", profile: profile }
       } else {
         return { success: false, message: data.message || "Failed to create profile" }
       }
@@ -322,10 +322,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Save profile data
-        setOrganizationProfile(data)
-        localStorage.setItem("maplexpress_organization_profile", JSON.stringify(data))
+        setOrganizationProfile(profile)
+        localStorage.setItem("maplexpress_organization_profile", JSON.stringify(profile))
 
-        return { success: true, message: "Organization profile created successfully", profile: data }
+        return { success: true, message: "Organization profile created successfully", profile: profile }
       } else {
         return { success: false, message: data.message || "Failed to create organization profile" }
       }
@@ -359,10 +359,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const data = await response.json()
-          setIndividualProfile(data)
+          const profile = Array.isArray(data) ? data[0] : data
+          setIndividualProfile(profile)
           localStorage.setItem(
             "maplexpress_individual_profile",
-            JSON.stringify(data),
+            JSON.stringify(profile),
           )
         }
       } else if (currentUser.userType === "businessUser") {
@@ -377,10 +378,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         if (response.ok) {
           const data = await response.json()
-          setOrganizationProfile(data)
+          const profile = Array.isArray(data) ? data[0] : data
+          setOrganizationProfile(profile)
           localStorage.setItem(
             "maplexpress_organization_profile",
-            JSON.stringify(data),
+            JSON.stringify(profile),
           )
         }
       }
