@@ -50,6 +50,11 @@ gcloud config set project numeric-wind-453017-n1
 Write-Host "Pushing Docker image to remote registry..."
 docker push northamerica-northeast2-docker.pkg.dev/numeric-wind-453017-n1/docker-containers/maple-xpress:$newVersion
 
+git add version.txt
+git commit -m "Updated Docker Image version"
+git push origin
+
+
 Write-Host "-----------------------------------------"
 Write-Host "Deployment script completed successfully!"
 Write-Host "New image version: $newVersion"
