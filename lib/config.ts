@@ -14,6 +14,11 @@ export const PROFILE_SERVICE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL |
 // Order Service
 export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'https://testapi.maplexpress.ca/ordermanagement';
 
+// Order Fulfilment Service
+export const ORDER_FULFILMENT_SERVICE_URL =
+  process.env.NEXT_PUBLIC_ORDER_FULFILMENT_SERVICE_URL ||
+  'https://testapi.maplexpress.ca/orderfulfilment';
+
 // Payment Service
 export const PRICING_PAYMENT_SERVICE_URL = process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL || 'https://testapi.maplexpress.ca/paymentservice';
 
