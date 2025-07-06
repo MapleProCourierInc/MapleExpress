@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { Suspense, useState, useEffect } from "react"
+import { useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/shared/header"
 import { Footer } from "@/components/shared/footer"
@@ -34,6 +34,7 @@ import {
 type FulfillmentStatus =
     | "SCHEDULED"
     | "CREATED"
+    | "LABEL_CREATED"
     | "ASSIGNED"
     | "IN_TRANSIT"
     | "DELIVERED"
@@ -42,7 +43,7 @@ type FulfillmentStatus =
     | "CANCELLED"
     | "END_OF_DAY"
 
-function TrackingPageContent() {
+export default function TrackingPage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const initial = searchParams.get("trackingNumber") || ""
@@ -105,6 +106,16 @@ function TrackingPageContent() {
           textColor: "text-chart-5",
           label: "Order Created",
           description: "Your shipment has been created and is being prepared",
+          isPositive: true,
+        }
+      case "LABEL_CREATED":
+        return {
+          icon: <Package className="h-6 w-6" />,
+          color: "bg-chart-5/20 text-chart-5 border-chart-5/30",
+          bgColor: "bg-chart-5/10",
+          textColor: "text-chart-5",
+          label: "Label Created",
+          description: "Shipping label has been generated and your order is ready for pickup",
           isPositive: true,
         }
       case "ASSIGNED":
@@ -373,6 +384,22 @@ function TrackingPageContent() {
                                 </div>
                               </div>
                           )}
+
+                          {currentStatus.status.toUpperCase() === "LABEL_CREATED" && (
+                              <div className="p-4 bg-gradient-to-r from-chart-5/15 to-transparent rounded-xl">
+                                <div className="flex items-center gap-3">
+                                  <div className="p-2 bg-chart-5/20 rounded-full">
+                                    <Package className="h-4 w-4 text-chart-5" />
+                                  </div>
+                                  <div>
+                                    <p className="font-medium text-chart-5">Ready for Pickup</p>
+                                    <p className="text-sm text-chart-5/80">
+                                      Your shipping label is ready and the package is awaiting courier pickup
+                                    </p>
+                                  </div>
+                                </div>
+                              </div>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -469,13 +496,5 @@ function TrackingPageContent() {
 
         <Footer />
       </div>
-  )
-}
-
-export default function TrackingPage() {
-  return (
-      <Suspense fallback={<div>Loading tracking...</div>}>
-        <TrackingPageContent />
-      </Suspense>
   )
 }
