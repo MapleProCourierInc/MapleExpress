@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server";
-import { PROFILE_SERVICE_URL } from "@/lib/config";
+import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config";
 
 export async function POST(request: NextRequest) {
   try {
@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
     }
 
     const token = authHeader.split(" ")[1];
-    const endpoint = `${PROFILE_SERVICE_URL}/individual/updateinformation/${userId}`;
+    const endpoint = getEndpointUrl(
+      PROFILE_SERVICE_URL,
+      `/individual/updateinformation/${userId}`,
+    );
 
     const response = await fetch(endpoint, {
       method: "POST",

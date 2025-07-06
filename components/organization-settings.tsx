@@ -25,10 +25,10 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
     phone: profile.phone,
     website: profile.website || "",
     pointOfContact: {
-      name: profile.pointOfContact.name || "",
-      position: profile.pointOfContact.position || "",
-      email: profile.pointOfContact.email || "",
-      phone: profile.pointOfContact.phone || "",
+      name: profile.pointOfContact?.name || "",
+      position: profile.pointOfContact?.position || "",
+      email: profile.pointOfContact?.email || "",
+      phone: profile.pointOfContact?.phone || "",
     },
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
