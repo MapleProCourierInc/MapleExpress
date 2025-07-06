@@ -95,7 +95,7 @@ export function IndividualSettings({ profile, onProfileUpdate }: IndividualSetti
 
             <div className="space-y-2">
               <Label htmlFor="phone">Phone Number</Label>
-              <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
+              <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} />
             </div>
 
             <div className="space-y-2">

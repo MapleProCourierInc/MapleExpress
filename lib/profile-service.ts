@@ -1,8 +1,21 @@
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
 
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return parts.pop()!.split(";").shift() || null
+  }
+  return null
+}
+
 // Get individual profile
 export async function getIndividualProfile(userId: string): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -24,7 +37,10 @@ export async function getIndividualProfile(userId: string): Promise<IndividualPr
 
 // Get organization profile
 export async function getOrganizationProfile(userId: string): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -48,7 +64,10 @@ export async function getOrganizationProfile(userId: string): Promise<Organizati
 export async function getIndividualProfileByEmail(
   email: string,
 ): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -76,7 +95,10 @@ export async function getIndividualProfileByEmail(
 export async function getOrganizationProfileByEmail(
   email: string,
 ): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -105,7 +127,10 @@ export async function updateIndividualProfile(
   userId: string,
   profileData: Partial<IndividualProfile>,
 ): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -136,7 +161,10 @@ export async function updateOrganizationProfile(
   userId: string,
   profileData: Partial<OrganizationProfile>,
 ): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -166,7 +194,10 @@ export async function updateIndividualInformation(
   userId: string,
   phone: string,
 ): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -206,7 +237,10 @@ export async function updateOrganizationInformation(
     }
   },
 ): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -235,7 +269,10 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<{ success: boolean; message: string }> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")

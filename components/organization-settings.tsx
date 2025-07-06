@@ -128,7 +128,7 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
 
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} required />
+                <Input id="phone" name="phone" value={formData.phone} onChange={handleChange} />
               </div>
             </div>
 
@@ -154,7 +154,6 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
                     name="name"
                     value={formData.pointOfContact.name}
                     onChange={handleContactChange}
-                    required
                   />
                 </div>
 
@@ -165,7 +164,6 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
                     name="position"
                     value={formData.pointOfContact.position}
                     onChange={handleContactChange}
-                    required
                   />
                 </div>
               </div>
@@ -179,7 +177,6 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
                     type="email"
                     value={formData.pointOfContact.email}
                     onChange={handleContactChange}
-                    required
                   />
                 </div>
 
@@ -190,7 +187,6 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
                     name="phone"
                     value={formData.pointOfContact.phone}
                     onChange={handleContactChange}
-                    required
                   />
                 </div>
               </div>
