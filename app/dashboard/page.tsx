@@ -201,7 +201,9 @@ export default function Dashboard() {
       case "dashboard":
         return renderDashboardContent()
       case "addresses":
-        return <AddressManagement userId={user.userId} />
+        return (
+          <AddressManagement userId={user.userId} userType={user.userType} />
+        )
       case "settings":
         return <UserSettings userId={user.userId} userType={user.userType} />
       default:

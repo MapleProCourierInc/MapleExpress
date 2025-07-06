@@ -45,7 +45,7 @@ export default function AddressesPage() {
     setError(null)
 
     try {
-      const fetchedAddresses = await getAddresses(user.userId)
+      const fetchedAddresses = await getAddresses(user.userId, user.userType)
       setAddresses(fetchedAddresses)
     } catch (err) {
       console.error("Error fetching addresses:", err)
@@ -69,7 +69,7 @@ export default function AddressesPage() {
     if (!user) return
 
     try {
-      await deleteAddress(user.userId, addressId)
+      await deleteAddress(user.userId, addressId, user.userType)
       // Refresh the address list after deletion
       fetchAddresses()
     } catch (err) {
@@ -90,10 +90,10 @@ export default function AddressesPage() {
         await updateAddress(user.userId, {
           ...addressData,
           addressId: editingAddress.addressId,
-        })
+        }, user.userType)
       } else {
         // Create new address
-        await createAddress(user.userId, addressData)
+        await createAddress(user.userId, addressData, user.userType)
       }
 
       // Refresh the address list after adding/updating

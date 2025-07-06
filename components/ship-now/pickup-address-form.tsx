@@ -33,7 +33,7 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
 
       try {
         setIsLoading(true)
-        const addresses = await getAddresses(user.userId)
+        const addresses = await getAddresses(user.userId, user.userType)
         setSavedAddresses(addresses)
       } catch (err) {
         console.error("Error fetching addresses:", err)
