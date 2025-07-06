@@ -158,7 +158,7 @@ export default function SettingsPage() {
               </TabsContent>
 
               <TabsContent value="security" className="mt-0">
-                <ChangePassword userId={user.userId} />
+                <ChangePassword />
               </TabsContent>
             </Tabs>
           </div>

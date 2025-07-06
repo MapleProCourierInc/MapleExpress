@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import type { IndividualProfile } from "@/types/profile"
-import { updateIndividualProfile } from "@/lib/profile-service"
+import { updateIndividualInformation } from "@/lib/profile-service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -20,17 +20,15 @@ interface IndividualSettingsProps {
 
 export function IndividualSettings({ profile, onProfileUpdate }: IndividualSettingsProps) {
   const [formData, setFormData] = useState({
-    firstName: profile.firstName,
-    lastName: profile.lastName,
-    phone: profile.phone,
+    phone: profile.phone || "",
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState(false)
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const { name, value } = e.target
-    setFormData((prev) => ({ ...prev, [name]: value }))
+    const { value } = e.target
+    setFormData({ phone: value })
   }
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -40,7 +38,7 @@ export function IndividualSettings({ profile, onProfileUpdate }: IndividualSetti
     setSuccess(false)
 
     try {
-      await updateIndividualProfile(profile.userId, formData)
+      await updateIndividualInformation(profile.userId, formData.phone)
       setSuccess(true)
       onProfileUpdate()
     } catch (err) {
@@ -78,12 +76,12 @@ export function IndividualSettings({ profile, onProfileUpdate }: IndividualSetti
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="firstName">First Name</Label>
-                <Input id="firstName" name="firstName" value={formData.firstName} onChange={handleChange} required />
+                <Input id="firstName" value={profile.firstName} disabled className="bg-muted" />
               </div>
 
               <div className="space-y-2">
                 <Label htmlFor="lastName">Last Name</Label>
-                <Input id="lastName" name="lastName" value={formData.lastName} onChange={handleChange} required />
+                <Input id="lastName" value={profile.lastName} disabled className="bg-muted" />
               </div>
             </div>
 

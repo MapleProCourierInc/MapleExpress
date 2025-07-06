@@ -162,9 +162,76 @@ export async function updateOrganizationProfile(
   return response.json()
 }
 
+export async function updateIndividualInformation(
+  userId: string,
+  phone: string,
+): Promise<IndividualProfile> {
+  const accessToken = localStorage.getItem("maplexpress_access_token")
+
+  if (!accessToken) {
+    throw new Error("Not authenticated")
+  }
+
+  const response = await fetch(`/api/profile/individual/updateinformation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ userId, phone }),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to update information")
+  }
+
+  return data
+}
+
+export async function updateOrganizationInformation(
+  userId: string,
+  info: {
+    registrationNumber?: string
+    taxID?: string
+    industry?: string
+    phone?: string
+    website?: string
+    pointOfContact: {
+      name?: string
+      position?: string
+      email?: string
+      phone?: string
+    }
+  },
+): Promise<OrganizationProfile> {
+  const accessToken = localStorage.getItem("maplexpress_access_token")
+
+  if (!accessToken) {
+    throw new Error("Not authenticated")
+  }
+
+  const response = await fetch(`/api/profile/organization/updateinformation`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${accessToken}`,
+    },
+    body: JSON.stringify({ userId, ...info }),
+  })
+
+  const data = await response.json()
+
+  if (!response.ok) {
+    throw new Error(data.message || "Failed to update information")
+  }
+
+  return data
+}
+
 // Change password
 export async function changePassword(
-  userId: string,
   currentPassword: string,
   newPassword: string,
 ): Promise<{ success: boolean; message: string }> {
@@ -181,7 +248,6 @@ export async function changePassword(
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify({
-      userId,
       currentPassword,
       newPassword,
     }),

@@ -4,7 +4,7 @@ import type React from "react"
 
 import { useState } from "react"
 import type { OrganizationProfile } from "@/types/profile"
-import { updateOrganizationProfile } from "@/lib/profile-service"
+import { updateOrganizationInformation } from "@/lib/profile-service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -19,18 +19,16 @@ interface OrganizationSettingsProps {
 
 export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationSettingsProps) {
   const [formData, setFormData] = useState({
-    name: profile.name,
     registrationNumber: profile.registrationNumber || "",
     taxID: profile.taxID || "",
     industry: profile.industry || "",
     phone: profile.phone,
-    email: profile.email,
     website: profile.website || "",
     pointOfContact: {
-      name: profile.pointOfContact.name,
-      position: profile.pointOfContact.position,
-      email: profile.pointOfContact.email,
-      phone: profile.pointOfContact.phone,
+      name: profile.pointOfContact.name || "",
+      position: profile.pointOfContact.position || "",
+      email: profile.pointOfContact.email || "",
+      phone: profile.pointOfContact.phone || "",
     },
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -60,7 +58,7 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
     setSuccess(false)
 
     try {
-      await updateOrganizationProfile(profile.userId, formData)
+      await updateOrganizationInformation(profile.userId, formData)
       setSuccess(true)
       onProfileUpdate()
     } catch (err) {
@@ -97,7 +95,7 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
 
             <div className="space-y-2">
               <Label htmlFor="name">Organization Name</Label>
-              <Input id="name" name="name" value={formData.name} onChange={handleChange} required />
+              <Input id="name" value={profile.name} disabled className="bg-muted" />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -125,7 +123,7 @@ export function OrganizationSettings({ profile, onProfileUpdate }: OrganizationS
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="email">Email</Label>
-                <Input id="email" name="email" type="email" value={formData.email} onChange={handleChange} required />
+                <Input id="email" value={profile.email} disabled className="bg-muted" />
               </div>
 
               <div className="space-y-2">
