@@ -1,7 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -44,6 +44,7 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { AddressManagement } from "@/components/dashboard/address-management"
 import { UserSettings } from "@/components/dashboard/user-settings"
+import { Shipments } from "@/components/dashboard/shipments"
 
 // Mock data for shipments
 const recentShipments = [
@@ -99,9 +100,21 @@ type SectionType = "dashboard" | "shipments" | "quotes" | "addresses" | "message
 export default function Dashboard() {
   const { user, isLoading, individualProfile, organizationProfile, logout } = useAuth()
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const initialSection = (searchParams.get("section") as SectionType) || "dashboard"
   const [activeTab, setActiveTab] = useState("overview")
   const [searchQuery, setSearchQuery] = useState("")
-  const [activeSection, setActiveSection] = useState<SectionType>("dashboard")
+  const [activeSection, setActiveSection] = useState<SectionType>(initialSection)
+
+  const navigateSection = (section: SectionType) => {
+    setActiveSection(section)
+    router.push(`/dashboard?section=${section}`)
+  }
+
+  useEffect(() => {
+    const section = (searchParams.get("section") as SectionType) || "dashboard"
+    setActiveSection(section)
+  }, [searchParams])
 
   // Redirect if not authenticated or handle incomplete profile
   useEffect(() => {
@@ -200,6 +213,8 @@ export default function Dashboard() {
     switch (activeSection) {
       case "dashboard":
         return renderDashboardContent()
+      case "shipments":
+        return <Shipments userId={user.userId} />
       case "addresses":
         return (
           <AddressManagement userId={user.userId} userType={user.userType} />
@@ -319,7 +334,7 @@ export default function Dashboard() {
                   <Button
                     variant="ghost"
                     size="sm"
-                    onClick={() => setActiveSection("shipments")}
+                    onClick={() => navigateSection("shipments")}
                     className="flex items-center"
                   >
                     View All <ChevronRight className="ml-1 h-4 w-4" />
@@ -389,7 +404,7 @@ export default function Dashboard() {
                   <Button
                     variant="outline"
                     className="flex flex-col h-auto py-4 gap-2"
-                    onClick={() => setActiveSection("addresses")}
+                    onClick={() => navigateSection("addresses")}
                   >
                     <MapPin className="h-5 w-5" />
                     <span>Manage Addresses</span>
@@ -628,35 +643,35 @@ export default function Dashboard() {
             <nav className="space-y-1 px-2">
               <div
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "dashboard" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => setActiveSection("dashboard")}
+                onClick={() => navigateSection("dashboard")}
               >
                 <Home className={`h-5 w-5 ${activeSection === "dashboard" ? "text-primary" : ""}`} />
                 Dashboard
               </div>
               <div
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "shipments" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => setActiveSection("shipments")}
+                onClick={() => navigateSection("shipments")}
               >
                 <Package className="h-5 w-5" />
                 Shipments
               </div>
               <div
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "quotes" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => setActiveSection("quotes")}
+                onClick={() => navigateSection("quotes")}
               >
                 <FileText className="h-5 w-5" />
                 Quotes
               </div>
               <div
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "addresses" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => setActiveSection("addresses")}
+                onClick={() => navigateSection("addresses")}
               >
                 <MapPin className="h-5 w-5" />
                 Addresses
               </div>
               <div
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "messages" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => setActiveSection("messages")}
+                onClick={() => navigateSection("messages")}
               >
                 <Inbox className="h-5 w-5" />
                 Messages
@@ -664,7 +679,7 @@ export default function Dashboard() {
               </div>
               <div
                 className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "billing" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                onClick={() => setActiveSection("billing")}
+                onClick={() => navigateSection("billing")}
               >
                 <CreditCard className="h-5 w-5" />
                 Billing
@@ -675,14 +690,14 @@ export default function Dashboard() {
               <nav className="mt-2 space-y-1">
                 <div
                   className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "help" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                  onClick={() => setActiveSection("help")}
+                  onClick={() => navigateSection("help")}
                 >
                   <HelpCircle className="h-5 w-5" />
                   Help Center
                 </div>
                 <div
                   className={`flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium cursor-pointer ${activeSection === "settings" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
-                  onClick={() => setActiveSection("settings")}
+                  onClick={() => navigateSection("settings")}
                 >
                   <Settings className="h-5 w-5" />
                   Settings
@@ -710,7 +725,7 @@ export default function Dashboard() {
                 <DropdownMenuContent align="end">
                   <DropdownMenuLabel>My Account</DropdownMenuLabel>
                   <DropdownMenuSeparator />
-                  <DropdownMenuItem onClick={() => setActiveSection("settings")} className="cursor-pointer">
+                  <DropdownMenuItem onClick={() => navigateSection("settings")} className="cursor-pointer">
                     <Settings className="mr-2 h-4 w-4" />
                     <span>Settings</span>
                   </DropdownMenuItem>
@@ -730,7 +745,7 @@ export default function Dashboard() {
           <header className="border-b bg-white">
             <div className="flex h-16 items-center justify-between px-6">
               <div className="flex items-center md:hidden">
-                <div onClick={() => setActiveSection("dashboard")} className="cursor-pointer">
+                <div onClick={() => navigateSection("dashboard")} className="cursor-pointer">
                   <Truck className="h-6 w-6 text-primary" />
                 </div>
               </div>
@@ -765,19 +780,19 @@ export default function Dashboard() {
                     <DropdownMenuContent align="end">
                       <DropdownMenuLabel>Navigation</DropdownMenuLabel>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem onClick={() => setActiveSection("dashboard")} className="cursor-pointer">
+                      <DropdownMenuItem onClick={() => navigateSection("dashboard")} className="cursor-pointer">
                         <Home className="mr-2 h-4 w-4" />
                         <span>Dashboard</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setActiveSection("shipments")} className="cursor-pointer">
+                      <DropdownMenuItem onClick={() => navigateSection("shipments")} className="cursor-pointer">
                         <Package className="mr-2 h-4 w-4" />
                         <span>Shipments</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setActiveSection("addresses")} className="cursor-pointer">
+                      <DropdownMenuItem onClick={() => navigateSection("addresses")} className="cursor-pointer">
                         <MapPin className="mr-2 h-4 w-4" />
                         <span>Addresses</span>
                       </DropdownMenuItem>
-                      <DropdownMenuItem onClick={() => setActiveSection("settings")} className="cursor-pointer">
+                      <DropdownMenuItem onClick={() => navigateSection("settings")} className="cursor-pointer">
                         <Settings className="mr-2 h-4 w-4" />
                         <span>Settings</span>
                       </DropdownMenuItem>

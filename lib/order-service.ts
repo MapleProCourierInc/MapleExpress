@@ -205,3 +205,31 @@ function formatAddress(address: Address | null) {
         deliveryInstructions: address.deliveryInstructions || "",
     }
 }
+
+// Fetch paid orders for a customer
+export async function getPaidOrdersByCustomer(customerId: string): Promise<OrderResponse[]> {
+    const accessToken = localStorage.getItem("maplexpress_access_token") || ""
+    if (!accessToken) {
+        throw new Error("Authentication token not found")
+    }
+
+    const url = getEndpointUrl(
+        ORDER_SERVICE_URL,
+        `orders?customerId=${customerId}&paymentStatus=paid`
+    )
+
+    const response = await fetch(url, {
+        headers: {
+            accept: "application/json",
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${accessToken}`,
+        },
+    })
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch orders: ${response.statusText}`)
+    }
+
+    return response.json()
+}
+
