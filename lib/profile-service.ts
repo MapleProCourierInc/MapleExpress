@@ -1,8 +1,23 @@
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
+import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"   // ← updated path
+
+
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+  if (parts.length === 2) {
+    return parts.pop()!.split(";").shift() || null
+  }
+  return null
+}
 
 // Get individual profile
 export async function getIndividualProfile(userId: string): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -24,7 +39,10 @@ export async function getIndividualProfile(userId: string): Promise<IndividualPr
 
 // Get organization profile
 export async function getOrganizationProfile(userId: string): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -48,7 +66,10 @@ export async function getOrganizationProfile(userId: string): Promise<Organizati
 export async function getIndividualProfileByEmail(
   email: string,
 ): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -76,7 +97,10 @@ export async function getIndividualProfileByEmail(
 export async function getOrganizationProfileByEmail(
   email: string,
 ): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -105,7 +129,10 @@ export async function updateIndividualProfile(
   userId: string,
   profileData: Partial<IndividualProfile>,
 ): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -136,7 +163,10 @@ export async function updateOrganizationProfile(
   userId: string,
   profileData: Partial<OrganizationProfile>,
 ): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -163,22 +193,34 @@ export async function updateOrganizationProfile(
 }
 
 export async function updateIndividualInformation(
-  userId: string,
-  phone: string,
+    userId: string,
+    phone: string,
 ): Promise<IndividualProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+      getCookie("accessToken") ||
+      getCookie("maplexpress_access_token") ||
+      localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
   }
 
-  const response = await fetch(`/api/profile/individual/updateinformation`, {
-    method: "POST",
+  /** ------------------------------------------------------
+   * Build the full endpoint:
+   *   {PROFILE_SERVICE_URL}/profile/individual/user/{userId}
+   * ----------------------------------------------------- */
+  const endpoint = getEndpointUrl(
+      PROFILE_SERVICE_URL,
+      `/profile/individual/user/${encodeURIComponent(userId)}`,
+  )
+
+  const response = await fetch(endpoint, {
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ userId, phone }),
+    body: JSON.stringify({ phone }),
   })
 
   const data = await response.json()
@@ -187,47 +229,68 @@ export async function updateIndividualInformation(
     throw new Error(data.message || "Failed to update information")
   }
 
-  return data
+  return data as IndividualProfile
 }
 
 export async function updateOrganizationInformation(
-  userId: string,
-  info: {
-    registrationNumber?: string
-    taxID?: string
-    industry?: string
-    phone?: string
-    website?: string
-    pointOfContact: {
-      name?: string
-      position?: string
-      email?: string
-      phone?: string
-    }
-  },
+    userId: string,
+    formData: {
+      registrationNumber: string
+      taxID: string
+      industry: string
+      phone: string
+      website: string
+      pointOfContact: {
+        name: string
+        position: string
+        email: string
+        phone: string
+      }
+    },
 ): Promise<OrganizationProfile> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+      getCookie("accessToken") ||
+      getCookie("maplexpress_access_token") ||
+      localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
   }
 
-  const response = await fetch(`/api/profile/organization/updateinformation`, {
-    method: "POST",
+  /* Build full endpoint URL */
+  const endpoint = getEndpointUrl(
+      PROFILE_SERVICE_URL,
+      `/profile/organization/user/${encodeURIComponent(userId)}`,
+  )
+
+  const payload = {
+    registrationNumber: formData.registrationNumber || null,
+    taxId: formData.taxID || null,
+    industry: formData.industry || null,
+    phone: formData.phone || null,
+    websiteUrl: formData.website || null,
+    pointOfContactName: formData.pointOfContact.name || null,
+    pointOfContactPosition: formData.pointOfContact.position || null,
+    pointOfContactEmail: formData.pointOfContact.email || null,
+    pointOfContactPhone: formData.pointOfContact.phone || null,
+  }
+
+  const response = await fetch(endpoint, {
+    method: "PUT",
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${accessToken}`,
     },
-    body: JSON.stringify({ userId, ...info }),
+    body: JSON.stringify(payload),
   })
 
   const data = await response.json()
 
   if (!response.ok) {
-    throw new Error(data.message || "Failed to update information")
+    throw new Error(data.message || "Failed to update organization information")
   }
 
-  return data
+  return data as OrganizationProfile
 }
 
 // Change password
@@ -235,7 +298,10 @@ export async function changePassword(
   currentPassword: string,
   newPassword: string,
 ): Promise<{ success: boolean; message: string }> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken =
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token") ||
+    localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
