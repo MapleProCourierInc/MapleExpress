@@ -125,7 +125,7 @@ export function UserSettings({ userId, userType }: UserSettingsProps) {
             </TabsContent>
 
             <TabsContent value="security" className="mt-0">
-              <ChangePassword userId={userId} />
+              <ChangePassword />
             </TabsContent>
           </Tabs>
         </div>

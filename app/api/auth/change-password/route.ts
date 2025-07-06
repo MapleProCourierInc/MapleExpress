@@ -4,9 +4,9 @@ import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, currentPassword, newPassword } = body
+    const { currentPassword, newPassword } = body
 
-    if (!userId || !currentPassword || !newPassword) {
+    if (!currentPassword || !newPassword) {
       return NextResponse.json({ message: "All fields are required" }, { status: 400 })
     }
 
@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const token = authHeader.split(" ")[1]
 
     // Use the endpoint from our centralized configuration
-    const changePasswordEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'change-password')
+    const changePasswordEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'reset-password')
 
     // Forward the request to your microservice
     const response = await fetch(changePasswordEndpoint, {
@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        userId,
         currentPassword,
         newPassword,
       }),

@@ -4,18 +4,15 @@ import type React from "react"
 
 import { useState } from "react"
 import { changePassword } from "@/lib/profile-service"
+import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import { AlertCircle, Loader2, Check, Eye, EyeOff } from "lucide-react"
+import { AlertCircle, Loader2, Eye, EyeOff } from "lucide-react"
 
-interface ChangePasswordProps {
-  userId: string
-}
-
-export function ChangePassword({ userId }: ChangePasswordProps) {
+export function ChangePassword() {
   const [formData, setFormData] = useState({
     currentPassword: "",
     newPassword: "",
@@ -25,9 +22,8 @@ export function ChangePassword({ userId }: ChangePasswordProps) {
   const [showNewPassword, setShowNewPassword] = useState(false)
   const [showConfirmPassword, setShowConfirmPassword] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
-  const [success, setSuccess] = useState(false)
   const [passwordError, setPasswordError] = useState<string | null>(null)
+  const { toast } = useToast()
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target
@@ -60,8 +56,7 @@ export function ChangePassword({ userId }: ChangePasswordProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
-    setError(null)
-    setSuccess(false)
+    setPasswordError(null)
 
     // Validate passwords match
     if (formData.newPassword !== formData.confirmPassword) {
@@ -77,15 +72,18 @@ export function ChangePassword({ userId }: ChangePasswordProps) {
     }
 
     try {
-      await changePassword(userId, formData.currentPassword, formData.newPassword)
-      setSuccess(true)
+      await changePassword(formData.currentPassword, formData.newPassword)
+      toast({ description: "Password updated successfully." })
       setFormData({
         currentPassword: "",
         newPassword: "",
         confirmPassword: "",
       })
     } catch (err) {
-      setError(err instanceof Error ? err.message : "An unexpected error occurred")
+      toast({
+        description: err instanceof Error ? err.message : "An unexpected error occurred",
+        variant: "destructive",
+      })
     } finally {
       setIsSubmitting(false)
     }
@@ -99,21 +97,6 @@ export function ChangePassword({ userId }: ChangePasswordProps) {
       </CardHeader>
       <CardContent>
         <form onSubmit={handleSubmit} className="space-y-4">
-          {error && (
-            <Alert variant="destructive">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>{error}</AlertDescription>
-            </Alert>
-          )}
-
-          {success && (
-            <Alert className="bg-green-50 border-green-200">
-              <Check className="h-4 w-4 text-green-600" />
-              <AlertDescription className="text-green-600">
-                Your password has been changed successfully!
-              </AlertDescription>
-            </Alert>
-          )}
 
           {passwordError && (
             <Alert variant="destructive">
