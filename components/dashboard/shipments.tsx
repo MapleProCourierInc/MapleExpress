@@ -17,7 +17,6 @@ export function Shipments({ userId }: ShipmentsProps) {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [expanded, setExpanded] = useState<Record<string, boolean>>({})
-  const [selectedOrder, setSelectedOrder] = useState<OrderResponse | null>(null)
 
   useEffect(() => {
     const fetchOrders = async () => {
@@ -49,31 +48,6 @@ export function Shipments({ userId }: ShipmentsProps) {
     )
   }
 
-  if (selectedOrder) {
-    return (
-      <div className="space-y-6">
-        <Button variant="outline" onClick={() => setSelectedOrder(null)}>
-          Back to Orders
-        </Button>
-        <Card>
-          <CardHeader>
-            <CardTitle>Order {selectedOrder.shippingOrderId}</CardTitle>
-            <CardDescription>Status: {selectedOrder.orderStatus}</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {selectedOrder.orderItems.map((item, idx) => (
-              <div key={item.orderItemId} className="border p-4 rounded">
-                <p className="font-medium mb-2">Package {idx + 1}</p>
-                <p className="text-sm">From: {item.pickup.address.city}, {item.pickup.address.province}</p>
-                <p className="text-sm">To: {item.dropoff.address.city}, {item.dropoff.address.province}</p>
-                <p className="text-sm">Tracking: {item.trackingNumber || "N/A"}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-      </div>
-    )
-  }
 
   return (
     <div className="space-y-6">
@@ -93,9 +67,10 @@ export function Shipments({ userId }: ShipmentsProps) {
               <div className="flex items-start justify-between">
                 <div>
                   <CardTitle>Order {order.shippingOrderId}</CardTitle>
-                  <CardDescription>Status: {order.orderStatus}</CardDescription>
+                  <CardDescription>
+                    Status: {order.orderStatus} | Payment: {order.paymentStatus}
+                  </CardDescription>
                 </div>
-                <Button size="sm" onClick={() => setSelectedOrder(order)}>View Order</Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -105,10 +80,30 @@ export function Shipments({ userId }: ShipmentsProps) {
               </div>
               {expanded[order.shippingOrderId] && (
                 <div className="mt-4 space-y-3">
-                  {order.orderItems.map((item, idx) => (
-                    <div key={item.orderItemId} className="p-3 border rounded">
-                      <p className="text-sm font-medium">Package {idx + 1}: {item.itemStatus}</p>
-                      <p className="text-sm">{item.pickup.address.city} → {item.dropoff.address.city}</p>
+                  {order.orderItems.map((item) => (
+                    <div key={item.orderItemId} className="p-3 border rounded space-y-2">
+                      <div className="flex justify-between items-center">
+                        <p className="text-sm font-medium">
+                          {item.trackingNumber || `Package ${item.orderItemId}`}: {item.itemStatus}
+                        </p>
+                        {item.trackingNumber && (
+                          <Button asChild size="sm" variant="outline">
+                            <a
+                              href={`https://www.maplexpress.ca/track?trackingNumber=${item.trackingNumber}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              Track
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                      <p className="text-sm">
+                        Pickup: {`${item.pickup.address.fullName}, ${item.pickup.address.streetAddress}${item.pickup.address.addressLine2 ? ", " + item.pickup.address.addressLine2 : ""}, ${item.pickup.address.city}, ${item.pickup.address.province} ${item.pickup.address.postalCode}`}
+                      </p>
+                      <p className="text-sm">
+                        Dropoff: {`${item.dropoff.address.fullName}, ${item.dropoff.address.streetAddress}${item.dropoff.address.addressLine2 ? ", " + item.dropoff.address.addressLine2 : ""}, ${item.dropoff.address.city}, ${item.dropoff.address.province} ${item.dropoff.address.postalCode}`}
+                      </p>
                     </div>
                   ))}
                 </div>
