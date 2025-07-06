@@ -3,9 +3,10 @@ import { type NextRequest, NextResponse } from "next/server"
 // Get all addresses for a user
 export async function GET(request: NextRequest) {
   try {
-    // Get the userId from query params
+    // Get the userId and userType from query params
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
+    const userType = searchParams.get("userType") || "individualUser"
 
     if (!userId) {
       return NextResponse.json({ message: "userId is required" }, { status: 400 })
@@ -21,7 +22,9 @@ export async function GET(request: NextRequest) {
 
     // Use the correct base URL and endpoint
     const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = `${BASE_URL}/profile/individual/${userId}/address`
+    const profileSegment =
+      userType === "businessUser" ? "organization" : "individual"
+    const endpoint = `${BASE_URL}/profile/${profileSegment}/${userId}/address`
 
     // Forward the request to your microservice
     const response = await fetch(endpoint, {
@@ -47,7 +50,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, ...addressData } = body
+    const { userId, userType = "individualUser", ...addressData } = body
 
     if (!userId) {
       return NextResponse.json({ message: "userId is required" }, { status: 400 })
@@ -63,7 +66,9 @@ export async function POST(request: NextRequest) {
 
     // Use the correct base URL and endpoint
     const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = `${BASE_URL}/profile/individual/${userId}/address`
+    const profileSegment =
+      userType === "businessUser" ? "organization" : "individual"
+    const endpoint = `${BASE_URL}/profile/${profileSegment}/${userId}/address`
 
     // Forward the request to your microservice
     const response = await fetch(endpoint, {
@@ -91,7 +96,7 @@ export async function POST(request: NextRequest) {
 export async function PATCH(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, ...addressData } = body
+    const { userId, userType = "individualUser", ...addressData } = body
 
     if (!userId) {
       return NextResponse.json({ message: "userId is required" }, { status: 400 })
@@ -107,7 +112,9 @@ export async function PATCH(request: NextRequest) {
 
     // Use the correct base URL and endpoint
     const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = `${BASE_URL}/profile/individual/${userId}/address`
+    const profileSegment =
+      userType === "businessUser" ? "organization" : "individual"
+    const endpoint = `${BASE_URL}/profile/${profileSegment}/${userId}/address`
 
     // Forward the request to your microservice
     const response = await fetch(endpoint, {
@@ -138,6 +145,7 @@ export async function DELETE(request: NextRequest) {
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
     const addressId = searchParams.get("addressId")
+    const userType = searchParams.get("userType") || "individualUser"
 
     if (!userId || !addressId) {
       return NextResponse.json({ message: "userId and addressId are required" }, { status: 400 })
@@ -153,7 +161,9 @@ export async function DELETE(request: NextRequest) {
 
     // Use the correct base URL and endpoint
     const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = `${BASE_URL}/profile/individual/${userId}/address/${addressId}`
+    const profileSegment =
+      userType === "businessUser" ? "organization" : "individual"
+    const endpoint = `${BASE_URL}/profile/${profileSegment}/${userId}/address/${addressId}`
 
     // Forward the request to your microservice
     const response = await fetch(endpoint, {

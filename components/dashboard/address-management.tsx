@@ -15,9 +15,10 @@ import { AlertCircle } from "lucide-react"
 
 interface AddressManagementProps {
   userId: string
+  userType: string
 }
 
-export function AddressManagement({ userId }: AddressManagementProps) {
+export function AddressManagement({ userId, userType }: AddressManagementProps) {
   const [addresses, setAddresses] = useState<Address[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -36,7 +37,7 @@ export function AddressManagement({ userId }: AddressManagementProps) {
     setError(null)
 
     try {
-      const fetchedAddresses = await getAddresses(userId)
+      const fetchedAddresses = await getAddresses(userId, userType)
       setAddresses(fetchedAddresses)
     } catch (err) {
       console.error("Error fetching addresses:", err)
@@ -58,7 +59,7 @@ export function AddressManagement({ userId }: AddressManagementProps) {
 
   const handleDeleteAddress = async (addressId: string) => {
     try {
-      await deleteAddress(userId, addressId)
+      await deleteAddress(userId, addressId, userType)
       // Refresh the address list after deletion
       fetchAddresses()
     } catch (err) {
@@ -77,10 +78,10 @@ export function AddressManagement({ userId }: AddressManagementProps) {
         await updateAddress(userId, {
           ...addressData,
           addressId: editingAddress.addressId,
-        })
+        }, userType)
       } else {
         // Create new address
-        await createAddress(userId, addressData)
+        await createAddress(userId, addressData, userType)
       }
 
       // Refresh the address list after adding/updating

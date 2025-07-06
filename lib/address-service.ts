@@ -1,18 +1,24 @@
 import type { Address } from "@/types/address"
 
 // Get all addresses for a user
-export async function getAddresses(userId: string): Promise<Address[]> {
+export async function getAddresses(
+  userId: string,
+  userType: string,
+): Promise<Address[]> {
   const accessToken = localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
   }
 
-  const response = await fetch(`/api/profile/address?userId=${userId}`, {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const response = await fetch(
+    `/api/profile/address?userId=${userId}&userType=${userType}`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
-  })
+  )
 
   if (!response.ok) {
     const error = await response.json()
@@ -23,7 +29,11 @@ export async function getAddresses(userId: string): Promise<Address[]> {
 }
 
 // Create a new address
-export async function createAddress(userId: string, addressData: Omit<Address, "addressId">): Promise<Address> {
+export async function createAddress(
+  userId: string,
+  addressData: Omit<Address, "addressId">,
+  userType: string,
+): Promise<Address> {
   const accessToken = localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
@@ -31,15 +41,16 @@ export async function createAddress(userId: string, addressData: Omit<Address, "
   }
 
   const response = await fetch("/api/profile/address", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      userId,
-      ...addressData,
-    }),
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        userId,
+        userType,
+        ...addressData,
+      }),
   })
 
   if (!response.ok) {
@@ -51,7 +62,11 @@ export async function createAddress(userId: string, addressData: Omit<Address, "
 }
 
 // Update an address
-export async function updateAddress(userId: string, addressData: Address): Promise<Address> {
+export async function updateAddress(
+  userId: string,
+  addressData: Address,
+  userType: string,
+): Promise<Address> {
   const accessToken = localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
@@ -59,15 +74,16 @@ export async function updateAddress(userId: string, addressData: Address): Promi
   }
 
   const response = await fetch("/api/profile/address", {
-    method: "PATCH",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
-    },
-    body: JSON.stringify({
-      userId,
-      ...addressData,
-    }),
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+      },
+      body: JSON.stringify({
+        userId,
+        userType,
+        ...addressData,
+      }),
   })
 
   if (!response.ok) {
@@ -79,19 +95,26 @@ export async function updateAddress(userId: string, addressData: Address): Promi
 }
 
 // Delete an address
-export async function deleteAddress(userId: string, addressId: string): Promise<boolean> {
+export async function deleteAddress(
+  userId: string,
+  addressId: string,
+  userType: string,
+): Promise<boolean> {
   const accessToken = localStorage.getItem("maplexpress_access_token")
 
   if (!accessToken) {
     throw new Error("Not authenticated")
   }
 
-  const response = await fetch(`/api/profile/address?userId=${userId}&addressId=${addressId}`, {
-    method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
+  const response = await fetch(
+    `/api/profile/address?userId=${userId}&addressId=${addressId}&userType=${userType}`,
+    {
+      method: "DELETE",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
     },
-  })
+  )
 
   if (!response.ok) {
     const error = await response.json()
