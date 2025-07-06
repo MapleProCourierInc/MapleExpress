@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import {Suspense, useState, useEffect } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/shared/header"
 import { Footer } from "@/components/shared/footer"
@@ -43,7 +43,7 @@ type FulfillmentStatus =
     | "CANCELLED"
     | "END_OF_DAY"
 
-export default function TrackingPage() {
+function TrackingPageContent() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const initial = searchParams.get("trackingNumber") || ""
@@ -496,5 +496,12 @@ export default function TrackingPage() {
 
         <Footer />
       </div>
+  )
+}
+export default function TrackingPage() {
+  return (
+      <Suspense fallback={<div>Loading tracking...</div>}>
+        <TrackingPageContent />
+      </Suspense>
   )
 }
