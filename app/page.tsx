@@ -1,5 +1,6 @@
 "use client"
 import { useState, useEffect } from "react"
+import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
@@ -171,7 +172,7 @@ export default function LandingPage() {
             </Link>
           </nav>
           <div className="flex items-center gap-4">
-            <Link href="#track" className="text-sm font-medium hover:text-primary hidden md:block">
+            <Link href="/track" className="text-sm font-medium hover:text-primary hidden md:block">
               Track Package
             </Link>
             {isLoading ? (
@@ -273,7 +274,7 @@ export default function LandingPage() {
                   </Link>
                 </li>
                 <li>
-                  <Link href="#track" className="text-muted-foreground hover:text-primary">
+                  <Link href="/track" className="text-muted-foreground hover:text-primary">
                     Track Package
                   </Link>
                 </li>
@@ -356,6 +357,8 @@ export default function LandingPage() {
 
 // Extract the landing content to a separate component
 function LandingContent() {
+  const [trackingInput, setTrackingInput] = useState("")
+  const router = useRouter()
   return (
     <>
       {/* Hero Section */}
@@ -558,8 +561,21 @@ function LandingContent() {
               time.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 max-w-[600px] mx-auto">
-              <Input placeholder="Enter tracking number" className="flex-1" />
-              <Button>Track Now</Button>
+              <Input
+                value={trackingInput}
+                onChange={(e) => setTrackingInput(e.target.value)}
+                placeholder="Enter tracking number"
+                className="flex-1"
+              />
+              <Button
+                onClick={() => {
+                  if (trackingInput.trim()) {
+                    router.push(`/track?trackingNumber=${encodeURIComponent(trackingInput.trim())}`)
+                  }
+                }}
+              >
+                Track Now
+              </Button>
             </div>
           </div>
         </div>

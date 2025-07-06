@@ -41,7 +41,7 @@ export function ShippingSuccess({ orderNumber }: ShippingSuccessProps) {
             <Link href="/">Return to Home</Link>
           </Button>
           <Button variant="outline" asChild>
-            <Link href="#track">Track Your Package</Link>
+            <Link href="/track">Track Your Package</Link>
           </Button>
         </div>
       </motion.div>

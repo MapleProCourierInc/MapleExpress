@@ -41,7 +41,7 @@ export function Header() {
           </Link>
         </nav>
         <div className="flex items-center gap-4">
-          <Link href="/#track" className="text-sm font-medium hover:text-primary hidden md:block">
+          <Link href="/track" className="text-sm font-medium hover:text-primary hidden md:block">
             Track Package
           </Link>
           {isLoading ? (
