@@ -246,15 +246,15 @@ export default function Dashboard() {
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="bg-muted/50 p-1">
-            <TabsTrigger value="overview" className="rounded-md">
+            {/*             <TabsTrigger value="overview" className="rounded-md">
               Overview
             </TabsTrigger>
-            <TabsTrigger value="shipments" className="rounded-md">
+           <TabsTrigger value="shipments" className="rounded-md">
               Shipments
             </TabsTrigger>
             <TabsTrigger value="analytics" className="rounded-md">
               Analytics
-            </TabsTrigger>
+            </TabsTrigger>*/}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">

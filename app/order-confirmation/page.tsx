@@ -73,14 +73,14 @@ function OrderConfirmationContent() {
                 </div>
 
                 <div className="pt-6 space-y-3 sm:space-y-0 sm:flex sm:flex-row sm:justify-between sm:gap-4">
-                  <Button
+{/*                  <Button
                     onClick={() => router.push(orderId ? `/dashboard/shipments?trackingId=${orderId}` : "/dashboard")}
                     variant="outline"
                     className="w-full sm:w-auto"
                   >
                     <Package className="mr-2 h-4 w-4" />
                     Track Order
-                  </Button>
+                  </Button>*/}
                   <Button
                     onClick={() => router.push("/ship-now")}
                     variant="outline"
