@@ -8,6 +8,7 @@ import { LoginModal } from "@/components/login-modal"
 import { SignupModal } from "@/components/signup-modal"
 import { UserProfile } from "@/components/user-profile"
 import { useState } from "react"
+import { ColorPicker } from "@/components/color-picker"
 
 export function Header() {
   const { user, isLoading } = useAuth()
@@ -61,6 +62,7 @@ export function Header() {
               </Button>
             </>
           )}
+          <ColorPicker />
         </div>
       </div>
 

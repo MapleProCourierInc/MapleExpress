@@ -6,6 +6,7 @@ import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
+import { ColorPicker } from "@/components/color-picker"
 import {
   Truck,
   Package,
@@ -195,6 +196,7 @@ export default function LandingPage() {
                 </Button>
               </>
             )}
+            <ColorPicker />
 {/*            <Button
               className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
               asChild
