@@ -2,74 +2,7 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
-
-    /* Vibrant teal as primary color */
-    --primary: 175 70% 41%;
-    --primary-foreground: 0 0% 100%;
-
-    /* Warm orange as secondary color */
-    --secondary: 32 95% 60%;
-    --secondary-foreground: 222 47% 11%;
-
-    /* Soft purple as accent color */
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
-
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
-
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --ring: 175 70% 41%;
-
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
-
-    --primary: 175 70% 41%;
-    --primary-foreground: 0 0% 100%;
-
-    --secondary: 32 95% 60%;
-    --secondary-foreground: 222 47% 11%;
-
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
-
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
-
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
-
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
-
-    --destructive: 0 84% 60%;
-    --destructive-foreground: 0 0% 100%;
-
-    --ring: 175 70% 41%;
-  }
-}
+@import "../styles/theme.css";
 
 @layer base {
   * {
