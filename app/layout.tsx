@@ -1,5 +1,6 @@
 import type React from "react"
 import "./globals.css"
+import "../styles/theme.css"
 import type { Metadata } from "next"
 import { Inter } from "next/font/google"
 import { AuthProvider } from "@/lib/auth-context"
