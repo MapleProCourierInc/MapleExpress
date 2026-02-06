@@ -11,9 +11,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "userId is required" }, { status: 400 });
     }
 
-    const cookieStore = cookies();
+    const cookieStore = await cookies();
     const token =
-      cookieStore.get("accessToken")?.value || cookieStore.get("maplexpress_access_token")?.value;
+      cookieStore.get("mx_access_token")?.value || cookieStore.get("accessToken")?.value || cookieStore.get("maplexpress_access_token")?.value;
 
     if (!token) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 });

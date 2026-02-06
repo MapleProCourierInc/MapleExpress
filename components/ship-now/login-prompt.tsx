@@ -1,43 +1,11 @@
 "use client"
 
-import { useState } from "react"
+import Link from "next/link"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { LoginModal } from "@/components/login-modal"
-import { SignupModal } from "@/components/signup-modal"
 import { Package } from "lucide-react"
-import { VerificationPending } from "@/components/verification-pending"
 
 export function LoginPrompt() {
-  const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
-  const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
-  const [verificationEmail, setVerificationEmail] = useState("")
-
-  const handleCloseVerification = () => {
-    setVerificationEmail("")
-    try {
-      localStorage.removeItem("maplexpress_signup_email")
-    } catch (e) {
-      console.error("Failed to remove signup email", e)
-    }
-  }
-
-  const handleSignupSuccess = (email: string) => {
-    setIsSignupModalOpen(false)
-    setVerificationEmail(email)
-  }
-
-  if (verificationEmail) {
-    return (
-      <div className="container py-20 flex items-center justify-center">
-        <VerificationPending
-          email={verificationEmail}
-          onClose={handleCloseVerification}
-        />
-      </div>
-    )
-  }
-
   return (
     <div className="container py-20 flex items-center justify-center">
       <Card className="w-full max-w-3xl shadow-lg border-none">
@@ -51,47 +19,15 @@ export function LoginPrompt() {
         <CardContent>
           <div className="flex flex-col items-center space-y-4">
             <p className="text-center text-muted-foreground mb-4">
-              You need to be signed in to access our shipping services. This allows us to save your addresses and
-              shipping preferences for a faster checkout experience.
+              You need to be signed in to access shipping services.
             </p>
             <div className="flex flex-col sm:flex-row gap-4 w-full sm:w-auto">
-              <Button size="lg" onClick={() => setIsLoginModalOpen(true)} className="w-full sm:w-auto">
-                Sign In
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                onClick={() => setIsSignupModalOpen(true)}
-                className="w-full sm:w-auto"
-              >
-                Create Account
-              </Button>
+              <Link href="/auth/login"><Button size="lg" className="w-full sm:w-auto">Sign In</Button></Link>
+              <Link href="/auth/signup"><Button size="lg" variant="outline" className="w-full sm:w-auto">Create Account</Button></Link>
             </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Login Modal */}
-      <LoginModal
-        isOpen={isLoginModalOpen}
-        onClose={() => setIsLoginModalOpen(false)}
-        onOpenSignup={() => {
-          setIsLoginModalOpen(false)
-          setIsSignupModalOpen(true)
-        }}
-      />
-
-      {/* Signup Modal */}
-      <SignupModal
-        isOpen={isSignupModalOpen}
-        onClose={() => setIsSignupModalOpen(false)}
-        onSignupSuccess={handleSignupSuccess}
-        onOpenLogin={() => {
-          setIsSignupModalOpen(false)
-          setIsLoginModalOpen(true)
-        }}
-      />
     </div>
   )
 }
-

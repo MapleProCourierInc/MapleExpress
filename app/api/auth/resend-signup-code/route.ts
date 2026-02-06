@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
-import { cognitoForgotPassword } from "@/lib/auth/cognito-server"
+import { cognitoResendSignUpCode } from "@/lib/auth/cognito-server"
 
 export async function POST(request: NextRequest) {
   try {
@@ -8,10 +8,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Email is required" }, { status: 400 })
     }
 
-    await cognitoForgotPassword(email)
+    await cognitoResendSignUpCode(email)
     return NextResponse.json({ ok: true })
   } catch (error) {
-    const message = error instanceof Error ? error.message : "Forgot password failed"
+    const message = error instanceof Error ? error.message : "Failed to resend code"
     return NextResponse.json({ message }, { status: 400 })
   }
 }

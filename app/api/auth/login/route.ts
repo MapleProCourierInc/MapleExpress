@@ -1,38 +1,30 @@
-import { type NextRequest, NextResponse } from "next/server"
-import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { NextRequest, NextResponse } from "next/server"
+import { cognitoInitiateAuth } from "@/lib/auth/cognito-server"
+import { cookieSettings, COOKIE_NAMES } from "@/lib/auth/session"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { email, password } = body
+    const { email, password } = await request.json()
 
-    // Use the endpoint from our centralized configuration
-    const loginEndpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'login')
-
-    // Forward the request to your microservice with the exact headers needed
-    const response = await fetch(loginEndpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "Accept-Language": "application/json",
-        "X-Real-IP": request.headers.get("x-forwarded-for") || "127.0.0.1",
-      },
-      body: JSON.stringify({ email, password }),
-    })
-
-    // Get the response data
-    const data = await response.json()
-
-    // If successful, return the data
-    if (response.ok) {
-      return NextResponse.json(data, { status: 200 })
-    } else {
-      // If there's an error, format it appropriately
-      return NextResponse.json({ message: data.message || "Authentication failed" }, { status: response.status })
+    if (!email || !password) {
+      return NextResponse.json({ message: "Email and password are required" }, { status: 400 })
     }
+
+    const result = await cognitoInitiateAuth(email, password)
+    const authResult = result.AuthenticationResult
+
+    if (!authResult?.AccessToken || !authResult?.IdToken || !authResult?.RefreshToken) {
+      return NextResponse.json({ message: "Authentication failed" }, { status: 401 })
+    }
+
+    const response = NextResponse.json({ ok: true })
+    response.cookies.set(COOKIE_NAMES.access, authResult.AccessToken, cookieSettings(authResult.ExpiresIn ?? 3600))
+    response.cookies.set(COOKIE_NAMES.id, authResult.IdToken, cookieSettings(authResult.ExpiresIn ?? 3600))
+    response.cookies.set(COOKIE_NAMES.refresh, authResult.RefreshToken, cookieSettings(60 * 60 * 24 * 30))
+
+    return response
   } catch (error) {
-    console.error("Login error:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    const message = error instanceof Error ? error.message : "Login failed"
+    return NextResponse.json({ message }, { status: 401 })
   }
 }
