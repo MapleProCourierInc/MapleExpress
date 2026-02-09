@@ -10,6 +10,16 @@ The project is tested with **Node.js 20**. Using newer versions such as Node 24 
 
 The application uses several environment variables for configuration. These are defined in `lib/config.ts` and can be overridden by setting them in `.env` or `.env.local` files.
 
+## Signup & Email Verification Flow (Cognito)
+
+The current signup flow uses AWS Cognito confirmation codes:
+
+1. Sign up with email + password.
+2. Cognito sends a numeric confirmation code to the user's email.
+3. Enter the code in the "Verify Your Email" UI to confirm the account.
+4. After confirmation, return to the login screen and sign in normally.
+5. If needed, resend the confirmation code from the same screen.
+
 ### Auth Service
 - **AUTH_MICROSERVICE_URL**: URL for the authentication microservice
   - Default: `http://localhost:30080/usermanagement/auth`
@@ -107,6 +117,14 @@ NEXT_PUBLIC_ORDER_SERVICE_URL=https://api.example.com/orders
 NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL=https://api.example.com/payments
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 ```
+
+## Local Verification Testing Checklist
+
+1. Sign up with a new email address.
+2. Check the email inbox for the Cognito confirmation code.
+3. Enter the code in the "Verify Your Email" UI and confirm.
+4. Verify that the UI returns to login and that you can sign in.
+5. Use "Resend Code" to verify the resend flow.
 
 ## Environment Variables in Next.js
 

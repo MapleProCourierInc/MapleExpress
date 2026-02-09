@@ -80,6 +80,9 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
                 setShowVerification(false)
                 onClose()
               }}
+              onConfirmed={() => {
+                setShowVerification(false)
+              }}
             />
           ) : (
             <>
@@ -224,4 +227,3 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
       </Dialog>
   )
 }
-
