@@ -90,7 +90,7 @@ type AuthContextType = {
     email: string,
     password: string,
   ) => Promise<{ success: boolean; message: string; userStatus?: string }>
-  logout: () => void
+  logout: () => Promise<void>
   createIndividualProfile: (
     profileData: Omit<IndividualProfile, "id" | "status" | "email" | "createdAt" | "updatedAt">,
   ) => Promise<{ success: boolean; message: string; profile?: IndividualProfile }>
@@ -213,15 +213,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // Update the logout function:
-  const logout = () => {
-    localStorage.removeItem("maplexpress_access_token")
-    localStorage.removeItem("maplexpress_refresh_token")
-    localStorage.removeItem("maplexpress_user_data")
-    localStorage.removeItem("maplexpress_individual_profile")
-    localStorage.removeItem("maplexpress_organization_profile")
-    setUser(null)
-    setIndividualProfile(null)
-    setOrganizationProfile(null)
+  const logout = async () => {
+    try {
+      await fetch("/api/auth/logout", { method: "POST" })
+    } catch (error) {
+      console.error("Logout error:", error)
+    } finally {
+      localStorage.removeItem("maplexpress_access_token")
+      localStorage.removeItem("maplexpress_refresh_token")
+      localStorage.removeItem("maplexpress_user_data")
+      localStorage.removeItem("maplexpress_individual_profile")
+      localStorage.removeItem("maplexpress_organization_profile")
+      setUser(null)
+      setIndividualProfile(null)
+      setOrganizationProfile(null)
+    }
   }
 
   // Add function to resend verification email
