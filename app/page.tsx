@@ -103,6 +103,11 @@ export default function LandingPage() {
     }
   }
 
+  const handleVerificationConfirmed = () => {
+    handleCloseVerification()
+    setIsLoginModalOpen(true)
+  }
+
   // Determine what to show based on user status or signup state
   const renderContent = () => {
     if (showVerification) {
@@ -111,6 +116,7 @@ export default function LandingPage() {
           <VerificationPending
             email={verificationEmail || "your email"}
             onClose={handleCloseVerification}
+            onConfirmed={handleVerificationConfirmed}
           />
         </div>
       )
@@ -127,6 +133,7 @@ export default function LandingPage() {
             <VerificationPending
               email={verificationEmail || "your email"}
               onClose={handleCloseVerification}
+              onConfirmed={handleVerificationConfirmed}
             />
           </div>
         )
@@ -866,4 +873,3 @@ function LandingContent() {
     </>
   )
 }
-

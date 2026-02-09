@@ -97,6 +97,7 @@ type AuthContextType = {
   createOrganizationProfile: (
     profileData: Omit<OrganizationProfile, "id" | "status" | "createdAt" | "updatedAt">,
   ) => Promise<{ success: boolean; message: string; profile?: OrganizationProfile }>
+  confirmEmail: (email: string, code: string) => Promise<{ success: boolean; message: string }>
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string }>
   fetchUserProfile: (user?: User) => Promise<void>
 }
@@ -224,6 +225,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   // Add function to resend verification email
+  const confirmEmail = async (email: string, code: string) => {
+    try {
+      const response = await fetch("/api/auth/confirm-signup", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, code }),
+      })
+
+      const data = await response.json()
+
+      if (response.ok) {
+        return { success: true, message: data.message || "Email confirmed successfully." }
+      }
+
+      return { success: false, message: data.message || "Failed to confirm email." }
+    } catch (error) {
+      console.error("Confirm email error:", error)
+      return { success: false, message: "An error occurred while confirming your email." }
+    }
+  }
+
+  // Add function to resend verification email
   const resendVerificationEmail = async (email: string) => {
     try {
       const response = await fetch("/api/auth/resend-verification", {
@@ -237,13 +262,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const data = await response.json()
 
       if (response.ok) {
-        return { success: true, message: "Verification email sent successfully" }
-      } else {
-        return { success: false, message: data.message || "Failed to send verification email" }
+        return { success: true, message: data.message || "Confirmation code sent successfully." }
       }
+
+      return { success: false, message: data.message || "Failed to send confirmation code." }
     } catch (error) {
       console.error("Resend verification error:", error)
-      return { success: false, message: "An error occurred while sending verification email" }
+      return { success: false, message: "An error occurred while sending confirmation code." }
     }
   }
 
@@ -402,6 +427,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         createIndividualProfile,
         createOrganizationProfile,
+        confirmEmail,
         resendVerificationEmail,
         fetchUserProfile,
       }}
@@ -418,4 +444,3 @@ export function useAuth() {
   }
   return context
 }
-

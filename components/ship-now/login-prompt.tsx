@@ -27,12 +27,18 @@ export function LoginPrompt() {
     setVerificationEmail(email)
   }
 
+  const handleVerificationConfirmed = () => {
+    handleCloseVerification()
+    setIsLoginModalOpen(true)
+  }
+
   if (verificationEmail) {
     return (
       <div className="container py-20 flex items-center justify-center">
         <VerificationPending
           email={verificationEmail}
           onClose={handleCloseVerification}
+          onConfirmed={handleVerificationConfirmed}
         />
       </div>
     )
@@ -94,4 +100,3 @@ export function LoginPrompt() {
     </div>
   )
 }
-
