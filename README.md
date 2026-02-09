@@ -20,6 +20,17 @@ The current signup flow uses AWS Cognito confirmation codes:
 4. After confirmation, return to the login screen and sign in normally.
 5. If needed, resend the confirmation code from the same screen.
 
+## Logout Behavior (Cognito JWT)
+
+- Logout is handled entirely in the app: access/refresh cookies are cleared and local auth state is reset.
+- No legacy auth microservice logout endpoint is called.
+
+## Forgot Password Flow (Cognito Code Reset)
+
+1. Open "Forgot Password" and enter your email to request a reset code.
+2. Enter the confirmation code and a new password (with confirmation).
+3. Return to login and sign in with the new password.
+
 ### Auth Service
 - **AUTH_MICROSERVICE_URL**: URL for the authentication microservice
   - Default: `http://localhost:30080/usermanagement/auth`
@@ -125,6 +136,8 @@ NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 3. Enter the code in the "Verify Your Email" UI and confirm.
 4. Verify that the UI returns to login and that you can sign in.
 5. Use "Resend Code" to verify the resend flow.
+6. Use "Forgot Password" to request a reset code.
+7. Confirm the code with a new password and sign in again.
 
 ## Environment Variables in Next.js
 
