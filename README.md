@@ -21,6 +21,17 @@ The application uses several environment variables for configuration. These are 
   - Default: `''` (empty string)
   - Used in: Authentication API calls that require an API key
 
+### Cognito
+- **COGNITO_REGION**: AWS region for the Cognito User Pool
+  - Default: `''` (empty string)
+  - Used in: Cognito auth API routes (`app/api/auth/login/route.ts`, `app/api/auth/signup/route.ts`)
+- **COGNITO_USER_POOL_ID**: Cognito User Pool ID
+  - Default: `''` (empty string)
+  - Used in: Reserved for future auth flows (for example, verification and admin calls)
+- **COGNITO_CLIENT_ID**: Cognito App Client ID
+  - Default: `''` (empty string)
+  - Used in: Cognito auth API routes (`app/api/auth/login/route.ts`, `app/api/auth/signup/route.ts`)
+
 ### Profile Service
 - **NEXT_PUBLIC_PROFILE_SERVICE_URL**: URL for the profile management service
   - Default: `http://localhost:30081/usermanagement`
@@ -88,6 +99,9 @@ Example `.env.local` file:
 ```
 AUTH_MICROSERVICE_URL=https://api.example.com/auth
 AUTH_API_KEY=your_auth_api_key
+COGNITO_REGION=ca-central-1
+COGNITO_USER_POOL_ID=ca-central-1_example
+COGNITO_CLIENT_ID=exampleclientid
 NEXT_PUBLIC_PROFILE_SERVICE_URL=https://api.example.com/profiles
 NEXT_PUBLIC_ORDER_SERVICE_URL=https://api.example.com/orders
 NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL=https://api.example.com/payments
