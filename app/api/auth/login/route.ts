@@ -55,7 +55,7 @@ export async function POST(request: NextRequest) {
     const refreshToken = authResult?.RefreshToken
     const idToken = authResult?.IdToken
 
-    if (!accessToken || !refreshToken) {
+    if (!accessToken || !refreshToken || !idToken) {
       return NextResponse.json({ message: "Authentication failed" }, { status: 500 })
     }
 
@@ -101,6 +101,7 @@ export async function POST(request: NextRequest) {
 
     response.cookies.set("maplexpress_access_token", accessToken, accessTokenCookieOptions)
     response.cookies.set("accessToken", accessToken, accessTokenCookieOptions)
+    response.cookies.set("maplexpress_id_token", idToken, accessTokenCookieOptions)
     response.cookies.set("maplexpress_refresh_token", refreshToken, refreshTokenCookieOptions)
 
     return response
