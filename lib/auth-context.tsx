@@ -224,6 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("maplexpress_user_data")
       localStorage.removeItem("maplexpress_individual_profile")
       localStorage.removeItem("maplexpress_organization_profile")
+      localStorage.removeItem("maplexpress_id_token")
       setUser(null)
       setIndividualProfile(null)
       setOrganizationProfile(null)
