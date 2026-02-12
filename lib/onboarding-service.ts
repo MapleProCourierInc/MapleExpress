@@ -5,7 +5,7 @@ export type OnboardingUserType = "INDIVIDUAL" | "ORGANIZATION"
 export type IndividualOnboardingDetails = {
   firstName: string
   lastName: string
-  dateOfBirth?: string
+  dateOfBirth: string
   phone?: string
   extensions?: Record<string, string>
 }
@@ -13,7 +13,6 @@ export type IndividualOnboardingDetails = {
 export type OrganizationOnboardingDetails = {
   name: string
   phone: string
-  email: string
   website?: string
   registrationNumber?: string
   taxID?: string

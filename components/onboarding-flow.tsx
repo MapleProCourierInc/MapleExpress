@@ -19,7 +19,6 @@ export function OnboardingFlow() {
   const [mode, setMode] = useState<Mode>("selection")
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
-  const [orgEmailError, setOrgEmailError] = useState<string | null>(null)
 
   const [firstName, setFirstName] = useState("")
   const [lastName, setLastName] = useState("")
@@ -28,7 +27,6 @@ export function OnboardingFlow() {
 
   const [name, setName] = useState("")
   const [businessPhone, setBusinessPhone] = useState("")
-  const [businessEmail, setBusinessEmail] = useState("")
   const [website, setWebsite] = useState("")
   const [registrationNumber, setRegistrationNumber] = useState("")
   const [taxID, setTaxID] = useState("")
@@ -54,7 +52,7 @@ export function OnboardingFlow() {
       details: {
         firstName,
         lastName,
-        dateOfBirth: dateOfBirth ? new Date(`${dateOfBirth}T00:00:00Z`).toISOString() : undefined,
+        dateOfBirth: new Date(`${dateOfBirth}T00:00:00Z`).toISOString(),
         phone: phone || undefined,
         extensions: {},
       },
@@ -80,7 +78,6 @@ export function OnboardingFlow() {
   const handleBusinessSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setFormError(null)
-    setOrgEmailError(null)
     setIsSubmitting(true)
 
     const payload: OnboardingPayload = {
@@ -88,7 +85,6 @@ export function OnboardingFlow() {
       details: {
         name,
         phone: businessPhone,
-        email: businessEmail,
         website: website || undefined,
         registrationNumber: registrationNumber || undefined,
         taxID: taxID || undefined,
@@ -107,9 +103,7 @@ export function OnboardingFlow() {
     setIsSubmitting(false)
 
     if (!result.success) {
-      if (result.statusCode === 409) {
-        setOrgEmailError("This business email is already in use. Try another email.")
-      } else if (result.statusCode === 400) {
+      if (result.statusCode === 400) {
         setFormError("Please complete all required fields and try again.")
       } else if (result.statusCode === 403) {
         setFormError("Verify your email first before completing onboarding.")
@@ -184,8 +178,8 @@ export function OnboardingFlow() {
 
               <div className="grid md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label htmlFor="dateOfBirth">Date of Birth (optional)</Label>
-                  <Input id="dateOfBirth" type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} />
+                  <Label htmlFor="dateOfBirth">Date of Birth</Label>
+                  <Input id="dateOfBirth" type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} required />
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone (optional)</Label>
@@ -210,19 +204,6 @@ export function OnboardingFlow() {
                   <Label htmlFor="businessPhone">Business Phone</Label>
                   <Input id="businessPhone" value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} required />
                 </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="businessEmail">Business Email</Label>
-                <Input
-                  id="businessEmail"
-                  type="email"
-                  value={businessEmail}
-                  onChange={(e) => setBusinessEmail(e.target.value)}
-                  required
-                  className={orgEmailError ? "border-destructive" : ""}
-                />
-                {orgEmailError && <p className="text-xs text-destructive">{orgEmailError}</p>}
               </div>
 
               <div className="grid md:grid-cols-3 gap-4">
