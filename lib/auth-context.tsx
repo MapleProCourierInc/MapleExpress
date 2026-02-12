@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
+import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
 
 // Update the User type to match your API response
 type User = {
@@ -102,6 +103,7 @@ type AuthContextType = {
   confirmEmail: (email: string, code: string) => Promise<{ success: boolean; message: string }>
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string }>
   fetchUserProfile: (user?: User) => Promise<void>
+  completeOnboarding: (payload: OnboardingPayload) => Promise<{ success: boolean; message: string; statusCode?: number }>
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
@@ -387,6 +389,40 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }
 
+
+  const completeOnboarding = async (payload: OnboardingPayload) => {
+    try {
+      const result = await submitOnboarding(payload)
+
+      if (!result.success || !result.data) {
+        if (result.statusCode === 401) {
+          clearSession()
+          if (window.location.pathname !== "/") {
+            window.location.href = "/"
+          }
+        }
+
+        return { success: false, message: result.message, statusCode: result.statusCode }
+      }
+
+      const meData = result.data
+      setMe(meData)
+      localStorage.setItem("maplexpress_me", JSON.stringify(meData))
+
+      if (user) {
+        const updatedUser = { ...user, userStatus: "active" }
+        setUser(updatedUser)
+        localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
+        await fetchUserProfile(updatedUser)
+      }
+
+      return { success: true, message: "Onboarding completed" }
+    } catch (error) {
+      console.error("Complete onboarding error:", error)
+      return { success: false, message: "Unable to complete onboarding right now" }
+    }
+  }
+
   // Add function to fetch user profile based on userType
   const fetchUserProfile = async (
     targetUser?: User,
@@ -446,6 +482,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         confirmEmail,
         resendVerificationEmail,
         fetchUserProfile,
+        completeOnboarding,
       }}
     >
       {children}
