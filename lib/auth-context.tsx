@@ -149,6 +149,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
       try {
         const userData = localStorage.getItem("maplexpress_user_data")
+        const cachedMe = localStorage.getItem("maplexpress_me")
+
+        if (cachedMe) {
+          try {
+            setMe(JSON.parse(cachedMe))
+          } catch {
+            localStorage.removeItem("maplexpress_me")
+          }
+        }
 
         if (userData) {
           // Check if token is expired
