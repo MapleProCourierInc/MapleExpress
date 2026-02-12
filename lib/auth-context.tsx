@@ -1,6 +1,7 @@
 "use client"
 
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
+import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 
 // Update the User type to match your API response
 type User = {
@@ -84,6 +85,7 @@ type OrganizationProfile = {
 type AuthContextType = {
   user: User
   isLoading: boolean
+  me: MeResponse | null
   individualProfile: IndividualProfile | null
   organizationProfile: OrganizationProfile | null
   login: (
@@ -107,8 +109,41 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [me, setMe] = useState<MeResponse | null>(null)
   const [individualProfile, setIndividualProfile] = useState<IndividualProfile | null>(null)
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfile | null>(null)
+
+  const clearSession = () => {
+    localStorage.removeItem("maplexpress_access_token")
+    localStorage.removeItem("maplexpress_refresh_token")
+    localStorage.removeItem("maplexpress_id_token")
+    localStorage.removeItem("maplexpress_user_data")
+    localStorage.removeItem("maplexpress_me")
+    localStorage.removeItem("maplexpress_individual_profile")
+    localStorage.removeItem("maplexpress_organization_profile")
+    setUser(null)
+    setMe(null)
+    setIndividualProfile(null)
+    setOrganizationProfile(null)
+  }
+
+  const syncMe = async (activeUser: NonNullable<User>, accessToken: string, idToken: string) => {
+    const meData = await getMe(accessToken, idToken)
+    setMe(meData)
+    localStorage.setItem("maplexpress_me", JSON.stringify(meData))
+
+    if (meData.status === "ONBOARDING_REQUIRED") {
+      if (window.location.pathname !== "/onboarding") {
+        window.location.href = "/onboarding"
+      }
+      return meData
+    }
+
+    const updatedUser = { ...activeUser, userStatus: "active" }
+    localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
+    setUser(updatedUser)
+    return meData
+  }
 
   // Check for existing session on load
   useEffect(() => {
@@ -116,33 +151,35 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         // Check if we have tokens in localStorage
         const accessToken = localStorage.getItem("maplexpress_access_token")
+        const idToken = localStorage.getItem("maplexpress_id_token")
         const userData = localStorage.getItem("maplexpress_user_data")
 
-        if (accessToken && userData) {
+        if (accessToken && idToken && userData) {
           // Check if token is expired
           const user = JSON.parse(userData)
           const expirationDate = new Date(user.tokenExpiration)
 
           if (expirationDate > new Date()) {
             setUser(user)
+            const meData = await syncMe(user, accessToken, idToken)
 
-            // If user is active, fetch their profile
-            if (user.userStatus === "active") {
+            if (meData.status === "ACTIVE" && user.userStatus === "active") {
               fetchUserProfile(user)
             }
           } else {
             // Token is expired, clear it
-            localStorage.removeItem("maplexpress_access_token")
-            localStorage.removeItem("maplexpress_refresh_token")
-            localStorage.removeItem("maplexpress_user_data")
-            setUser(null)
+            clearSession()
           }
         }
       } catch (error) {
         console.error("Authentication check failed:", error)
-        localStorage.removeItem("maplexpress_access_token")
-        localStorage.removeItem("maplexpress_refresh_token")
-        localStorage.removeItem("maplexpress_user_data")
+
+        if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
+          clearSession()
+          if (window.location.pathname !== "/") {
+            window.location.href = "/"
+          }
+        }
       } finally {
         setIsLoading(false)
       }
@@ -183,6 +220,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // Save tokens and user data to localStorage
         localStorage.setItem("maplexpress_access_token", data.accessToken)
         localStorage.setItem("maplexpress_refresh_token", data.refreshToken)
+        localStorage.setItem("maplexpress_id_token", data.idToken)
 
         // Create user object from response
         const user = {
@@ -197,8 +235,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("maplexpress_user_data", JSON.stringify(user))
         setUser(user)
 
+        const meData = await syncMe(user, data.accessToken, data.idToken)
+
         // Fetch profile based on user type
-        await fetchUserProfile(user)
+        if (meData.status === "ACTIVE") {
+          await fetchUserProfile(user)
+        }
 
         return { success: true, message: "Login successful", userStatus: user.userStatus }
       } else {
@@ -206,6 +248,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Login error:", error)
+
+      if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
+        clearSession()
+        if (window.location.pathname !== "/") {
+          window.location.href = "/"
+        }
+        return { success: false, message: "Session expired. Please sign in again." }
+      }
+
       return { success: false, message: "An error occurred during login" }
     } finally {
       setIsLoading(false)
@@ -219,15 +270,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Logout error:", error)
     } finally {
-      localStorage.removeItem("maplexpress_access_token")
-      localStorage.removeItem("maplexpress_refresh_token")
-      localStorage.removeItem("maplexpress_user_data")
-      localStorage.removeItem("maplexpress_individual_profile")
-      localStorage.removeItem("maplexpress_organization_profile")
-      localStorage.removeItem("maplexpress_id_token")
-      setUser(null)
-      setIndividualProfile(null)
-      setOrganizationProfile(null)
+      clearSession()
     }
   }
 
@@ -428,6 +471,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       value={{
         user,
         isLoading,
+        me,
         individualProfile,
         organizationProfile,
         login,
