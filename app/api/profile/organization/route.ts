@@ -1,36 +1,33 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { cookies } from "next/headers"
+
+const getBearerToken = async (request: NextRequest) => {
+  const authHeader = request.headers.get("authorization")
+  if (authHeader?.startsWith("Bearer ")) {
+    return authHeader.split(" ")[1]
+  }
+
+  const cookieStore = await cookies()
+  return cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
+}
 
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, name, pointOfContact } = body
+    const { userId, name, registrationNumber, taxID, industry, address, phone, email, website, pointOfContact } = body
 
-    // Validate required fields
-    if (
-      !userId ||
-      !name ||
-      !pointOfContact ||
-      !pointOfContact.name ||
-      !pointOfContact.position ||
-      !pointOfContact.email ||
-      !pointOfContact.phone
-    ) {
+    if (!userId || !name || !phone || !email || !pointOfContact) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
     }
 
-    // Get the authorization header
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const token = await getBearerToken(request)
+    if (!token) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const token = authHeader.split(" ")[1]
-
-    // Use the correct base URL and endpoint
     const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
     const endpoint = `${BASE_URL}/profile/organization`
 
-    // Forward the request to your microservice
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -42,14 +39,18 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify({
         userId,
         name,
+        registrationNumber,
+        taxID,
+        industry,
+        address,
+        phone,
+        email,
+        website,
         pointOfContact,
       }),
     })
 
-    // Get the response data
     const data = await response.json()
-
-    // Return the response
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error("Create organization profile error:", error)
@@ -59,35 +60,24 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    // Get the userId or email from query params
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get("userId")
     const email = searchParams.get("email")
 
     if (!userId && !email) {
-      return NextResponse.json(
-        { message: "userId or email is required" },
-        { status: 400 },
-      )
+      return NextResponse.json({ message: "userId or email is required" }, { status: 400 })
     }
 
-    // Get the authorization header
-    const authHeader = request.headers.get("authorization")
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    const token = await getBearerToken(request)
+    if (!token) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const token = authHeader.split(" ")[1]
-
-    // Use the correct base URL and endpoint
-    const BASE_URL =
-      process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL ||
-      "http://localhost:30081/usermanagement"
+    const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
     const endpoint = userId
       ? `${BASE_URL}/profile/organization?userId=${userId}`
       : `${BASE_URL}/profile/organization?email=${email}`
 
-    // Forward the request to your microservice
     const response = await fetch(endpoint, {
       method: "GET",
       headers: {
@@ -97,14 +87,10 @@ export async function GET(request: NextRequest) {
       },
     })
 
-    // Get the response data
     const data = await response.json()
-
-    // Return the response
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error("Get organization profile error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-
