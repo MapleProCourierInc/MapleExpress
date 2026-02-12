@@ -1,5 +1,3 @@
-import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
-
 export type MeResponse = {
   authenticated: boolean
   sub: string
@@ -18,17 +16,9 @@ export class MeRequestError extends Error {
   }
 }
 
-export async function getMe(accessToken: string, idToken: string): Promise<MeResponse> {
-  if (!accessToken || !idToken) {
-    throw new MeRequestError("Missing required tokens for /me", 401)
-  }
-
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/me"), {
+export async function getMe(): Promise<MeResponse> {
+  const response = await fetch("/api/profile/me", {
     method: "GET",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-      "X-Id-Token": idToken,
-    },
   })
 
   if (!response.ok) {

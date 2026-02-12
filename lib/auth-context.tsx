@@ -114,9 +114,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfile | null>(null)
 
   const clearSession = () => {
-    localStorage.removeItem("maplexpress_access_token")
-    localStorage.removeItem("maplexpress_refresh_token")
-    localStorage.removeItem("maplexpress_id_token")
     localStorage.removeItem("maplexpress_user_data")
     localStorage.removeItem("maplexpress_me")
     localStorage.removeItem("maplexpress_individual_profile")
@@ -127,8 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setOrganizationProfile(null)
   }
 
-  const syncMe = async (activeUser: NonNullable<User>, accessToken: string, idToken: string) => {
-    const meData = await getMe(accessToken, idToken)
+  const syncMe = async (activeUser: NonNullable<User>) => {
+    const meData = await getMe()
     setMe(meData)
     localStorage.setItem("maplexpress_me", JSON.stringify(meData))
 
@@ -149,19 +146,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
-        // Check if we have tokens in localStorage
-        const accessToken = localStorage.getItem("maplexpress_access_token")
-        const idToken = localStorage.getItem("maplexpress_id_token")
         const userData = localStorage.getItem("maplexpress_user_data")
 
-        if (accessToken && idToken && userData) {
+        if (userData) {
           // Check if token is expired
           const user = JSON.parse(userData)
           const expirationDate = new Date(user.tokenExpiration)
 
           if (expirationDate > new Date()) {
             setUser(user)
-            const meData = await syncMe(user, accessToken, idToken)
+            const meData = await syncMe(user)
 
             if (meData.status === "ACTIVE" && user.userStatus === "active") {
               fetchUserProfile(user)
@@ -217,11 +211,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        // Save tokens and user data to localStorage
-        localStorage.setItem("maplexpress_access_token", data.accessToken)
-        localStorage.setItem("maplexpress_refresh_token", data.refreshToken)
-        localStorage.setItem("maplexpress_id_token", data.idToken)
-
         // Create user object from response
         const user = {
           userId: data.userId,
@@ -235,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("maplexpress_user_data", JSON.stringify(user))
         setUser(user)
 
-        const meData = await syncMe(user, data.accessToken, data.idToken)
+        const meData = await syncMe(user)
 
         // Fetch profile based on user type
         if (meData.status === "ACTIVE") {
@@ -327,17 +316,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileData: Omit<IndividualProfile, "id" | "status" | "email" | "createdAt" | "updatedAt">,
   ) => {
     try {
-      const accessToken = localStorage.getItem("maplexpress_access_token")
-
-      if (!accessToken) {
-        return { success: false, message: "Not authenticated" }
-      }
-
       const response = await fetch("/api/profile/individual", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(profileData),
       })
@@ -353,10 +335,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Save profile data
+        const profile = Array.isArray(data) ? data[0] : data
         setIndividualProfile(profile)
         localStorage.setItem("maplexpress_individual_profile", JSON.stringify(profile))
 
-        return { success: true, message: "Profile created successfully", profile: profile }
+        return { success: true, message: "Profile created successfully", profile }
       } else {
         return { success: false, message: data.message || "Failed to create profile" }
       }
@@ -371,17 +354,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileData: Omit<OrganizationProfile, "id" | "status" | "createdAt" | "updatedAt">,
   ) => {
     try {
-      const accessToken = localStorage.getItem("maplexpress_access_token")
-
-      if (!accessToken) {
-        return { success: false, message: "Not authenticated" }
-      }
-
       const response = await fetch("/api/profile/organization", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          Authorization: `Bearer ${accessToken}`,
         },
         body: JSON.stringify(profileData),
       })
@@ -397,10 +373,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
 
         // Save profile data
+        const profile = Array.isArray(data) ? data[0] : data
         setOrganizationProfile(profile)
         localStorage.setItem("maplexpress_organization_profile", JSON.stringify(profile))
 
-        return { success: true, message: "Organization profile created successfully", profile: profile }
+        return { success: true, message: "Organization profile created successfully", profile }
       } else {
         return { success: false, message: data.message || "Failed to create organization profile" }
       }
@@ -418,18 +395,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return
 
     try {
-      const accessToken = localStorage.getItem("maplexpress_access_token")
-
-      if (!accessToken) return
-
       if (currentUser.userType === "individualUser") {
         const response = await fetch(
           `/api/profile/individual?email=${encodeURIComponent(currentUser.email)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
+          {},
         )
 
         if (response.ok) {
@@ -444,11 +413,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       } else if (currentUser.userType === "businessUser") {
         const response = await fetch(
           `/api/profile/organization?email=${encodeURIComponent(currentUser.email)}`,
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },
-          },
+          {},
         )
 
         if (response.ok) {

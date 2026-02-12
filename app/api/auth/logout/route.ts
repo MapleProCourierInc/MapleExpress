@@ -14,6 +14,7 @@ export async function POST() {
   response.cookies.set("maplexpress_access_token", "", cookieOptions)
   response.cookies.set("accessToken", "", cookieOptions)
   response.cookies.set("maplexpress_refresh_token", "", cookieOptions)
+  response.cookies.set("maplexpress_id_token", "", cookieOptions)
 
   return response
 }

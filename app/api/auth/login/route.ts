@@ -72,9 +72,6 @@ export async function POST(request: NextRequest) {
 
     const response = NextResponse.json(
       {
-        accessToken,
-        refreshToken,
-        idToken,
         tokenExpiration,
         userId,
         userStatus: "active",
