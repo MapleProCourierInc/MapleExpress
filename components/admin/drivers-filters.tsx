@@ -1,11 +1,12 @@
 "use client"
 
 import { useState } from "react"
+import { SlidersHorizontal } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 type DriversFiltersProps = {
@@ -32,11 +33,11 @@ export function DriversFilters({ initialFilters }: DriversFiltersProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
-  const [email, setEmail] = useState(initialFilters.email)
   const [name, setName] = useState(initialFilters.name)
+  const [profileStatus, setProfileStatus] = useState(initialFilters.profileStatus || "ALL")
+  const [email, setEmail] = useState(initialFilters.email)
   const [station, setStation] = useState(initialFilters.station)
   const [companyName, setCompanyName] = useState(initialFilters.companyName)
-  const [profileStatus, setProfileStatus] = useState(initialFilters.profileStatus || "ALL")
 
   const apply = () => {
     const next = new URLSearchParams(searchParams.toString())
@@ -44,11 +45,11 @@ export function DriversFilters({ initialFilters }: DriversFiltersProps) {
     next.set("size", String(initialFilters.size || 20))
 
     const pairs: Record<string, string> = {
-      email: email.trim(),
       name: name.trim(),
+      profileStatus: profileStatus === "ALL" ? "" : profileStatus,
+      email: email.trim(),
       station: station.trim(),
       companyName: companyName.trim(),
-      profileStatus: profileStatus === "ALL" ? "" : profileStatus,
     }
 
     for (const [key, value] of Object.entries(pairs)) {
@@ -60,64 +61,109 @@ export function DriversFilters({ initialFilters }: DriversFiltersProps) {
   }
 
   const clear = () => {
-    setEmail("")
     setName("")
+    setProfileStatus("ALL")
+    setEmail("")
     setStation("")
     setCompanyName("")
-    setProfileStatus("ALL")
     router.push(`${pathname}?page=0&size=${initialFilters.size || 20}`)
   }
 
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="text-base">Filters</CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-5">
-          <div className="space-y-2">
-            <Label htmlFor="filter-email">Email</Label>
-            <Input id="filter-email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@example.com" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="filter-name">Name</Label>
-            <Input id="filter-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="First or last name" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="filter-station">Station</Label>
-            <Input id="filter-station" value={station} onChange={(e) => setStation(e.target.value)} placeholder="Station" />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="filter-company">Company Name</Label>
-            <Input id="filter-company" value={companyName} onChange={(e) => setCompanyName(e.target.value)} placeholder="Company" />
-          </div>
-
-          <div className="space-y-2">
-            <Label>Profile Status</Label>
-            <Select value={profileStatus} onValueChange={setProfileStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="All statuses" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All statuses</SelectItem>
-                {PROFILE_STATUS_OPTIONS.map((option) => (
-                  <SelectItem key={option} value={option}>
-                    {option}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
+    <div className="rounded-lg border bg-background p-3">
+      <div className="flex flex-wrap items-end gap-2">
+        <div className="min-w-[220px] flex-1 space-y-1">
+          <Label htmlFor="filter-name" className="text-xs text-muted-foreground">
+            Search name
+          </Label>
+          <Input
+            id="filter-name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            placeholder="First or last name"
+            className="h-9"
+          />
         </div>
 
-        <div className="flex items-center gap-2">
-          <Button type="button" onClick={apply}>Apply</Button>
-          <Button type="button" variant="outline" onClick={clear}>Clear</Button>
+        <div className="w-[190px] space-y-1">
+          <Label className="text-xs text-muted-foreground">Profile status</Label>
+          <Select value={profileStatus} onValueChange={setProfileStatus}>
+            <SelectTrigger className="h-9">
+              <SelectValue placeholder="All statuses" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="ALL">All statuses</SelectItem>
+              {PROFILE_STATUS_OPTIONS.map((option) => (
+                <SelectItem key={option} value={option}>
+                  {option}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
-      </CardContent>
-    </Card>
+
+        <Button type="button" size="sm" onClick={apply}>
+          Apply
+        </Button>
+        <Button type="button" size="sm" variant="outline" onClick={clear}>
+          Clear
+        </Button>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button type="button" size="sm" variant="outline">
+              <SlidersHorizontal className="mr-2 h-4 w-4" />
+              More filters
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-[320px] space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="filter-email" className="text-xs text-muted-foreground">
+                Email
+              </Label>
+              <Input
+                id="filter-email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                placeholder="name@example.com"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="filter-station" className="text-xs text-muted-foreground">
+                Station
+              </Label>
+              <Input
+                id="filter-station"
+                value={station}
+                onChange={(e) => setStation(e.target.value)}
+                placeholder="Station"
+                className="h-9"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label htmlFor="filter-company" className="text-xs text-muted-foreground">
+                Company name
+              </Label>
+              <Input
+                id="filter-company"
+                value={companyName}
+                onChange={(e) => setCompanyName(e.target.value)}
+                placeholder="Company"
+                className="h-9"
+              />
+            </div>
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <Button type="button" size="sm" variant="outline" onClick={clear}>
+                Clear
+              </Button>
+              <Button type="button" size="sm" onClick={apply}>
+                Apply
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+      </div>
+    </div>
   )
 }
