@@ -10,11 +10,11 @@ export async function POST(request: NextRequest) {
     firstName: String(body?.firstName || "").trim(),
     lastName: String(body?.lastName || "").trim(),
     phone: String(body?.phone || "").trim(),
-    companyName: String(body?.companyName || "").trim(),
+    companyName: "MAPLEX_EXPRESS_INC",
     station: String(body?.station || "").trim(),
   }
 
-  const required = ["email", "firstName", "lastName", "phone", "companyName", "station"] as const
+  const required = ["email", "firstName", "lastName", "phone", "station"] as const
   const missing = required.filter((field) => !payload[field])
 
   if (missing.length) {

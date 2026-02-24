@@ -22,7 +22,6 @@ type FormState = {
   firstName: string
   lastName: string
   phone: string
-  companyName: string
   station: string
 }
 
@@ -31,7 +30,6 @@ const initialForm: FormState = {
   firstName: "",
   lastName: "",
   phone: "",
-  companyName: "",
   station: "",
 }
 
@@ -62,7 +60,7 @@ export function InviteDriverDialog() {
       errors.email = "Enter a valid email"
     }
 
-    ;(["firstName", "lastName", "phone", "companyName", "station"] as const).forEach((field) => {
+    ;(["firstName", "lastName", "phone", "station"] as const).forEach((field) => {
       if (!form[field].trim()) {
         errors[field] = "Required"
       }
@@ -82,7 +80,7 @@ export function InviteDriverDialog() {
       const response = await fetch("/api/admin/drivers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ...form, email: normalizedEmail }),
+        body: JSON.stringify({ ...form, email: normalizedEmail, companyName: "MAPLEX_EXPRESS_INC" }),
       })
 
       if (!response.ok) {
@@ -162,8 +160,7 @@ export function InviteDriverDialog() {
 
           <div className="space-y-1">
             <Label htmlFor="invite-company">Company Name</Label>
-            <Input id="invite-company" value={form.companyName} onChange={(e) => updateField("companyName", e.target.value)} />
-            {fieldErrors.companyName ? <p className="text-xs text-destructive">{fieldErrors.companyName}</p> : null}
+            <Input id="invite-company" value="Maple Pro Courier Inc." readOnly disabled />
           </div>
 
           <div className="space-y-1">
