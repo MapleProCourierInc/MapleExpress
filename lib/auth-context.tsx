@@ -131,6 +131,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setMe(meData)
     localStorage.setItem("maplexpress_me", JSON.stringify(meData))
 
+    const isSuperAdmin = meData.authenticated && meData.groups?.includes("admin_super")
+
     if (meData.status === "ONBOARDING_REQUIRED") {
       if (window.location.pathname !== "/onboarding") {
         window.location.href = "/onboarding"
@@ -141,6 +143,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const updatedUser = { ...activeUser, userStatus: "active" }
     localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
     setUser(updatedUser)
+
+    if (isSuperAdmin && !window.location.pathname.startsWith("/admin")) {
+      window.location.href = "/admin"
+    }
+
     return meData
   }
 
