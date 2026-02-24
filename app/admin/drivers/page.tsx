@@ -2,6 +2,7 @@ import Link from "next/link"
 import { AlertCircle } from "lucide-react"
 import { DriversFilters } from "@/components/admin/drivers-filters"
 import { DriversGrid } from "@/components/admin/drivers-grid"
+import { InviteDriverDialog } from "@/components/admin/invite-driver-dialog"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
@@ -46,7 +47,7 @@ export default async function AdminDriversPage({
           <h1 className="text-2xl font-bold">Drivers</h1>
           <p className="text-muted-foreground">Search, review, and track driver onboarding records.</p>
         </div>
-        <Button disabled size="sm">Invite Driver (Coming soon)</Button>
+        <InviteDriverDialog />
       </div>
 
       <DriversFilters

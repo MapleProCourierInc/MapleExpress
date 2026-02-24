@@ -9,6 +9,8 @@ import type {
   DriverActionRequestDto,
   DriverActionResponseDto,
   DriverDetailsDto,
+  AdminInviteDriverRequest,
+  AdminInviteDriverResponse,
 } from "@/types/admin-drivers"
 
 type ServiceResult<T> = {
@@ -120,4 +122,29 @@ export async function postAdminDriverAction(
   }
 
   return { data: (await response.json()) as DriverActionResponseDto, error: null, textError: null }
+}
+
+
+export async function inviteAdminDriver(payload: AdminInviteDriverRequest): Promise<ServiceResult<AdminInviteDriverResponse>> {
+  const headers = await getAuthHeaders()
+  if (!headers) {
+    return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
+  }
+
+  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/drivers"), {
+    method: "POST",
+    headers: {
+      ...headers,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    const parsed = await parseError(response)
+    return { data: null, ...parsed }
+  }
+
+  return { data: (await response.json()) as AdminInviteDriverResponse, error: null, textError: null }
 }

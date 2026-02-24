@@ -137,3 +137,21 @@ export type AdminDriversQuery = {
   page: number
   size: number
 }
+
+
+export type AdminInviteDriverRequest = {
+  email: string
+  firstName: string
+  lastName: string
+  phone: string
+  companyName: string
+  station: string
+}
+
+export type AdminInviteDriverResponse = {
+  driverId: string
+  email: string
+  profileStatus: DriverProfileStatus | string
+  message?: string
+  createdAt: string
+}
