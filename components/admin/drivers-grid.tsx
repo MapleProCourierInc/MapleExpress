@@ -102,6 +102,9 @@ export function DriversGrid({ data, filters }: DriversGridProps) {
     return `/admin/drivers?${params.toString()}`
   }
 
+
+  const currentListHref = () => buildHref(data.page)
+
   return (
     <TooltipProvider>
       <div className="space-y-3">
@@ -209,7 +212,7 @@ export function DriversGrid({ data, filters }: DriversGridProps) {
                     {visibleColumns.updated ? <TableCell className="py-2">{formatDateShort(item.updatedAt)}</TableCell> : null}
                     <TableCell className="py-2 pr-2 text-right" onClick={(e) => e.stopPropagation()}>
                       <Button asChild size="sm" variant="outline" className="h-8 px-2">
-                        <Link href={`/admin/drivers/${item.driverId}`}>
+                        <Link href={`/admin/drivers/${item.driverId}?returnTo=${encodeURIComponent(currentListHref())}`}>
                           <ExternalLink className="mr-1 h-3.5 w-3.5" />
                           Open profile
                         </Link>

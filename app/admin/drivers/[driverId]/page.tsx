@@ -33,8 +33,17 @@ function statusLabel(status?: string) {
   }
 }
 
-export default async function DriverDetailPage({ params }: { params: Promise<{ driverId: string }> }) {
+export default async function DriverDetailPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ driverId: string }>
+  searchParams?: Promise<Record<string, string | string[] | undefined>>
+}) {
   const { driverId } = await params
+  const resolvedSearch = (await searchParams) ?? {}
+  const rawReturnTo = resolvedSearch.returnTo
+  const returnTo = Array.isArray(rawReturnTo) ? rawReturnTo[0] : rawReturnTo
   const { data, error, textError } = await getAdminDriverDetails(driverId)
 
   if (!data) {
@@ -53,12 +62,16 @@ export default async function DriverDetailPage({ params }: { params: Promise<{ d
       <div className="space-y-4">
         <div className="flex items-start justify-between gap-3">
           <div className="space-y-2">
-            <Link href="/admin/drivers" className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+            <Link href={returnTo || "/admin/drivers"} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
               <ArrowLeft className="mr-1 h-4 w-4" /> Back to Drivers
             </Link>
             <div>
               <h1 className="text-2xl font-bold">{fullName}</h1>
               <p className="text-sm text-muted-foreground">{data.email || "—"}</p>
+              <p className="text-xs text-muted-foreground">
+                Driver ID: <span className="font-mono">{data.driverId || driverId}</span>
+                {data.userId ? <> • User ID: <span className="font-mono">{data.userId}</span></> : null}
+              </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Tooltip>

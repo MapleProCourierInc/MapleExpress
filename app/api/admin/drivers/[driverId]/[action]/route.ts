@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { postAdminDriverAction } from "@/lib/admin-drivers-service"
 
 const allowedActions = new Set(["approve", "reject", "suspend", "unsuspend", "terminate"])
@@ -38,6 +39,9 @@ export async function POST(
     }
     return NextResponse.json(result.error ?? { message: "Action failed" }, { status: Number(result.error?.status) || 400 })
   }
+
+  revalidatePath("/admin/drivers")
+  revalidatePath(`/admin/drivers/${driverId}`)
 
   return NextResponse.json(result.data)
 }
