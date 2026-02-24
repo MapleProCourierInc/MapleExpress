@@ -160,7 +160,7 @@ export function InviteDriverDialog() {
 
           <div className="space-y-1">
             <Label htmlFor="invite-company">Company Name</Label>
-            <Input id="invite-company" value="Maple Pro Courier Inc." readOnly disabled />
+            <Input id="invite-company" value="MapleX Express Inc." readOnly disabled />
           </div>
 
           <div className="space-y-1">
