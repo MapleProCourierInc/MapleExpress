@@ -1,6 +1,7 @@
 "use client"
 
-import { CheckCircle2, MoreHorizontal, ShieldCheck, XCircle } from "lucide-react"
+import Link from "next/link"
+import { CheckCircle2, ExternalLink, XCircle } from "lucide-react"
 import type { AdminDriverItem, AdminDriversResponse } from "@/types/admin-drivers"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -8,7 +9,6 @@ import {
   DropdownMenu,
   DropdownMenuCheckboxItem,
   DropdownMenuContent,
-  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
   DropdownMenuTrigger,
@@ -207,21 +207,13 @@ export function DriversGrid({ data, filters }: DriversGridProps) {
                       <TableCell className="py-2">{item.backgroundCheckStatus || "—"}</TableCell>
                     ) : null}
                     {visibleColumns.updated ? <TableCell className="py-2">{formatDateShort(item.updatedAt)}</TableCell> : null}
-                    <TableCell className="py-2 pr-2 text-right">
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button size="icon" variant="ghost" className="h-8 w-8">
-                            <MoreHorizontal className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem disabled>
-                            <ShieldCheck className="mr-2 h-4 w-4" />
-                            Manage (coming soon)
-                          </DropdownMenuItem>
-                          <DropdownMenuItem disabled>View profile (coming soon)</DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
+                    <TableCell className="py-2 pr-2 text-right" onClick={(e) => e.stopPropagation()}>
+                      <Button asChild size="sm" variant="outline" className="h-8 px-2">
+                        <Link href={`/admin/drivers/${item.driverId}`}>
+                          <ExternalLink className="mr-1 h-3.5 w-3.5" />
+                          Open profile
+                        </Link>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 )
