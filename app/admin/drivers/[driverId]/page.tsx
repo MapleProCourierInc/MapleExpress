@@ -6,31 +6,41 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
+import { presignView } from "@/lib/aws-integration-service"
 import { getAdminDriverDetails } from "@/lib/admin-drivers-service"
 
-function formatDate(value?: string) {
+function formatDateTime(value?: string | null) {
   if (!value) return "—"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return "—"
   return date.toLocaleString()
 }
 
-function statusLabel(status?: string) {
-  switch (status) {
-    case "PENDING_ADMIN_VERIFICATION":
-      return "Pending Verification"
-    case "DRIVER_LICENSE_MISSING":
-      return "License Missing"
-    case "PROOF_OF_WORK_ELIGIBILITY_MISSING":
-      return "Work Docs Missing"
-    case "BACKGROUND_CHECK_MISSING":
-      return "BG Check Missing"
-    case "PENDING_PROFILE_COMPLETION":
-      return "Profile Pending"
-    default:
-      return status || "Unknown"
-  }
+function formatLocalDate(value?: string | null) {
+  if (!value) return "—"
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleDateString()
+}
+
+function humanize(value?: string | null) {
+  if (!value) return "—"
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
+}
+
+function renderEmpty(message = "No data available") {
+  return <p className="text-sm text-muted-foreground">{message}</p>
+}
+
+function field(value: string | number | null | undefined) {
+  if (value === null || value === undefined || value === "") return "—"
+  return String(value)
 }
 
 export default async function DriverDetailPage({
@@ -44,6 +54,7 @@ export default async function DriverDetailPage({
   const resolvedSearch = (await searchParams) ?? {}
   const rawReturnTo = resolvedSearch.returnTo
   const returnTo = Array.isArray(rawReturnTo) ? rawReturnTo[0] : rawReturnTo
+
   const { data, error, textError } = await getAdminDriverDetails(driverId)
 
   if (!data) {
@@ -55,6 +66,12 @@ export default async function DriverDetailPage({
     )
   }
 
+  const licenseImageKeys = (data.driverLicenses || []).flatMap((license) => [license.licenseImageFront, license.licenseImageBack]).filter(Boolean) as string[]
+  const workDocImageKeys = (data.workEligibilityDocuments || []).flatMap((doc) => (doc.images || []).map((image) => image.imageUrl).filter(Boolean)) as string[]
+  const driverImageKeys = (data.driverImages || []).map((image) => image.imageUrl).filter(Boolean) as string[]
+  const allImageKeys = Array.from(new Set([...licenseImageKeys, ...workDocImageKeys, ...driverImageKeys]))
+
+  const presignedMap = await presignView(allImageKeys)
   const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Unknown Driver"
 
   return (
@@ -67,25 +84,30 @@ export default async function DriverDetailPage({
             </Link>
             <div>
               <h1 className="text-2xl font-bold">{fullName}</h1>
-              <p className="text-sm text-muted-foreground">{data.email || "—"}</p>
+              <p className="text-sm text-muted-foreground">{field(data.email)}</p>
               <p className="text-xs text-muted-foreground">
-                Driver ID: <span className="font-mono">{data.driverId || driverId}</span>
-                {data.userId ? <> • User ID: <span className="font-mono">{data.userId}</span></> : null}
+                Driver ID: <span className="font-mono">{field(data.driverId || driverId)}</span>
+                {data.userId ? (
+                  <>
+                    {" "}• User ID: <span className="font-mono">{data.userId}</span>
+                  </>
+                ) : null}
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge>{statusLabel(data.profileStatus)}</Badge>
+                  <Badge>{humanize(data.profileStatus)}</Badge>
                 </TooltipTrigger>
-                <TooltipContent>{data.profileStatus}</TooltipContent>
+                <TooltipContent>{field(data.profileStatus)}</TooltipContent>
               </Tooltip>
-              <Badge variant={data.isVerified ? "default" : "secondary"}>{data.isVerified ? "Verified" : "Not Verified"}</Badge>
-              {data.backgroundCheckStatus ? <Badge variant="outline">BG: {data.backgroundCheckStatus}</Badge> : null}
+              <Badge variant={data.isVerified ? "default" : "secondary"}>{data.isVerified ? "Verified" : "Not verified"}</Badge>
+              {data.backgroundCheckStatus ? (
+                <Badge variant="outline" title={data.backgroundCheckStatus}>
+                  BG: {humanize(data.backgroundCheckStatus)}
+                </Badge>
+              ) : null}
             </div>
-            <p className="text-xs text-muted-foreground">
-              Updated: {formatDate(data.updatedAt)} • Last login: {formatDate(data.lastLoginAt)}
-            </p>
           </div>
 
           <DriverDetailActions driverId={driverId} profileStatus={data.profileStatus} />
@@ -105,13 +127,24 @@ export default async function DriverDetailPage({
             <Card>
               <CardHeader>
                 <CardTitle>Identity & Contact</CardTitle>
+                <CardDescription>Core profile details and status summary.</CardDescription>
               </CardHeader>
               <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-                <p><span className="text-muted-foreground">Phone:</span> {data.phone || "—"}</p>
-                <p><span className="text-muted-foreground">Gender:</span> {data.gender || "—"}</p>
-                <p><span className="text-muted-foreground">Date of Birth:</span> {data.dob || "—"}</p>
-                <p><span className="text-muted-foreground">Station:</span> {data.station || "—"}</p>
-                <p><span className="text-muted-foreground">Company:</span> {data.companyName || "—"}</p>
+                <p><span className="text-muted-foreground">Name:</span> {fullName}</p>
+                <p><span className="text-muted-foreground">Email:</span> {field(data.email)}</p>
+                <p><span className="text-muted-foreground">Phone:</span> {field(data.phone)}</p>
+                <p><span className="text-muted-foreground">User ID:</span> {field(data.userId)}</p>
+                <p><span className="text-muted-foreground">Driver ID:</span> {field(data.driverId)}</p>
+                <p><span className="text-muted-foreground">Company:</span> {humanize(data.companyName)}</p>
+                <p><span className="text-muted-foreground">Station:</span> {field(data.station)}</p>
+                <p><span className="text-muted-foreground">Gender:</span> {field(data.gender)}</p>
+                <p><span className="text-muted-foreground">Date of Birth:</span> {formatLocalDate(data.dob)}</p>
+                <p><span className="text-muted-foreground">Verified:</span> {data.isVerified ? "Yes" : "No"}</p>
+                <p><span className="text-muted-foreground">Background Check:</span> {humanize(data.backgroundCheckStatus)}</p>
+                <p><span className="text-muted-foreground">Profile Status:</span> {humanize(data.profileStatus)}</p>
+                <p><span className="text-muted-foreground">Created:</span> {formatDateTime(data.createdAt)}</p>
+                <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(data.updatedAt)}</p>
+                <p><span className="text-muted-foreground">Last Login:</span> {formatDateTime(data.lastLoginAt)}</p>
               </CardContent>
             </Card>
           </TabsContent>
@@ -122,18 +155,47 @@ export default async function DriverDetailPage({
                 <CardTitle>Driver Licenses</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {data.licenses?.length ? data.licenses.map((license, idx) => (
-                  <div key={idx} className="rounded-md border p-3 text-sm">
-                    <p><span className="text-muted-foreground">Number:</span> {license.licenseNumber || "—"}</p>
-                    <p><span className="text-muted-foreground">Class:</span> {license.licenseClass || "—"}</p>
-                    <p><span className="text-muted-foreground">Expires:</span> {license.expiresAt || "—"}</p>
-                    <p><span className="text-muted-foreground">Status:</span> {license.verificationStatus || "—"}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {license.frontImageUrl ? <a className="text-xs underline" href={license.frontImageUrl} target="_blank">Front image</a> : null}
-                      {license.backImageUrl ? <a className="text-xs underline" href={license.backImageUrl} target="_blank">Back image</a> : null}
-                    </div>
-                  </div>
-                )) : <p className="text-sm text-muted-foreground">No licenses available.</p>}
+                {data.driverLicenses?.length ? (
+                  data.driverLicenses.map((license, idx) => {
+                    const frontItem = license.licenseImageFront ? presignedMap[license.licenseImageFront] : undefined
+                    const backItem = license.licenseImageBack ? presignedMap[license.licenseImageBack] : undefined
+
+                    return (
+                      <div key={`${license.licenseNumber || "license"}-${idx}`} className="space-y-3 rounded-md border p-3 text-sm">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <p><span className="text-muted-foreground">License Number:</span> {field(license.licenseNumber)}</p>
+                          <p><span className="text-muted-foreground">Province:</span> {field(license.issuingProvince)}</p>
+                          <p><span className="text-muted-foreground">Class:</span> {field(license.licenseClass)}</p>
+                          <p><span className="text-muted-foreground">Restrictions:</span> {field(license.restrictions)}</p>
+                          <p><span className="text-muted-foreground">Status:</span> {humanize(license.status)}</p>
+                          <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(license.issueDate)}</p>
+                          <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(license.expiryDate)}</p>
+                          <p><span className="text-muted-foreground">Created:</span> {formatDateTime(license.createdAt)}</p>
+                          <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(license.updatedAt)}</p>
+                        </div>
+                        <div className="space-y-2">
+                          <p className="font-medium">License Images</p>
+                          <DriverImageGallery
+                            images={[
+                              {
+                                key: license.licenseImageFront || "License front key missing",
+                                url: frontItem?.presignedGetUrl,
+                                title: "Front",
+                              },
+                              {
+                                key: license.licenseImageBack || "License back key missing",
+                                url: backItem?.presignedGetUrl,
+                                title: "Back",
+                              },
+                            ].filter((item) => item.key !== "License front key missing" && item.key !== "License back key missing")}
+                          />
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  renderEmpty()
+                )}
               </CardContent>
             </Card>
 
@@ -142,18 +204,86 @@ export default async function DriverDetailPage({
                 <CardTitle>Work Eligibility Documents</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {data.workEligibilityDocuments?.length ? data.workEligibilityDocuments.map((doc, idx) => (
-                  <div key={idx} className="rounded-md border p-3 text-sm">
-                    <p><span className="text-muted-foreground">Type:</span> {doc.documentType || "—"}</p>
-                    <p><span className="text-muted-foreground">Number:</span> {doc.documentNumber || "—"}</p>
-                    <p><span className="text-muted-foreground">Status:</span> {doc.verificationStatus || "—"}</p>
-                    <div className="mt-2 flex flex-wrap gap-2">
-                      {doc.imageUrls?.map((url, imageIdx) => (
-                        <a key={`${url}-${imageIdx}`} className="text-xs underline" href={url} target="_blank">Document image {imageIdx + 1}</a>
-                      ))}
-                    </div>
-                  </div>
-                )) : <p className="text-sm text-muted-foreground">No work eligibility documents available.</p>}
+                {data.workEligibilityDocuments?.length ? (
+                  data.workEligibilityDocuments.map((doc, idx) => {
+                    const attributes = Object.entries(doc.attributes || {})
+                    const docImages = (doc.images || [])
+                      .map((image, imageIdx) => {
+                        const key = image.imageUrl
+                        if (!key) return null
+                        return {
+                          key,
+                          url: presignedMap[key]?.presignedGetUrl,
+                          title: `Document image ${imageIdx + 1}`,
+                        }
+                      })
+                      .filter(Boolean) as Array<{ key: string; url?: string; title: string }>
+
+                    return (
+                      <div key={`${doc.documentId || doc.documentNumber || "document"}-${idx}`} className="space-y-3 rounded-md border p-3 text-sm">
+                        <div className="grid gap-2 md:grid-cols-2">
+                          <p><span className="text-muted-foreground">Document Type:</span> {humanize(doc.documentType)}</p>
+                          <p><span className="text-muted-foreground">Status:</span> {humanize(doc.status)}</p>
+                          <p><span className="text-muted-foreground">Primary:</span> {doc.isPrimary === null || doc.isPrimary === undefined ? "—" : doc.isPrimary ? "Yes" : "No"}</p>
+                          <p><span className="text-muted-foreground">Document Number:</span> {field(doc.documentNumber)}</p>
+                          <p><span className="text-muted-foreground">Holder Name:</span> {field(doc.holderFullName)}</p>
+                          <p><span className="text-muted-foreground">Issuing Country:</span> {field(doc.issuingCountry)}</p>
+                          <p><span className="text-muted-foreground">Issuing Authority:</span> {field(doc.issuingAuthority)}</p>
+                          <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(doc.issueDate)}</p>
+                          <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(doc.expiryDate)}</p>
+                          <p><span className="text-muted-foreground">Created:</span> {formatDateTime(doc.createdAt)}</p>
+                          <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(doc.updatedAt)}</p>
+                        </div>
+
+                        <div>
+                          <p className="mb-2 font-medium">Verification</p>
+                          {doc.verification ? (
+                            <div className="grid gap-2 md:grid-cols-2">
+                              <p><span className="text-muted-foreground">Status:</span> {humanize(doc.verification.status)}</p>
+                              <p><span className="text-muted-foreground">Method:</span> {field(doc.verification.method)}</p>
+                              <p><span className="text-muted-foreground">Verified By:</span> {field(doc.verification.verifiedBy)}</p>
+                              <p><span className="text-muted-foreground">Verified At:</span> {formatDateTime(doc.verification.verifiedAt)}</p>
+                              <p className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {field(doc.verification.notes)}</p>
+                            </div>
+                          ) : (
+                            renderEmpty()
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="mb-2 font-medium">Attributes</p>
+                          {attributes.length ? (
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Key</TableHead>
+                                  <TableHead>Value</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {attributes.map(([key, value]) => (
+                                  <TableRow key={key}>
+                                    <TableCell>{key}</TableCell>
+                                    <TableCell>{value}</TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          ) : (
+                            renderEmpty()
+                          )}
+                        </div>
+
+                        <div>
+                          <p className="mb-2 font-medium">Document Images</p>
+                          <DriverImageGallery images={docImages} />
+                        </div>
+                      </div>
+                    )
+                  })
+                ) : (
+                  renderEmpty()
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -165,7 +295,16 @@ export default async function DriverDetailPage({
                 <CardDescription>Click any image to preview.</CardDescription>
               </CardHeader>
               <CardContent>
-                <DriverImageGallery images={data.driverImages || []} />
+                <DriverImageGallery
+                  images={(data.driverImages || [])
+                    .filter((item) => Boolean(item.imageUrl))
+                    .map((item, idx) => ({
+                      key: item.imageUrl as string,
+                      url: presignedMap[item.imageUrl as string]?.presignedGetUrl,
+                      title: `${humanize(item.imageType)}${item.imageType ? "" : ` #${idx + 1}`}`,
+                      subtitle: `Captured: ${formatDateTime(item.timestamp)}`,
+                    }))}
+                />
               </CardContent>
             </Card>
           </TabsContent>
@@ -175,15 +314,46 @@ export default async function DriverDetailPage({
               <CardHeader>
                 <CardTitle>Weekly Availability</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-2 text-sm">
-                {data.weeklyAvailability ? Object.entries(data.weeklyAvailability).map(([day, slots]) => (
-                  <div key={day} className="rounded-md border p-2">
-                    <p className="font-medium capitalize">{day}</p>
-                    <p className="text-muted-foreground">
-                      {slots?.length ? slots.map((slot) => `${slot.start || "--"} - ${slot.end || "--"}`).join(", ") : "Not available"}
-                    </p>
-                  </div>
-                )) : <p className="text-muted-foreground">No availability data.</p>}
+              <CardContent className="space-y-3 text-sm">
+                {data.weeklyAvailability?.length ? (
+                  data.weeklyAvailability.map((week, weekIdx) => (
+                    <div key={`${week.isoYear}-${week.isoWeek}-${weekIdx}`} className="space-y-2 rounded-md border p-3">
+                      <div className="grid gap-2 md:grid-cols-2">
+                        <p><span className="text-muted-foreground">ISO Year/Week:</span> {field(week.isoYear)}/{field(week.isoWeek)}</p>
+                        <p><span className="text-muted-foreground">Week Range:</span> {formatLocalDate(week.weekStartDate)} - {formatLocalDate(week.weekEndDate)}</p>
+                        <p><span className="text-muted-foreground">Source:</span> {field(week.source)}</p>
+                        <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(week.updatedAt)}</p>
+                      </div>
+
+                      {week.slots?.length ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Day</TableHead>
+                              <TableHead>Start</TableHead>
+                              <TableHead>End</TableHead>
+                              <TableHead>Note</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {week.slots.map((slot, slotIdx) => (
+                              <TableRow key={`${slot.dayOfWeek}-${slot.startTime}-${slotIdx}`}>
+                                <TableCell>{field(slot.dayOfWeek)}</TableCell>
+                                <TableCell>{field(slot.startTime)}</TableCell>
+                                <TableCell>{field(slot.endTime)}</TableCell>
+                                <TableCell>{field(slot.note)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        renderEmpty()
+                      )}
+                    </div>
+                  ))
+                ) : (
+                  renderEmpty()
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -193,21 +363,63 @@ export default async function DriverDetailPage({
               <CardHeader>
                 <CardTitle>Rating Summary</CardTitle>
               </CardHeader>
-              <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-                <p><span className="text-muted-foreground">Average Rating:</span> {data.ratingSummary?.averageRating ?? "—"}</p>
-                <p><span className="text-muted-foreground">Total Ratings:</span> {data.ratingSummary?.totalRatings ?? "—"}</p>
-                <p><span className="text-muted-foreground">On Time Score:</span> {data.ratingSummary?.onTimeScore ?? "—"}</p>
-                <p><span className="text-muted-foreground">Safety Score:</span> {data.ratingSummary?.safetyScore ?? "—"}</p>
+              <CardContent className="space-y-3 text-sm">
+                {data.ratingSummary ? (
+                  <>
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <p><span className="text-muted-foreground">Average Rating:</span> {field(data.ratingSummary.averageRating)}</p>
+                      <p><span className="text-muted-foreground">Total Ratings:</span> {field(data.ratingSummary.totalRatings)}</p>
+                    </div>
+
+                    <div>
+                      <p className="mb-2 font-medium">Reviews</p>
+                      {data.ratingSummary.reviews?.length ? (
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead>Reviewer</TableHead>
+                              <TableHead>Rating</TableHead>
+                              <TableHead>Timestamp</TableHead>
+                              <TableHead>Review</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {data.ratingSummary.reviews.map((review, idx) => (
+                              <TableRow key={`${review.reviewerName || "reviewer"}-${idx}`}>
+                                <TableCell>{field(review.reviewerName)}</TableCell>
+                                <TableCell>{field(review.rating)}</TableCell>
+                                <TableCell>{formatDateTime(review.timestamp)}</TableCell>
+                                <TableCell>{field(review.reviewText)}</TableCell>
+                              </TableRow>
+                            ))}
+                          </TableBody>
+                        </Table>
+                      ) : (
+                        renderEmpty()
+                      )}
+                    </div>
+                  </>
+                ) : (
+                  renderEmpty()
+                )}
               </CardContent>
             </Card>
+
             <Card>
               <CardHeader>
                 <CardTitle>Analytics</CardTitle>
               </CardHeader>
-              <CardContent className="space-y-1 text-sm">
-                {data.analytics ? Object.entries(data.analytics).map(([k, v]) => (
-                  <p key={k}><span className="text-muted-foreground">{k}:</span> {String(v ?? "—")}</p>
-                )) : <p className="text-muted-foreground">No analytics data.</p>}
+              <CardContent className="grid gap-2 text-sm md:grid-cols-2">
+                {data.analytics ? (
+                  <>
+                    <p><span className="text-muted-foreground">Total Deliveries:</span> {field(data.analytics.totalDeliveries)}</p>
+                    <p><span className="text-muted-foreground">Distance Travelled (km):</span> {field(data.analytics.totalDistanceTravelledKm)}</p>
+                    <p><span className="text-muted-foreground">First Order Completed:</span> {formatDateTime(data.analytics.firstOrderCompletedAt)}</p>
+                    <p><span className="text-muted-foreground">Last Order Completed:</span> {formatDateTime(data.analytics.lastOrderCompletedAt)}</p>
+                  </>
+                ) : (
+                  <div className="md:col-span-2">{renderEmpty()}</div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
@@ -218,7 +430,7 @@ export default async function DriverDetailPage({
                 <CardTitle>Admin Notes</CardTitle>
               </CardHeader>
               <CardContent>
-                <p className="text-sm whitespace-pre-wrap">{data.adminNotes || "No admin notes available."}</p>
+                <p className="whitespace-pre-wrap text-sm">{data.adminNotes || "No data available"}</p>
               </CardContent>
             </Card>
           </TabsContent>
