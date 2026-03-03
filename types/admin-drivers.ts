@@ -11,50 +11,97 @@ export type DriverProfileStatus =
   | "ACTIVE"
 
 export type DriverDocumentImage = {
-  imageUrl?: string
-  imageName?: string
-  imageType?: string
+  imageUrl?: string | null
+  imageName?: string | null
+  imageType?: string | null
 }
 
 export type DriverLicense = {
-  licenseNumber?: string
-  licenseClass?: string
-  issuingCountry?: string
-  issuingRegion?: string
-  issuedAt?: string
-  expiresAt?: string
-  frontImageUrl?: string
-  backImageUrl?: string
-  verificationStatus?: string
+  licenseImageFront?: string | null
+  licenseImageBack?: string | null
+  licenseNumber?: string | null
+  issueDate?: string | null
+  expiryDate?: string | null
+  issuingProvince?: string | null
+  licenseClass?: string | null
+  restrictions?: string | null
+  status?: string | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export type WorkEligibilityVerification = {
+  status?: string | null
+  method?: string | null
+  verifiedBy?: string | null
+  verifiedAt?: string | null
+  notes?: string | null
+}
+
+export type WorkEligibilityDocImage = {
+  imageUrl?: string | null
 }
 
 export type WorkEligibilityDocument = {
-  documentType?: string
-  documentNumber?: string
-  issuedAt?: string
-  expiresAt?: string
-  issuingCountry?: string
-  issuingRegion?: string
-  imageUrls?: string[]
-  verificationStatus?: string
+  documentId?: string | null
+  documentType?: string | null
+  documentNumber?: string | null
+  holderFullName?: string | null
+  issuingCountry?: string | null
+  issuingAuthority?: string | null
+  issueDate?: string | null
+  expiryDate?: string | null
+  status?: string | null
+  attributes?: Record<string, string> | null
+  images?: WorkEligibilityDocImage[] | null
+  verification?: WorkEligibilityVerification | null
+  isPrimary?: boolean | null
+  createdAt?: string | null
+  updatedAt?: string | null
 }
 
-export type WeeklyAvailability = Record<string, Array<{ start?: string; end?: string }>>
+export type AvailabilitySlot = {
+  dayOfWeek?: string | null
+  startTime?: string | null
+  endTime?: string | null
+  note?: string | null
+}
+
+export type WeeklyAvailability = {
+  isoYear?: number | null
+  isoWeek?: number | null
+  weekStartDate?: string | null
+  weekEndDate?: string | null
+  source?: string | null
+  slots?: AvailabilitySlot[] | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export type DriverReview = {
+  reviewText?: string | null
+  rating?: number | null
+  reviewerName?: string | null
+  timestamp?: string | null
+}
 
 export type DriverRatingSummary = {
-  averageRating?: number
-  totalRatings?: number
-  onTimeScore?: number
-  safetyScore?: number
-  customerSatisfaction?: number
+  averageRating?: number | null
+  totalRatings?: number | null
+  reviews?: DriverReview[] | null
 }
 
 export type DriverAnalytics = {
-  completedTrips?: number
-  cancelledTrips?: number
-  totalDistanceKm?: number
-  activeDays?: number
-  [key: string]: string | number | boolean | null | undefined
+  totalDeliveries?: number | null
+  totalDistanceTravelledKm?: number | null
+  lastOrderCompletedAt?: string | null
+  firstOrderCompletedAt?: string | null
+}
+
+export type DriverImageEntity = {
+  imageType?: string | null
+  imageUrl?: string | null
+  timestamp?: string | null
 }
 
 export type AdminDriverItem = {
@@ -74,24 +121,16 @@ export type AdminDriverItem = {
 }
 
 export type DriverDetailsDto = AdminDriverItem & {
-  middleName?: string
-  gender?: string
-  dob?: string
-  lastLoginAt?: string
-  driverImages?: string[]
-  licenses?: DriverLicense[]
-  workEligibilityDocuments?: WorkEligibilityDocument[]
-  weeklyAvailability?: WeeklyAvailability
-  ratingSummary?: DriverRatingSummary
-  analytics?: DriverAnalytics
-  adminNotes?: string
-  address?: Array<{
-    streetAddress?: string
-    city?: string
-    province?: string
-    postalCode?: string
-    country?: string
-  }>
+  gender?: string | null
+  dob?: string | null
+  lastLoginAt?: string | null
+  driverLicenses?: DriverLicense[] | null
+  workEligibilityDocuments?: WorkEligibilityDocument[] | null
+  driverImages?: DriverImageEntity[] | null
+  weeklyAvailability?: WeeklyAvailability[] | null
+  ratingSummary?: DriverRatingSummary | null
+  analytics?: DriverAnalytics | null
+  adminNotes?: string | null
 }
 
 export type DriverActionRequestDto = {
@@ -104,6 +143,18 @@ export type DriverActionResponseDto = {
   profileStatus: DriverProfileStatus | string
   updatedAt: string
   message?: string
+}
+
+export type DriverLicenseApprovalRequestDto = {
+  licenseNumber: string
+  reason: string
+  notes?: string
+}
+
+export type DriverWorkEligibilityApprovalRequestDto = {
+  documentId: string
+  reason: string
+  notes?: string
 }
 
 export type AdminDriversResponse = {
@@ -137,7 +188,6 @@ export type AdminDriversQuery = {
   page: number
   size: number
 }
-
 
 export type AdminInviteDriverRequest = {
   email: string

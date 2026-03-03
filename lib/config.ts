@@ -16,6 +16,11 @@ export const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || '';
 // Profile Service
 export const PROFILE_SERVICE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || 'https://testapi.maplexpress.ca/usermanagement';
 
+// AWS Integration Service
+export const AWS_INTEGRATION_SERVICE_URL =
+  process.env.NEXT_PUBLIC_AWS_INTEGRATION_SERVICE_URL ||
+  'http://localhost:8086/aws-integration';
+
 // Order Service
 export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'https://testapi.maplexpress.ca/ordermanagement';
 
