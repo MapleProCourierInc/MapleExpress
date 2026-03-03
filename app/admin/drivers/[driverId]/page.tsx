@@ -1,15 +1,18 @@
 import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
+import { ArrowLeft, ChevronDown } from "lucide-react"
 import { DriverDetailActions } from "@/components/admin/driver-detail-actions"
+import { DocumentApprovalButton } from "@/components/admin/document-approval-button"
 import { DriverImageGallery } from "@/components/admin/driver-image-gallery"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { presignView } from "@/lib/aws-integration-service"
 import { getAdminDriverDetails } from "@/lib/admin-drivers-service"
+import type { DriverLicense, WorkEligibilityDocument } from "@/types/admin-drivers"
 
 function formatDateTime(value?: string | null) {
   if (!value) return "—"
@@ -43,6 +46,214 @@ function field(value: string | number | null | undefined) {
   return String(value)
 }
 
+function statusTone(status?: string | null): "green" | "yellow" | "red" | "neutral" {
+  const normalized = String(status || "").toUpperCase()
+
+  if (["ACTIVE", "APPROVED", "PROFILE_COMPLETE"].includes(normalized)) return "green"
+  if (normalized.includes("PENDING") || normalized.includes("MISSING") || normalized.includes("IN_REVIEW")) return "yellow"
+  if (["SUSPENDED", "TERMINATED", "REJECTED", "LICENSE_EXPIRED", "EXPIRED"].includes(normalized)) return "red"
+  return "neutral"
+}
+
+function statusBadgeClass(status?: string | null) {
+  const tone = statusTone(status)
+
+  if (tone === "green") {
+    return "border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
+  }
+  if (tone === "yellow") {
+    return "border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+  }
+  if (tone === "red") {
+    return "border-rose-200 bg-rose-100 text-rose-900 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+  }
+
+  return "border-muted bg-muted text-foreground"
+}
+
+function isPending(status?: string | null) {
+  return String(status || "").toUpperCase().includes("PENDING")
+}
+
+function isActiveOrPending(status?: string | null) {
+  const normalized = String(status || "").toUpperCase()
+  return normalized.includes("ACTIVE") || normalized.includes("APPROVED") || normalized.includes("PENDING")
+}
+
+function splitByPriority<T extends { status?: string | null }>(items: T[] | null | undefined) {
+  const all = items || []
+  return {
+    visible: all.filter((item) => isActiveOrPending(item.status)),
+    hidden: all.filter((item) => !isActiveOrPending(item.status)),
+  }
+}
+
+function LicenseCard({
+  license,
+  index,
+  driverId,
+  presignedMap,
+}: {
+  license: DriverLicense
+  index: number
+  driverId: string
+  presignedMap: Record<string, { presignedGetUrl?: string }>
+}) {
+  const frontItem = license.licenseImageFront ? presignedMap[license.licenseImageFront] : undefined
+  const backItem = license.licenseImageBack ? presignedMap[license.licenseImageBack] : undefined
+
+  return (
+    <div key={`${license.licenseNumber || "license"}-${index}`} className="space-y-3 rounded-md border p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <Badge variant="outline" className={statusBadgeClass(license.status)}>
+          {humanize(license.status)}
+        </Badge>
+        {isPending(license.status) ? (
+          <DocumentApprovalButton
+            endpoint="/api/driver/license/approve"
+            payload={{
+              driverId,
+              licenseNumber: license.licenseNumber || "",
+              status: license.status || "",
+            }}
+            label="Approve License"
+          />
+        ) : null}
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <p><span className="text-muted-foreground">License Number:</span> {field(license.licenseNumber)}</p>
+        <p><span className="text-muted-foreground">Province:</span> {field(license.issuingProvince)}</p>
+        <p><span className="text-muted-foreground">Class:</span> {field(license.licenseClass)}</p>
+        <p><span className="text-muted-foreground">Restrictions:</span> {field(license.restrictions)}</p>
+        <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(license.issueDate)}</p>
+        <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(license.expiryDate)}</p>
+        <p><span className="text-muted-foreground">Created:</span> {formatDateTime(license.createdAt)}</p>
+        <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(license.updatedAt)}</p>
+      </div>
+      <div className="space-y-2">
+        <p className="font-medium">License Images</p>
+        <DriverImageGallery
+          images={[
+            {
+              key: license.licenseImageFront || "",
+              url: license.licenseImageFront ? frontItem?.presignedGetUrl : undefined,
+              title: "Front",
+            },
+            {
+              key: license.licenseImageBack || "",
+              url: license.licenseImageBack ? backItem?.presignedGetUrl : undefined,
+              title: "Back",
+            },
+          ].filter((item) => Boolean(item.key))}
+        />
+      </div>
+    </div>
+  )
+}
+
+function WorkDocumentCard({
+  doc,
+  index,
+  driverId,
+  presignedMap,
+}: {
+  doc: WorkEligibilityDocument
+  index: number
+  driverId: string
+  presignedMap: Record<string, { presignedGetUrl?: string }>
+}) {
+  const attributes = Object.entries(doc.attributes || {})
+  const docImages = (doc.images || [])
+    .map((image, imageIdx) => {
+      const key = image.imageUrl
+      if (!key) return null
+      return {
+        key,
+        url: presignedMap[key]?.presignedGetUrl,
+        title: `Document image ${imageIdx + 1}`,
+      }
+    })
+    .filter(Boolean) as Array<{ key: string; url?: string; title: string }>
+
+  return (
+    <div key={`${doc.documentId || doc.documentNumber || "document"}-${index}`} className="space-y-3 rounded-md border p-3 text-sm">
+      <div className="flex items-start justify-between gap-2">
+        <Badge variant="outline" className={statusBadgeClass(doc.status)}>
+          {humanize(doc.status)}
+        </Badge>
+        {isPending(doc.status) ? (
+          <DocumentApprovalButton
+            endpoint="/api/driver/pow/approve"
+            payload={{
+              driverId,
+              documentId: doc.documentId || "",
+              documentNumber: doc.documentNumber || "",
+              status: doc.status || "",
+            }}
+            label="Approve Proof of Work"
+          />
+        ) : null}
+      </div>
+      <div className="grid gap-2 md:grid-cols-2">
+        <p><span className="text-muted-foreground">Document Type:</span> {humanize(doc.documentType)}</p>
+        <p><span className="text-muted-foreground">Primary:</span> {doc.isPrimary === null || doc.isPrimary === undefined ? "—" : doc.isPrimary ? "Yes" : "No"}</p>
+        <p><span className="text-muted-foreground">Document Number:</span> {field(doc.documentNumber)}</p>
+        <p><span className="text-muted-foreground">Holder Name:</span> {field(doc.holderFullName)}</p>
+        <p><span className="text-muted-foreground">Issuing Country:</span> {field(doc.issuingCountry)}</p>
+        <p><span className="text-muted-foreground">Issuing Authority:</span> {field(doc.issuingAuthority)}</p>
+        <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(doc.issueDate)}</p>
+        <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(doc.expiryDate)}</p>
+        <p><span className="text-muted-foreground">Created:</span> {formatDateTime(doc.createdAt)}</p>
+        <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(doc.updatedAt)}</p>
+      </div>
+
+      <div>
+        <p className="mb-2 font-medium">Verification</p>
+        {doc.verification ? (
+          <div className="grid gap-2 md:grid-cols-2">
+            <p><span className="text-muted-foreground">Status:</span> {humanize(doc.verification.status)}</p>
+            <p><span className="text-muted-foreground">Method:</span> {field(doc.verification.method)}</p>
+            <p><span className="text-muted-foreground">Verified By:</span> {field(doc.verification.verifiedBy)}</p>
+            <p><span className="text-muted-foreground">Verified At:</span> {formatDateTime(doc.verification.verifiedAt)}</p>
+            <p className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {field(doc.verification.notes)}</p>
+          </div>
+        ) : (
+          renderEmpty()
+        )}
+      </div>
+
+      <div>
+        <p className="mb-2 font-medium">Attributes</p>
+        {attributes.length ? (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Key</TableHead>
+                <TableHead>Value</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {attributes.map(([key, value]) => (
+                <TableRow key={key}>
+                  <TableCell>{key}</TableCell>
+                  <TableCell>{value}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        ) : (
+          renderEmpty()
+        )}
+      </div>
+
+      <div>
+        <p className="mb-2 font-medium">Document Images</p>
+        <DriverImageGallery images={docImages} />
+      </div>
+    </div>
+  )
+}
+
 export default async function DriverDetailPage({
   params,
   searchParams,
@@ -74,6 +285,9 @@ export default async function DriverDetailPage({
   const presignedMap = await presignView(allImageKeys)
   const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Unknown Driver"
 
+  const groupedLicenses = splitByPriority(data.driverLicenses)
+  const groupedWorkDocs = splitByPriority(data.workEligibilityDocuments)
+
   return (
     <TooltipProvider>
       <div className="space-y-4">
@@ -97,7 +311,9 @@ export default async function DriverDetailPage({
             <div className="flex flex-wrap items-center gap-2">
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <Badge>{humanize(data.profileStatus)}</Badge>
+                  <Badge variant="outline" className={statusBadgeClass(data.profileStatus)}>
+                    {humanize(data.profileStatus)}
+                  </Badge>
                 </TooltipTrigger>
                 <TooltipContent>{field(data.profileStatus)}</TooltipContent>
               </Tooltip>
@@ -156,43 +372,25 @@ export default async function DriverDetailPage({
               </CardHeader>
               <CardContent className="space-y-3">
                 {data.driverLicenses?.length ? (
-                  data.driverLicenses.map((license, idx) => {
-                    const frontItem = license.licenseImageFront ? presignedMap[license.licenseImageFront] : undefined
-                    const backItem = license.licenseImageBack ? presignedMap[license.licenseImageBack] : undefined
+                  <>
+                    {groupedLicenses.visible.length ? groupedLicenses.visible.map((license, idx) => (
+                      <LicenseCard key={`license-visible-${idx}`} license={license} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                    )) : renderEmpty("No active or pending licenses available")}
 
-                    return (
-                      <div key={`${license.licenseNumber || "license"}-${idx}`} className="space-y-3 rounded-md border p-3 text-sm">
-                        <div className="grid gap-2 md:grid-cols-2">
-                          <p><span className="text-muted-foreground">License Number:</span> {field(license.licenseNumber)}</p>
-                          <p><span className="text-muted-foreground">Province:</span> {field(license.issuingProvince)}</p>
-                          <p><span className="text-muted-foreground">Class:</span> {field(license.licenseClass)}</p>
-                          <p><span className="text-muted-foreground">Restrictions:</span> {field(license.restrictions)}</p>
-                          <p><span className="text-muted-foreground">Status:</span> {humanize(license.status)}</p>
-                          <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(license.issueDate)}</p>
-                          <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(license.expiryDate)}</p>
-                          <p><span className="text-muted-foreground">Created:</span> {formatDateTime(license.createdAt)}</p>
-                          <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(license.updatedAt)}</p>
-                        </div>
-                        <div className="space-y-2">
-                          <p className="font-medium">License Images</p>
-                          <DriverImageGallery
-                            images={[
-                              {
-                                key: license.licenseImageFront || "License front key missing",
-                                url: frontItem?.presignedGetUrl,
-                                title: "Front",
-                              },
-                              {
-                                key: license.licenseImageBack || "License back key missing",
-                                url: backItem?.presignedGetUrl,
-                                title: "Back",
-                              },
-                            ].filter((item) => item.key !== "License front key missing" && item.key !== "License back key missing")}
-                          />
-                        </div>
-                      </div>
-                    )
-                  })
+                    {groupedLicenses.hidden.length ? (
+                      <Collapsible>
+                        <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                          <ChevronDown className="h-4 w-4" />
+                          Show other licenses ({groupedLicenses.hidden.length})
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-3 space-y-3">
+                          {groupedLicenses.hidden.map((license, idx) => (
+                            <LicenseCard key={`license-hidden-${idx}`} license={license} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ) : null}
+                  </>
                 ) : (
                   renderEmpty()
                 )}
@@ -205,82 +403,25 @@ export default async function DriverDetailPage({
               </CardHeader>
               <CardContent className="space-y-3">
                 {data.workEligibilityDocuments?.length ? (
-                  data.workEligibilityDocuments.map((doc, idx) => {
-                    const attributes = Object.entries(doc.attributes || {})
-                    const docImages = (doc.images || [])
-                      .map((image, imageIdx) => {
-                        const key = image.imageUrl
-                        if (!key) return null
-                        return {
-                          key,
-                          url: presignedMap[key]?.presignedGetUrl,
-                          title: `Document image ${imageIdx + 1}`,
-                        }
-                      })
-                      .filter(Boolean) as Array<{ key: string; url?: string; title: string }>
+                  <>
+                    {groupedWorkDocs.visible.length ? groupedWorkDocs.visible.map((doc, idx) => (
+                      <WorkDocumentCard key={`doc-visible-${idx}`} doc={doc} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                    )) : renderEmpty("No active or pending work eligibility documents available")}
 
-                    return (
-                      <div key={`${doc.documentId || doc.documentNumber || "document"}-${idx}`} className="space-y-3 rounded-md border p-3 text-sm">
-                        <div className="grid gap-2 md:grid-cols-2">
-                          <p><span className="text-muted-foreground">Document Type:</span> {humanize(doc.documentType)}</p>
-                          <p><span className="text-muted-foreground">Status:</span> {humanize(doc.status)}</p>
-                          <p><span className="text-muted-foreground">Primary:</span> {doc.isPrimary === null || doc.isPrimary === undefined ? "—" : doc.isPrimary ? "Yes" : "No"}</p>
-                          <p><span className="text-muted-foreground">Document Number:</span> {field(doc.documentNumber)}</p>
-                          <p><span className="text-muted-foreground">Holder Name:</span> {field(doc.holderFullName)}</p>
-                          <p><span className="text-muted-foreground">Issuing Country:</span> {field(doc.issuingCountry)}</p>
-                          <p><span className="text-muted-foreground">Issuing Authority:</span> {field(doc.issuingAuthority)}</p>
-                          <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(doc.issueDate)}</p>
-                          <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(doc.expiryDate)}</p>
-                          <p><span className="text-muted-foreground">Created:</span> {formatDateTime(doc.createdAt)}</p>
-                          <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(doc.updatedAt)}</p>
-                        </div>
-
-                        <div>
-                          <p className="mb-2 font-medium">Verification</p>
-                          {doc.verification ? (
-                            <div className="grid gap-2 md:grid-cols-2">
-                              <p><span className="text-muted-foreground">Status:</span> {humanize(doc.verification.status)}</p>
-                              <p><span className="text-muted-foreground">Method:</span> {field(doc.verification.method)}</p>
-                              <p><span className="text-muted-foreground">Verified By:</span> {field(doc.verification.verifiedBy)}</p>
-                              <p><span className="text-muted-foreground">Verified At:</span> {formatDateTime(doc.verification.verifiedAt)}</p>
-                              <p className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {field(doc.verification.notes)}</p>
-                            </div>
-                          ) : (
-                            renderEmpty()
-                          )}
-                        </div>
-
-                        <div>
-                          <p className="mb-2 font-medium">Attributes</p>
-                          {attributes.length ? (
-                            <Table>
-                              <TableHeader>
-                                <TableRow>
-                                  <TableHead>Key</TableHead>
-                                  <TableHead>Value</TableHead>
-                                </TableRow>
-                              </TableHeader>
-                              <TableBody>
-                                {attributes.map(([key, value]) => (
-                                  <TableRow key={key}>
-                                    <TableCell>{key}</TableCell>
-                                    <TableCell>{value}</TableCell>
-                                  </TableRow>
-                                ))}
-                              </TableBody>
-                            </Table>
-                          ) : (
-                            renderEmpty()
-                          )}
-                        </div>
-
-                        <div>
-                          <p className="mb-2 font-medium">Document Images</p>
-                          <DriverImageGallery images={docImages} />
-                        </div>
-                      </div>
-                    )
-                  })
+                    {groupedWorkDocs.hidden.length ? (
+                      <Collapsible>
+                        <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                          <ChevronDown className="h-4 w-4" />
+                          Show other documents ({groupedWorkDocs.hidden.length})
+                        </CollapsibleTrigger>
+                        <CollapsibleContent className="mt-3 space-y-3">
+                          {groupedWorkDocs.hidden.map((doc, idx) => (
+                            <WorkDocumentCard key={`doc-hidden-${idx}`} doc={doc} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                          ))}
+                        </CollapsibleContent>
+                      </Collapsible>
+                    ) : null}
+                  </>
                 ) : (
                   renderEmpty()
                 )}

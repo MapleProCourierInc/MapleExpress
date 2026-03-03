@@ -36,8 +36,7 @@ export function DriverImageGallery({
             )}
             <div className="space-y-1 p-2">
               {image.title ? <p className="text-xs font-medium">{image.title}</p> : null}
-              {image.subtitle ? <p className="break-all text-[11px] text-muted-foreground">{image.subtitle}</p> : null}
-              <p className="break-all text-[11px] text-muted-foreground">{image.key}</p>
+              {image.subtitle ? <p className="text-[11px] text-muted-foreground">{image.subtitle}</p> : null}
             </div>
           </button>
         ))}
@@ -58,7 +57,6 @@ export function DriverImageGallery({
             )
           ) : null}
           {active?.subtitle ? <p className="text-xs text-muted-foreground">{active.subtitle}</p> : null}
-          {active ? <p className="break-all text-xs text-muted-foreground">{active.key}</p> : null}
         </DialogContent>
       </Dialog>
     </>

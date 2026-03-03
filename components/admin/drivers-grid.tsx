@@ -51,34 +51,40 @@ function formatDateShort(value?: string) {
   return `${yyyy}-${mm}-${dd} ${hh}:${min}`
 }
 
-function getStatusLabel(status?: string) {
-  switch (status) {
-    case "DRIVER_LICENSE_MISSING":
-      return "License Missing"
-    case "IN_REVIEW":
-      return "In Review"
-    case "APPROVED":
-      return "Active"
-    case "REJECTED":
-      return "Rejected"
-    case "PENDING":
-      return "Pending"
-    default:
-      return status || "Unknown"
-  }
+function humanize(value?: string) {
+  if (!value) return "Unknown"
+  return value
+    .toLowerCase()
+    .split("_")
+    .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(" ")
 }
 
-function statusVariant(status?: string): "default" | "secondary" | "destructive" | "outline" {
-  switch (status) {
-    case "APPROVED":
-      return "default"
-    case "REJECTED":
-      return "destructive"
-    case "DRIVER_LICENSE_MISSING":
-      return "secondary"
-    default:
-      return "outline"
+function statusTone(status?: string): "green" | "yellow" | "red" | "neutral" {
+  const normalized = String(status || "").toUpperCase()
+
+  if (["ACTIVE", "APPROVED", "PROFILE_COMPLETE"].includes(normalized)) return "green"
+  if (normalized.includes("PENDING") || normalized.includes("MISSING") || normalized.includes("IN_REVIEW")) return "yellow"
+  if (["SUSPENDED", "TERMINATED", "REJECTED", "LICENSE_EXPIRED"].includes(normalized)) return "red"
+  return "neutral"
+}
+
+function statusBadgeClass(status?: string) {
+  const tone = statusTone(status)
+
+  if (tone === "green") {
+    return "border-emerald-200 bg-emerald-100 text-emerald-900 dark:border-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200"
   }
+
+  if (tone === "yellow") {
+    return "border-amber-200 bg-amber-100 text-amber-900 dark:border-amber-800 dark:bg-amber-900/30 dark:text-amber-200"
+  }
+
+  if (tone === "red") {
+    return "border-rose-200 bg-rose-100 text-rose-900 dark:border-rose-800 dark:bg-rose-900/30 dark:text-rose-200"
+  }
+
+  return "border-muted bg-muted text-foreground"
 }
 
 export function DriversGrid({ data, filters }: DriversGridProps) {
@@ -101,7 +107,6 @@ export function DriversGrid({ data, filters }: DriversGridProps) {
 
     return `/admin/drivers?${params.toString()}`
   }
-
 
   const currentListHref = () => buildHref(data.page)
 
@@ -172,21 +177,21 @@ export function DriversGrid({ data, filters }: DriversGridProps) {
                     <TableCell className="py-2">
                       <div>
                         <p className="font-medium leading-tight">{name}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[260px]">{item.email || "—"}</p>
+                        <p className="max-w-[260px] truncate text-xs text-muted-foreground">{item.email || "—"}</p>
                       </div>
                     </TableCell>
                     {visibleColumns.phone ? <TableCell className="py-2">{item.phone || "—"}</TableCell> : null}
                     <TableCell className="py-2">
                       <div>
                         <p className="leading-tight">{item.station || "—"}</p>
-                        <p className="text-xs text-muted-foreground truncate max-w-[220px]">{item.companyName || "—"}</p>
+                        <p className="max-w-[220px] truncate text-xs text-muted-foreground">{item.companyName || "—"}</p>
                       </div>
                     </TableCell>
                     <TableCell className="py-2">
                       <Tooltip>
                         <TooltipTrigger asChild>
-                          <Badge variant={statusVariant(item.profileStatus)} className="whitespace-nowrap">
-                            {getStatusLabel(item.profileStatus)}
+                          <Badge variant="outline" className={`whitespace-nowrap ${statusBadgeClass(item.profileStatus)}`}>
+                            {humanize(item.profileStatus)}
                           </Badge>
                         </TooltipTrigger>
                         <TooltipContent>{item.profileStatus || "UNKNOWN"}</TooltipContent>
