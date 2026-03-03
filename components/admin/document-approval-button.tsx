@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 
@@ -13,6 +14,7 @@ type DocumentApprovalButtonProps = {
 export function DocumentApprovalButton({ endpoint, payload, label }: DocumentApprovalButtonProps) {
   const [loading, setLoading] = useState(false)
   const { toast } = useToast()
+  const router = useRouter()
 
   const onClick = async () => {
     try {
@@ -27,21 +29,22 @@ export function DocumentApprovalButton({ endpoint, payload, label }: DocumentApp
 
       if (!response.ok) {
         toast({
-          title: "Not implemented yet",
-          description: data?.message || "Approval API is a placeholder for now.",
+          title: "Approval failed",
+          description: data?.message || "Unable to approve document.",
           variant: "destructive",
         })
         return
       }
 
       toast({
-        title: "Approval requested",
-        description: data?.message || "Placeholder endpoint called successfully.",
+        title: "Approved",
+        description: data?.message || "Document approved successfully.",
       })
+      router.refresh()
     } catch {
       toast({
         title: "Request failed",
-        description: "Unable to call placeholder approval endpoint.",
+        description: "Unable to call approval endpoint.",
         variant: "destructive",
       })
     } finally {

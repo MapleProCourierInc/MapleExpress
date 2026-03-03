@@ -145,6 +145,18 @@ export type DriverActionResponseDto = {
   message?: string
 }
 
+export type DriverLicenseApprovalRequestDto = {
+  licenseNumber: string
+  reason: string
+  notes?: string
+}
+
+export type DriverWorkEligibilityApprovalRequestDto = {
+  documentId: string
+  reason: string
+  notes?: string
+}
+
 export type AdminDriversResponse = {
   items: AdminDriverItem[]
   page: number

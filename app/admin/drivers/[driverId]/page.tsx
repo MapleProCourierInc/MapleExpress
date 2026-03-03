@@ -114,7 +114,8 @@ function LicenseCard({
             payload={{
               driverId,
               licenseNumber: license.licenseNumber || "",
-              status: license.status || "",
+              reason: "Approved by admin",
+              notes: `Auto approval request from Admin portal for ${license.licenseNumber || "license"}`,
             }}
             label="Approve License"
           />
@@ -188,7 +189,8 @@ function WorkDocumentCard({
               driverId,
               documentId: doc.documentId || "",
               documentNumber: doc.documentNumber || "",
-              status: doc.status || "",
+              reason: "Approved by admin",
+              notes: `Auto approval request from Admin portal for ${doc.documentId || doc.documentNumber || "document"}`,
             }}
             label="Approve Proof of Work"
           />
