@@ -37,7 +37,7 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
     setError(null)
 
     try {
-      const fetchedAddresses = await getAddresses(userId, userType)
+      const fetchedAddresses = await getAddresses()
       setAddresses(fetchedAddresses)
     } catch (err) {
       console.error("Error fetching addresses:", err)
@@ -59,7 +59,7 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
 
   const handleDeleteAddress = async (addressId: string) => {
     try {
-      await deleteAddress(userId, addressId, userType)
+      await deleteAddress(addressId)
       // Refresh the address list after deletion
       fetchAddresses()
     } catch (err) {
@@ -75,13 +75,12 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
     try {
       if (editingAddress) {
         // Update existing address
-        await updateAddress(userId, {
+        await updateAddress(editingAddress.addressId, {
           ...addressData,
-          addressId: editingAddress.addressId,
-        }, userType)
+        })
       } else {
         // Create new address
-        await createAddress(userId, addressData, userType)
+        await createAddress(addressData)
       }
 
       // Refresh the address list after adding/updating
@@ -180,4 +179,3 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
     </div>
   )
 }
-

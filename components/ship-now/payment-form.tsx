@@ -198,7 +198,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             if (!user) return;
             try {
                 setIsLoadingAddresses(true);
-                const addresses = await getAddresses(user.userId, user.userType);
+                const addresses = await getAddresses();
                 setSavedAddresses(addresses);
             } catch (err) {
                 console.error("Error fetching addresses:", err);
@@ -304,11 +304,11 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
         if (saveForFuture && user) {
             try {
                 const { id, ...addressDataToSave } = addressWithId; 
-                await createAddress(user.userId, {
+                await createAddress({
                     ...addressDataToSave,
                      addressType: "billing",
-                }, user.userType);
-                const addresses = await getAddresses(user.userId, user.userType);
+                });
+                const addresses = await getAddresses();
                 setSavedAddresses(addresses);
             } catch (err) {
                 console.error("Error saving billing address:", err);
