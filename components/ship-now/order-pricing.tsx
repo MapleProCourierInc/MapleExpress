@@ -95,7 +95,7 @@ export function OrderPricing({
                         </CardHeader>
                         <CardContent className="p-0">
                             {orderData.orderItems.map((item, index) => (
-                                <div key={item.orderItemId} className="border-b last:border-b-0">
+                                <div key={item.trackingId || item.orderItemId || `order-item-${index}`} className="border-b last:border-b-0">
                                     <div className="p-4 bg-muted/10 flex justify-between items-center">
                                         <h3 className="font-medium flex items-center">
                       <span className="bg-primary/10 text-primary text-xs font-semibold px-2 py-1 rounded-full mr-2">
@@ -339,4 +339,3 @@ export function OrderPricing({
         </div>
     )
 }
-

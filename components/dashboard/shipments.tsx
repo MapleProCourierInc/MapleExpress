@@ -222,7 +222,7 @@ export function Shipments({ userId }: ShipmentsProps) {
                             <Separator />
                             <div className="space-y-4">
                               {order.orderItems.map((item, index) => (
-                                  <div key={item.orderItemId} className="border rounded-lg p-4 space-y-4 bg-muted/20">
+                                  <div key={item.trackingId || item.orderItemId || `order-item-${index}`} className="border rounded-lg p-4 space-y-4 bg-muted/20">
                                     <div className="flex items-start justify-between">
                                       <div className="space-y-1">
                                         <div className="flex items-center gap-2">

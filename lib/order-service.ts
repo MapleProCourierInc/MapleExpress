@@ -67,7 +67,8 @@ export interface OrderResponse {
 }
 
 export interface OrderItemResponse {
-    orderItemId: string
+    orderItemId?: string
+    trackingId?: string
     pickup: {
         address: AddressResponse
         coordinates?: {
