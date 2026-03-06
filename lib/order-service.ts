@@ -1,5 +1,4 @@
 import type { ShippingOrder, Address } from "@/components/ship-now/ship-now-form"
-import { ORDER_SERVICE_URL, getEndpointUrl } from "./config"
 
 function getCookie(name: string): string | null {
     if (typeof document === "undefined") return null
@@ -243,7 +242,7 @@ function formatOrderRequest(order: ShippingOrder, userId: string, priorityDelive
 }
 
 export async function createOrder(payload: OrderRequest) {
-    return fetch(getEndpointUrl(ORDER_SERVICE_URL, "orders"), {
+    return fetch("/api/orders", {
         method: "POST",
         headers: {
             accept: "application/json",
@@ -255,7 +254,7 @@ export async function createOrder(payload: OrderRequest) {
 }
 
 export async function updateOrder(payload: OrderRequest) {
-    return fetch(getEndpointUrl(ORDER_SERVICE_URL, "orders"), {
+    return fetch("/api/orders", {
         method: "PUT",
         headers: {
             accept: "application/json",
@@ -286,10 +285,7 @@ function formatAddress(address: Address | null) {
 
 // Fetch paid orders for a customer
 export async function getPaidOrdersByCustomer(customerId: string): Promise<OrderResponse[]> {
-    const url = getEndpointUrl(
-        ORDER_SERVICE_URL,
-        `orders?customerId=${customerId}&paymentStatus=paid`
-    )
+    const url = `/api/orders?customerId=${encodeURIComponent(customerId)}&paymentStatus=paid`
 
     const response = await fetch(url, {
         headers: {
