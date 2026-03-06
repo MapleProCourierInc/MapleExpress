@@ -23,18 +23,22 @@ function getAccessToken() {
   )
 }
 
-// Get all addresses for a user
-export async function getAddresses(): Promise<Address[]> {
+function getAuthHeaders(): HeadersInit {
   const accessToken = getAccessToken()
 
   if (!accessToken) {
-    return []
+    return {}
   }
 
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  }
+}
+
+// Get all addresses for a user
+export async function getAddresses(): Promise<Address[]> {
   const response = await fetch("/api/profile/address", {
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: getAuthHeaders(),
   })
 
   if (!response.ok) {
@@ -49,17 +53,11 @@ export async function getAddresses(): Promise<Address[]> {
 export async function createAddress(
   addressData: AddressInput,
 ): Promise<Address> {
-  const accessToken = getAccessToken()
-
-  if (!accessToken) {
-    throw new Error("Not authenticated")
-  }
-
   const response = await fetch("/api/profile/address", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(addressData),
   })
@@ -77,17 +75,11 @@ export async function updateAddress(
   addressId: string,
   addressData: AddressInput,
 ): Promise<Address> {
-  const accessToken = getAccessToken()
-
-  if (!accessToken) {
-    throw new Error("Not authenticated")
-  }
-
   const response = await fetch(`/api/profile/address/${addressId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        ...getAuthHeaders(),
       },
       body: JSON.stringify(addressData),
   })
@@ -104,17 +96,9 @@ export async function updateAddress(
 export async function deleteAddress(
   addressId: string,
 ): Promise<boolean> {
-  const accessToken = getAccessToken()
-
-  if (!accessToken) {
-    throw new Error("Not authenticated")
-  }
-
   const response = await fetch(`/api/profile/address/${addressId}`, {
     method: "DELETE",
-    headers: {
-      Authorization: `Bearer ${accessToken}`,
-    },
+    headers: getAuthHeaders(),
   })
 
   if (!response.ok) {
