@@ -1,5 +1,38 @@
 import type { ShippingOrder, Address } from "@/components/ship-now/ship-now-form"
-import { ORDER_SERVICE_URL, getEndpointUrl } from "./config"
+
+function getCookie(name: string): string | null {
+    if (typeof document === "undefined") return null
+
+    const value = `; ${document.cookie}`
+    const parts = value.split(`; ${name}=`)
+
+    if (parts.length === 2) {
+        return parts.pop()!.split(";").shift() || null
+    }
+
+    return null
+}
+
+function getAccessToken() {
+    return (
+        localStorage.getItem("maplexpress_access_token") ||
+        getCookie("accessToken") ||
+        getCookie("maplexpress_access_token") ||
+        ""
+    )
+}
+
+function getAuthHeaders(): Record<string, string> {
+    const accessToken = getAccessToken()
+
+    if (!accessToken) {
+        return {}
+    }
+
+    return {
+        Authorization: `Bearer ${accessToken}`,
+    }
+}
 
 // Define the API response types based on the actual response format
 export interface OrderResponse {
@@ -11,6 +44,7 @@ export interface OrderResponse {
         email: string
     }
     priorityDelivery: boolean
+    isFragile?: boolean
     orderStatus: string
     paymentStatus: string
     createdAt: string
@@ -33,7 +67,8 @@ export interface OrderResponse {
 }
 
 export interface OrderItemResponse {
-    orderItemId: string
+    orderItemId?: string
+    trackingId?: string
     pickup: {
         address: AddressResponse
         coordinates?: {
@@ -69,6 +104,7 @@ export interface OrderItemResponse {
             timestamp: string
         }[]
     }
+    isFragile?: boolean
     pricing: {
         basePrice: number
         distanceCharge: number
@@ -85,6 +121,36 @@ export interface OrderItemResponse {
     trackingNumber: string | null
     estimatedDeliveryTime: string | null
     specialIncidents: any[]
+}
+
+interface OrderRequestItem {
+    pickup: {
+        address: ReturnType<typeof formatAddress>
+        time: string
+        notes: string
+    }
+    dropoff: {
+        address: ReturnType<typeof formatAddress>
+        time: string
+        notes: string
+    }
+    packageDetails: {
+        weight: number
+        dimensions: {
+            length: number
+            width: number
+            height: number
+        }
+    }
+    isFragile?: boolean
+}
+
+interface OrderRequest {
+    customerId: string
+    priorityDelivery: boolean
+    isFragile?: boolean
+    orderItems: OrderRequestItem[]
+    shippingOrderId?: string
 }
 
 interface AddressResponse {
@@ -108,13 +174,6 @@ export async function createDraftOrder(
     existingOrderId?: string,
 ): Promise<OrderResponse> {
     try {
-        // Get the auth token from localStorage
-        const accessToken = localStorage.getItem("maplexpress_access_token") || ""
-
-        if (!accessToken) {
-            throw new Error("Authentication token not found")
-        }
-
         if (!userId) {
             throw new Error("User ID not found")
         }
@@ -122,16 +181,9 @@ export async function createDraftOrder(
         // Format the request body according to the API requirements
         const requestBody = formatOrderRequest(order, userId, priorityDelivery, existingOrderId)
 
-        // Make the API call - use PUT if existingOrderId is provided, otherwise use POST
-        const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, 'orders'), {
-            method: existingOrderId ? "PUT" : "POST",
-            headers: {
-                accept: "application/json",
-                "Content-Type": "application/json",
-                Authorization: `Bearer ${accessToken}`,
-            },
-            body: JSON.stringify(requestBody),
-        })
+        const response = existingOrderId
+            ? await updateOrder(requestBody)
+            : await createOrder(requestBody)
 
         if (!response.ok) {
             throw new Error(`Failed to ${existingOrderId ? "update" : "create"} order: ${response.statusText}`)
@@ -149,7 +201,7 @@ export async function createDraftOrder(
 }
 
 // Helper function to format the order request
-function formatOrderRequest(order: ShippingOrder, userId: string, priorityDelivery: boolean, existingOrderId?: string) {
+function formatOrderRequest(order: ShippingOrder, userId: string, priorityDelivery: boolean, existingOrderId?: string): OrderRequest {
     // Format the order items
     const orderItems = order.packages.map((pkg) => {
         return {
@@ -171,12 +223,14 @@ function formatOrderRequest(order: ShippingOrder, userId: string, priorityDelive
                     height: pkg.height,
                 },
             },
+            isFragile: pkg.fragile,
         }
     })
 
-    const requestBody: any = {
+    const requestBody: OrderRequest = {
         customerId: userId,
         priorityDelivery,
+        isFragile: orderItems.some((item) => item.isFragile),
         orderItems,
     }
 
@@ -186,6 +240,30 @@ function formatOrderRequest(order: ShippingOrder, userId: string, priorityDelive
     }
 
     return requestBody
+}
+
+export async function createOrder(payload: OrderRequest) {
+    return fetch("/api/orders", {
+        method: "POST",
+        headers: {
+            accept: "application/json",
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+        },
+        body: JSON.stringify(payload),
+    })
+}
+
+export async function updateOrder(payload: OrderRequest) {
+    return fetch("/api/orders", {
+        method: "PUT",
+        headers: {
+            accept: "application/json",
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+        },
+        body: JSON.stringify(payload),
+    })
 }
 
 // Helper function to format address
@@ -208,21 +286,13 @@ function formatAddress(address: Address | null) {
 
 // Fetch paid orders for a customer
 export async function getPaidOrdersByCustomer(customerId: string): Promise<OrderResponse[]> {
-    const accessToken = localStorage.getItem("maplexpress_access_token") || ""
-    if (!accessToken) {
-        throw new Error("Authentication token not found")
-    }
-
-    const url = getEndpointUrl(
-        ORDER_SERVICE_URL,
-        `orders?customerId=${customerId}&paymentStatus=paid`
-    )
+    const url = `/api/orders?customerId=${encodeURIComponent(customerId)}&paymentStatus=paid`
 
     const response = await fetch(url, {
         headers: {
             accept: "application/json",
             "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
+            ...getAuthHeaders(),
         },
     })
 
@@ -232,4 +302,3 @@ export async function getPaidOrdersByCustomer(customerId: string): Promise<Order
 
     return response.json()
 }
-

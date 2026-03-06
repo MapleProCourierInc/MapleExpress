@@ -15,39 +15,12 @@ function getToken(request: NextRequest) {
   return authHeader.split(" ")[1]
 }
 
-// Get all addresses for a user
-export async function GET(request: NextRequest) {
+export async function PATCH(
+  request: NextRequest,
+  { params }: { params: Promise<{ addressId: string }> }
+) {
   try {
-    const token = getToken(request)
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const endpoint = `${BASE_URL}/profile/addresses`
-
-    // Forward the request to your microservice
-    const response = await fetch(endpoint, {
-      method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
-    })
-
-    // Get the response data
-    const data = await response.json()
-
-    // Return the response
-    return NextResponse.json(data, { status: response.status })
-  } catch (error) {
-    console.error("Get addresses error:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
-  }
-}
-
-// Create a new address
-export async function POST(request: NextRequest) {
-  try {
+    const { addressId } = await params
     const addressData = await request.json()
 
     const token = getToken(request)
@@ -55,11 +28,10 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
     }
 
-    const endpoint = `${BASE_URL}/profile/addresses`
+    const endpoint = `${BASE_URL}/profile/addresses/${addressId}`
 
-    // Forward the request to your microservice
     const response = await fetch(endpoint, {
-      method: "POST",
+      method: "PATCH",
       headers: {
         "Content-Type": "application/json",
         Accept: "application/json",
@@ -68,13 +40,46 @@ export async function POST(request: NextRequest) {
       body: JSON.stringify(addressData),
     })
 
-    // Get the response data
     const data = await response.json()
 
-    // Return the response
     return NextResponse.json(data, { status: response.status })
   } catch (error) {
-    console.error("Create address error:", error)
+    console.error("Update address error:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+  }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ addressId: string }> }
+) {
+  try {
+    const { addressId } = await params
+
+    const token = getToken(request)
+    if (!token) {
+      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    }
+
+    const endpoint = `${BASE_URL}/profile/addresses/${addressId}`
+
+    const response = await fetch(endpoint, {
+      method: "DELETE",
+      headers: {
+        Accept: "application/json",
+        Authorization: `Bearer ${token}`,
+      },
+    })
+
+    if (response.status === 204) {
+      return NextResponse.json({ success: true }, { status: 200 })
+    }
+
+    const data = await response.json()
+
+    return NextResponse.json(data, { status: response.status })
+  } catch (error) {
+    console.error("Delete address error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
