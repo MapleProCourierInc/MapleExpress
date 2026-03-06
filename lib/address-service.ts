@@ -2,12 +2,33 @@ import type { Address } from "@/types/address"
 
 type AddressInput = Omit<Address, "addressId" | "isPrimary"> & { isPrimary?: boolean }
 
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null
+
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+
+  if (parts.length === 2) {
+    return parts.pop()!.split(";").shift() || null
+  }
+
+  return null
+}
+
+function getAccessToken() {
+  return (
+    localStorage.getItem("maplexpress_access_token") ||
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token")
+  )
+}
+
 // Get all addresses for a user
 export async function getAddresses(): Promise<Address[]> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken = getAccessToken()
 
   if (!accessToken) {
-    throw new Error("Not authenticated")
+    return []
   }
 
   const response = await fetch("/api/profile/address", {
@@ -28,7 +49,7 @@ export async function getAddresses(): Promise<Address[]> {
 export async function createAddress(
   addressData: AddressInput,
 ): Promise<Address> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken = getAccessToken()
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -56,7 +77,7 @@ export async function updateAddress(
   addressId: string,
   addressData: AddressInput,
 ): Promise<Address> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken = getAccessToken()
 
   if (!accessToken) {
     throw new Error("Not authenticated")
@@ -83,7 +104,7 @@ export async function updateAddress(
 export async function deleteAddress(
   addressId: string,
 ): Promise<boolean> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+  const accessToken = getAccessToken()
 
   if (!accessToken) {
     throw new Error("Not authenticated")

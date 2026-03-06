@@ -5,7 +5,11 @@ const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhos
 function getToken(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return null
+    return (
+      request.cookies.get("accessToken")?.value ||
+      request.cookies.get("maplexpress_access_token")?.value ||
+      null
+    )
   }
 
   return authHeader.split(" ")[1]
