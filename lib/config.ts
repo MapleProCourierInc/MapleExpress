@@ -29,8 +29,10 @@ export const ORDER_FULFILMENT_SERVICE_URL =
   process.env.NEXT_PUBLIC_ORDER_FULFILMENT_SERVICE_URL ||
   'https://testapi.maplexpress.ca/orderfulfilment';
 
-// Payment Service
-export const PRICING_PAYMENT_SERVICE_URL = process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL || 'https://testapi.maplexpress.ca/paymentservice';
+// Payment / Pricing Service
+export const PRICING_PAYMENT_SERVICE_URL =
+  process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL ||
+  'https://testapi.maplexpress.ca/pricingpayment';
 
 // Google Maps API
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA3wSq5PrN2evVDM5MiRKPa4ZS69taWS8E';
