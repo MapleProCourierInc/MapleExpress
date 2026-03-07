@@ -20,6 +20,8 @@ async function getAuthHeaders() {
   return {
     Authorization: `Bearer ${accessToken}`,
     "X-Id-Token": idToken,
+    Accept: "application/json",
+    "Content-Type": "application/json",
   }
 }
 
@@ -73,7 +75,6 @@ export async function createAdminPricingModel(payload: PricingModel): Promise<Se
     method: "POST",
     headers: {
       ...headers,
-      "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
     cache: "no-store",
