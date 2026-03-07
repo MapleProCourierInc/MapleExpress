@@ -2,7 +2,7 @@ import "server-only"
 
 import { cookies } from "next/headers"
 import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
-import type { PricingApiError, PricingModel } from "@/types/pricing"
+import type { CreatePricingModelRequest, PricingApiError, PricingModel } from "@/types/pricing"
 
 type ServiceResult<T> = {
   data: T | null
@@ -64,7 +64,7 @@ export async function getAdminPricingModels(): Promise<ServiceResult<PricingMode
   return { data: (await response.json()) as PricingModel[], error: null, textError: null }
 }
 
-export async function createAdminPricingModel(payload: PricingModel): Promise<ServiceResult<PricingModel>> {
+export async function createAdminPricingModel(payload: CreatePricingModelRequest): Promise<ServiceResult<PricingModel>> {
   const headers = await getAuthHeaders()
 
   if (!headers) {

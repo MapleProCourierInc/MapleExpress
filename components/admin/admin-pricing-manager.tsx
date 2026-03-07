@@ -20,7 +20,9 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import type { PricingApiError, PricingModel } from "@/types/pricing"
+import type { CreatePricingModelRequest, PricingApiError, PricingModel } from "@/types/pricing"
+
+const DEFAULT_DIMENSIONAL_WEIGHT_UNIT = "cm3/kg"
 
 type Props = {
   initialData: PricingModel[] | null
@@ -28,35 +30,27 @@ type Props = {
 }
 
 type CreateFormState = {
-  pricingId: string
   basePrice: string
   distanceRatePerKm: string
   weightRatePerKg: string
   dimensionalRatePerKg: string
   dimensionalConversionFactor: string
-  dimensionalUnit: string
   priorityCalculationMethod: "percentage" | "flat"
   prioritySurcharge: string
   taxes: Array<{ taxType: string; taxRate: string }>
   isLatest: boolean
-  createdOn: string
-  expiredOn: string
 }
 
 const initialForm = (): CreateFormState => ({
-  pricingId: "",
   basePrice: "",
   distanceRatePerKm: "",
   weightRatePerKg: "",
   dimensionalRatePerKg: "",
   dimensionalConversionFactor: "5000",
-  dimensionalUnit: "cm3/kg",
   priorityCalculationMethod: "percentage",
   prioritySurcharge: "",
   taxes: [{ taxType: "GST", taxRate: "" }],
   isLatest: true,
-  createdOn: new Date().toISOString().slice(0, 16),
-  expiredOn: "",
 })
 
 function formatDateTime(value?: string | null) {
@@ -171,8 +165,6 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
   const validate = () => {
     const errors: Record<string, string> = {}
 
-    if (!form.pricingId.trim()) errors.pricingId = "Required"
-
     const numericFields: Array<[keyof CreateFormState, string]> = [
       ["basePrice", "Required"],
       ["distanceRatePerKm", "Required"],
@@ -200,9 +192,6 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
       }
     })
 
-    if (!form.createdOn.trim()) errors.createdOn = "Required"
-    if (!form.dimensionalUnit.trim()) errors.dimensionalUnit = "Required"
-
     setFieldErrors(errors)
     return Object.keys(errors).length === 0
   }
@@ -216,15 +205,14 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
   const submit = async () => {
     if (!validate()) return
 
-    const payload: PricingModel = {
-      pricingId: form.pricingId.trim(),
+    const payload: CreatePricingModelRequest = {
       basePrice: Number(form.basePrice),
       distanceCharge: { ratePerKm: Number(form.distanceRatePerKm) },
       weightCharge: { ratePerKg: Number(form.weightRatePerKg) },
       dimensionalWeightCharge: {
         ratePerKg: Number(form.dimensionalRatePerKg),
         conversionFactor: Number(form.dimensionalConversionFactor),
-        unit: form.dimensionalUnit.trim(),
+        unit: DEFAULT_DIMENSIONAL_WEIGHT_UNIT,
       },
       prioritySurcharge: {
         calculationMethod: form.priorityCalculationMethod,
@@ -232,8 +220,6 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
       },
       taxes: form.taxes.map((tax) => ({ taxType: tax.taxType.trim(), taxRate: Number(tax.taxRate) })),
       isLatest: true,
-      createdOn: new Date(form.createdOn).toISOString(),
-      expiredOn: form.expiredOn ? new Date(form.expiredOn).toISOString() : null,
     }
 
     try {
@@ -296,17 +282,10 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
             </DialogHeader>
 
             <div className="grid gap-3">
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="pricingId">Pricing ID</Label>
-                  <Input id="pricingId" value={form.pricingId} onChange={(e) => setField("pricingId", e.target.value)} />
-                  {fieldErrors.pricingId ? <p className="text-xs text-destructive">{fieldErrors.pricingId}</p> : null}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="basePrice">Base Price</Label>
-                  <Input id="basePrice" type="number" step="0.01" value={form.basePrice} onChange={(e) => setField("basePrice", e.target.value)} />
-                  {fieldErrors.basePrice ? <p className="text-xs text-destructive">{fieldErrors.basePrice}</p> : null}
-                </div>
+              <div className="space-y-1">
+                <Label htmlFor="basePrice">Base Price</Label>
+                <Input id="basePrice" type="number" step="0.01" value={form.basePrice} onChange={(e) => setField("basePrice", e.target.value)} />
+                {fieldErrors.basePrice ? <p className="text-xs text-destructive">{fieldErrors.basePrice}</p> : null}
               </div>
 
               <div className="grid gap-3 md:grid-cols-3">
@@ -327,17 +306,10 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
                 </div>
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="dimensionalFactor">Dimensional Conversion Factor</Label>
-                  <Input id="dimensionalFactor" type="number" value={form.dimensionalConversionFactor} onChange={(e) => setField("dimensionalConversionFactor", e.target.value)} />
-                  {fieldErrors.dimensionalConversionFactor ? <p className="text-xs text-destructive">{fieldErrors.dimensionalConversionFactor}</p> : null}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="dimensionalUnit">Dimensional Unit</Label>
-                  <Input id="dimensionalUnit" value={form.dimensionalUnit} onChange={(e) => setField("dimensionalUnit", e.target.value)} />
-                  {fieldErrors.dimensionalUnit ? <p className="text-xs text-destructive">{fieldErrors.dimensionalUnit}</p> : null}
-                </div>
+              <div className="space-y-1">
+                <Label htmlFor="dimensionalFactor">Dimensional Conversion Factor</Label>
+                <Input id="dimensionalFactor" type="number" value={form.dimensionalConversionFactor} onChange={(e) => setField("dimensionalConversionFactor", e.target.value)} />
+                {fieldErrors.dimensionalConversionFactor ? <p className="text-xs text-destructive">{fieldErrors.dimensionalConversionFactor}</p> : null}
               </div>
 
               <div className="grid gap-3 md:grid-cols-2">
@@ -400,20 +372,8 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
                 ))}
               </div>
 
-              <div className="grid gap-3 md:grid-cols-2">
-                <div className="space-y-1">
-                  <Label htmlFor="createdOn">Created On</Label>
-                  <Input id="createdOn" type="datetime-local" value={form.createdOn} onChange={(e) => setField("createdOn", e.target.value)} />
-                  {fieldErrors.createdOn ? <p className="text-xs text-destructive">{fieldErrors.createdOn}</p> : null}
-                </div>
-                <div className="space-y-1">
-                  <Label htmlFor="expiredOn">Expired On (optional)</Label>
-                  <Input id="expiredOn" type="datetime-local" value={form.expiredOn} onChange={(e) => setField("expiredOn", e.target.value)} />
-                </div>
-              </div>
-
               <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                New pricing models are submitted as latest by default. Historical records remain visible automatically.
+                Pricing ID and control timestamps are managed by backend automatically. New pricing models are submitted as latest by default.
               </div>
             </div>
 

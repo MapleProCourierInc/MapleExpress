@@ -37,6 +37,16 @@ export interface PricingModel {
   expiredOn?: string | null
 }
 
+export interface CreatePricingModelRequest {
+  basePrice: number
+  distanceCharge: PricingDistanceCharge
+  weightCharge: PricingWeightCharge
+  dimensionalWeightCharge: PricingDimensionalWeightCharge
+  prioritySurcharge: PricingPrioritySurcharge
+  taxes: PricingTax[]
+  isLatest: boolean
+}
+
 export interface PricingApiError {
   status?: string
   message?: string

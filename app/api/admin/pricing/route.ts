@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { createAdminPricingModel, getAdminPricingModels } from "@/lib/admin-pricing-service"
-import type { PricingModel } from "@/types/pricing"
+import type { CreatePricingModelRequest, PricingModel } from "@/types/pricing"
+
+const DEFAULT_DIMENSIONAL_WEIGHT_UNIT = "cm3/kg"
 
 function normalizeNumber(value: unknown): number {
   const parsed = Number(value)
@@ -17,8 +19,7 @@ function normalizeTax(tax: unknown) {
 }
 
 function validatePayload(raw: Record<string, unknown>) {
-  const payload: PricingModel = {
-    pricingId: String(raw.pricingId || "").trim(),
+  const payload: CreatePricingModelRequest = {
     basePrice: normalizeNumber(raw.basePrice),
     distanceCharge: {
       ratePerKm: normalizeNumber((raw.distanceCharge as Record<string, unknown> | undefined)?.ratePerKm),
@@ -29,7 +30,7 @@ function validatePayload(raw: Record<string, unknown>) {
     dimensionalWeightCharge: {
       ratePerKg: normalizeNumber((raw.dimensionalWeightCharge as Record<string, unknown> | undefined)?.ratePerKg),
       conversionFactor: normalizeNumber((raw.dimensionalWeightCharge as Record<string, unknown> | undefined)?.conversionFactor),
-      unit: String((raw.dimensionalWeightCharge as Record<string, unknown> | undefined)?.unit || "").trim(),
+      unit: DEFAULT_DIMENSIONAL_WEIGHT_UNIT,
     },
     prioritySurcharge: {
       calculationMethod: String((raw.prioritySurcharge as Record<string, unknown> | undefined)?.calculationMethod || "").trim() as PricingModel["prioritySurcharge"]["calculationMethod"],
@@ -37,23 +38,18 @@ function validatePayload(raw: Record<string, unknown>) {
     },
     taxes: Array.isArray(raw.taxes) ? raw.taxes.map(normalizeTax) : [],
     isLatest: Boolean(raw.isLatest),
-    createdOn: String(raw.createdOn || "").trim(),
-    expiredOn: raw.expiredOn ? String(raw.expiredOn) : null,
   }
 
   const errors: Array<{ field: string; message: string }> = []
-  if (!payload.pricingId) errors.push({ field: "pricingId", message: "Required" })
   if (!Number.isFinite(payload.basePrice)) errors.push({ field: "basePrice", message: "Enter a valid number" })
   if (!Number.isFinite(payload.distanceCharge.ratePerKm)) errors.push({ field: "distanceCharge.ratePerKm", message: "Enter a valid number" })
   if (!Number.isFinite(payload.weightCharge.ratePerKg)) errors.push({ field: "weightCharge.ratePerKg", message: "Enter a valid number" })
   if (!Number.isFinite(payload.dimensionalWeightCharge.ratePerKg)) errors.push({ field: "dimensionalWeightCharge.ratePerKg", message: "Enter a valid number" })
   if (!Number.isFinite(payload.dimensionalWeightCharge.conversionFactor)) errors.push({ field: "dimensionalWeightCharge.conversionFactor", message: "Enter a valid number" })
-  if (!payload.dimensionalWeightCharge.unit) errors.push({ field: "dimensionalWeightCharge.unit", message: "Required" })
   if (!["percentage", "flat", "Percentage", "Flat"].includes(payload.prioritySurcharge.calculationMethod)) {
     errors.push({ field: "prioritySurcharge.calculationMethod", message: "Invalid calculation method" })
   }
   if (!Number.isFinite(payload.prioritySurcharge.surcharge)) errors.push({ field: "prioritySurcharge.surcharge", message: "Enter a valid number" })
-  if (!payload.createdOn) errors.push({ field: "createdOn", message: "Required" })
 
   if (!payload.taxes.length) {
     errors.push({ field: "taxes", message: "At least one tax row is required" })
