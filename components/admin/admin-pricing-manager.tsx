@@ -372,9 +372,6 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
                 ))}
               </div>
 
-              <div className="rounded-md border bg-muted/30 p-3 text-sm text-muted-foreground">
-                Pricing ID and control timestamps are managed by backend automatically. New pricing models are submitted as latest by default.
-              </div>
             </div>
 
             <DialogFooter>
