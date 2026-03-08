@@ -3,6 +3,13 @@ import { ExternalLink } from "lucide-react"
 import type { AdminCustomerBillingRow } from "@/types/admin-customer-billing"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import {
+  Pagination,
+  PaginationContent,
+  PaginationItem,
+  PaginationNext,
+  PaginationPrevious,
+} from "@/components/ui/pagination"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 
 function formatDate(value?: string) {
@@ -35,10 +42,42 @@ function statusBadgeClass(status?: string) {
   return "border-muted bg-muted text-foreground"
 }
 
-export function CustomerBillingTable({ rows }: { rows: AdminCustomerBillingRow[] }) {
+type Props = {
+  rows: AdminCustomerBillingRow[]
+  ownerType: "individual" | "organization"
+  filters: {
+    email: string
+    userId: string
+    type: string
+    name: string
+    industry: string
+    size: number
+  }
+  meta: {
+    page: number
+    size: number
+    totalElements: number
+    totalPages: number
+  } | null
+}
+
+export function CustomerBillingTable({ rows, ownerType, filters, meta }: Props) {
+  const buildHref = (page: number) => {
+    const params = new URLSearchParams()
+    params.set("ownerType", ownerType)
+    params.set("page", String(page))
+    params.set("size", String(filters.size || 20))
+    if (filters.email) params.set("email", filters.email)
+    if (filters.userId) params.set("userId", filters.userId)
+    if (filters.type && ownerType === "individual") params.set("type", filters.type)
+    if (filters.name && ownerType === "organization") params.set("name", filters.name)
+    if (filters.industry && ownerType === "organization") params.set("industry", filters.industry)
+    return `/admin/customers?${params.toString()}`
+  }
+
   return (
     <div className="space-y-2">
-      <p className="text-sm text-muted-foreground">Showing {rows.length} user profiles</p>
+      <p className="text-sm text-muted-foreground">Showing {rows.length} of {meta?.totalElements ?? rows.length} user profiles</p>
       <div className="rounded-md border">
         <Table>
           <TableHeader>
@@ -82,6 +121,32 @@ export function CustomerBillingTable({ rows }: { rows: AdminCustomerBillingRow[]
           </TableBody>
         </Table>
       </div>
+
+      {meta ? (
+        <div className="flex flex-col items-center justify-between gap-2 sm:flex-row">
+          <span className="text-sm text-muted-foreground">
+            Page {meta.totalPages === 0 ? 0 : meta.page + 1} of {meta.totalPages}
+          </span>
+          <Pagination className="mx-0 w-auto justify-end">
+            <PaginationContent>
+              <PaginationItem>
+                {meta.page > 0 ? (
+                  <PaginationPrevious href={buildHref(meta.page - 1)} />
+                ) : (
+                  <span className="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted-foreground">Previous</span>
+                )}
+              </PaginationItem>
+              <PaginationItem>
+                {meta.page + 1 < meta.totalPages ? (
+                  <PaginationNext href={buildHref(meta.page + 1)} />
+                ) : (
+                  <span className="inline-flex h-9 items-center rounded-md px-3 text-sm text-muted-foreground">Next</span>
+                )}
+              </PaginationItem>
+            </PaginationContent>
+          </Pagination>
+        </div>
+      ) : null}
     </div>
   )
 }

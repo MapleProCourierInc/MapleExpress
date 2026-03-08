@@ -90,6 +90,14 @@ export type OrganizationProfile = {
   payLaterConfiguration?: PayLaterConfigurationEntity | null
 }
 
+export type PageResponse<T> = {
+  items: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
+}
+
 export type AdminEnablePayLaterRequest = {
   ownerType: OwnerType
   ownerId: string
@@ -115,6 +123,8 @@ export type AdminCustomerProfileListFilters = {
   type?: string
   name?: string
   industry?: string
+  page: number
+  size: number
 }
 
 export type ApiErrorResponse = {

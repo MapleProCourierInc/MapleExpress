@@ -111,10 +111,10 @@ export function ProfileBillingCard({
       </CardHeader>
       <CardContent className="space-y-2 text-sm">
         <p><span className="text-muted-foreground">Payment Terms:</span> {humanize(payLaterConfiguration.paymentTerms)}</p>
-        <p className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
           <span className="text-muted-foreground">Activation:</span>
           <Badge variant={billingTone(payLaterConfiguration.activationStatus)}>{humanize(payLaterConfiguration.activationStatus)}</Badge>
-        </p>
+        </div>
         <p><span className="text-muted-foreground">Billing Account ID:</span> {field(payLaterConfiguration.billingAccountId)}</p>
         <p><span className="text-muted-foreground">Enabled By Admin User ID:</span> {field(payLaterConfiguration.enabledByAdminUserId)}</p>
         <p><span className="text-muted-foreground">Enabled At:</span> {formatDate(payLaterConfiguration.enabledAt)}</p>

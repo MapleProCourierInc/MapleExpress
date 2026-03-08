@@ -15,6 +15,7 @@ type Props = {
     type: string
     name: string
     industry: string
+    size: number
   }
 }
 
@@ -32,6 +33,8 @@ export function CustomerBillingFilters({ ownerType, initialFilters }: Props) {
   const apply = () => {
     const next = new URLSearchParams(searchParams.toString())
     next.set("ownerType", ownerType)
+    next.set("page", "0")
+    next.set("size", String(initialFilters.size || 20))
 
     const pairs: Record<string, string> = {
       email: email.trim(),
@@ -55,11 +58,11 @@ export function CustomerBillingFilters({ ownerType, initialFilters }: Props) {
     setType("")
     setName("")
     setIndustry("")
-    router.push(`${pathname}?ownerType=${ownerType}`)
+    router.push(`${pathname}?ownerType=${ownerType}&page=0&size=${initialFilters.size || 20}`)
   }
 
   const onTypeChange = (value: string) => {
-    router.push(`${pathname}?ownerType=${value}`)
+    router.push(`${pathname}?ownerType=${value}&page=0&size=${initialFilters.size || 20}`)
   }
 
   return (

@@ -6,6 +6,14 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { listIndividualProfiles, listOrganizationProfiles } from "@/lib/admin-customer-billing-service"
 import type { AdminCustomerBillingRow, IndividualProfile, OrganizationProfile } from "@/types/admin-customer-billing"
 
+const DEFAULT_PAGE = 0
+const DEFAULT_SIZE = 20
+
+function normalizeNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
 function isRealProfileDocument(id?: string) {
   return Boolean(id && id !== "_serial_numbers_")
 }
@@ -56,6 +64,8 @@ export default async function AdminCustomersPage({
     type: getValue("type").trim(),
     name: getValue("name").trim(),
     industry: getValue("industry").trim(),
+    page: normalizeNumber(getValue("page"), DEFAULT_PAGE),
+    size: normalizeNumber(getValue("size"), DEFAULT_SIZE) || DEFAULT_SIZE,
   }
 
   const result =
@@ -65,14 +75,30 @@ export default async function AdminCustomersPage({
           userId: filters.userId,
           name: filters.name,
           industry: filters.industry,
+          page: filters.page,
+          size: filters.size,
         })
-      : await listIndividualProfiles({ email: filters.email, userId: filters.userId, type: filters.type })
+      : await listIndividualProfiles({
+          email: filters.email,
+          userId: filters.userId,
+          type: filters.type,
+          page: filters.page,
+          size: filters.size,
+        })
 
-  const rows = (result.data || [])
-    .filter((item) => isRealProfileDocument(item?.id))
-    .map((item) =>
-      ownerType === "organization" ? normalizeOrganization(item as OrganizationProfile) : normalizeIndividual(item as IndividualProfile),
-    )
+  const filteredItems = (result.data?.items || []).filter((item) => isRealProfileDocument(item?.id))
+  const rows = filteredItems.map((item) =>
+    ownerType === "organization" ? normalizeOrganization(item as OrganizationProfile) : normalizeIndividual(item as IndividualProfile),
+  )
+
+  const dataMeta = result.data
+    ? {
+        page: result.data.page,
+        size: result.data.size,
+        totalElements: result.data.totalElements,
+        totalPages: result.data.totalPages,
+      }
+    : null
 
   return (
     <div className="space-y-4">
@@ -100,7 +126,21 @@ export default async function AdminCustomersPage({
         </Card>
       )}
 
-      {!result.error && rows.length > 0 && <CustomerBillingTable rows={rows} />}
+      {!result.error && rows.length > 0 && (
+        <CustomerBillingTable
+          rows={rows}
+          ownerType={ownerType}
+          filters={{
+            email: filters.email,
+            userId: filters.userId,
+            type: filters.type,
+            name: filters.name,
+            industry: filters.industry,
+            size: filters.size,
+          }}
+          meta={dataMeta}
+        />
+      )}
     </div>
   )
 }
