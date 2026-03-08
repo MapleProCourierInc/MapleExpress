@@ -3,10 +3,11 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Truck, Route, Building2, Settings, BadgeDollarSign } from "lucide-react"
+import { Truck, Route, Building2, Settings, BadgeDollarSign, Users } from "lucide-react"
 
 const navItems = [
   { href: "/admin/drivers", label: "Drivers", icon: Truck, disabled: false },
+  { href: "/admin/customers", label: "Customer Billing", icon: Users, disabled: false },
   { href: "/admin/pricing", label: "Pricing", icon: BadgeDollarSign, disabled: false },
   { href: "#", label: "Fleet", icon: Route, disabled: true },
   { href: "#", label: "Stations", icon: Building2, disabled: true },
