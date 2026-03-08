@@ -29,6 +29,14 @@ async function getAuthHeaders() {
   }
 }
 
+function withJsonHeaders(headers: Record<string, string>) {
+  return {
+    ...headers,
+    Accept: "application/json",
+    "Content-Type": "application/json",
+  }
+}
+
 async function parseError(response: Response): Promise<{ error: ApiErrorResponse | null; textError: string | null }> {
   const contentType = response.headers.get("content-type") || ""
 
@@ -59,7 +67,7 @@ export async function listIndividualProfiles(
   if (filters.type) params.set("type", filters.type)
 
   const endpoint = `${getEndpointUrl(PROFILE_SERVICE_URL, "/profile/individual")}${params.toString() ? `?${params.toString()}` : ""}`
-  const response = await fetch(endpoint, { method: "GET", headers, cache: "no-store" })
+  const response = await fetch(endpoint, { method: "GET", headers: withJsonHeaders(headers), cache: "no-store" })
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -75,7 +83,7 @@ export async function getIndividualProfileById(id: string): Promise<ServiceResul
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual/${id}`), {
     method: "GET",
-    headers,
+    headers: withJsonHeaders(headers),
     cache: "no-store",
   })
 
@@ -101,7 +109,7 @@ export async function listOrganizationProfiles(
 
   const endpoint = `${getEndpointUrl(PROFILE_SERVICE_URL, "/profile/organization")}${params.toString() ? `?${params.toString()}` : ""}`
 
-  const response = await fetch(endpoint, { method: "GET", headers, cache: "no-store" })
+  const response = await fetch(endpoint, { method: "GET", headers: withJsonHeaders(headers), cache: "no-store" })
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -117,7 +125,7 @@ export async function getOrganizationProfileById(id: string): Promise<ServiceRes
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/${id}`), {
     method: "GET",
-    headers,
+    headers: withJsonHeaders(headers),
     cache: "no-store",
   })
 
@@ -137,10 +145,7 @@ export async function enablePayLater(
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/pay-later/enable"), {
     method: "POST",
-    headers: {
-      ...headers,
-      "Content-Type": "application/json",
-    },
+    headers: withJsonHeaders(headers),
     body: JSON.stringify(payload),
     cache: "no-store",
   })
