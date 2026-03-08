@@ -4,7 +4,7 @@ import { EnablePayLaterDialog } from "@/components/admin/enable-pay-later-dialog
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getIndividualProfileByUserId, getOrganizationProfileByUserId } from "@/lib/admin-customer-billing-service"
+import { getIndividualProfileById, getOrganizationProfileById } from "@/lib/admin-customer-billing-service"
 import type {
   IndividualProfile,
   OrganizationProfile,
@@ -95,7 +95,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
   const ownerType = rawOwnerType === "organization" ? "ORGANIZATION" : "INDIVIDUAL"
 
   const result =
-    ownerType === "ORGANIZATION" ? await getOrganizationProfileByUserId(profileId) : await getIndividualProfileByUserId(profileId)
+    ownerType === "ORGANIZATION" ? await getOrganizationProfileById(profileId) : await getIndividualProfileById(profileId)
 
   if (!result.data) {
     return (

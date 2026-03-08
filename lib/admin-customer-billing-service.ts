@@ -77,11 +77,11 @@ export async function listIndividualProfiles(
   return { data: (await response.json()) as IndividualProfile[], error: null, textError: null }
 }
 
-export async function getIndividualProfileByUserId(userId: string): Promise<ServiceResult<IndividualProfile>> {
+export async function getIndividualProfileById(id: string): Promise<ServiceResult<IndividualProfile>> {
   const headers = await getAuthHeaders()
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual/user/${encodeURIComponent(userId)}`), {
+  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual/${id}`), {
     method: "GET",
     headers: withJsonHeaders(headers),
     cache: "no-store",
@@ -119,11 +119,11 @@ export async function listOrganizationProfiles(
   return { data: (await response.json()) as OrganizationProfile[], error: null, textError: null }
 }
 
-export async function getOrganizationProfileByUserId(userId: string): Promise<ServiceResult<OrganizationProfile>> {
+export async function getOrganizationProfileById(id: string): Promise<ServiceResult<OrganizationProfile>> {
   const headers = await getAuthHeaders()
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/user/${encodeURIComponent(userId)}`), {
+  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/${id}`), {
     method: "GET",
     headers: withJsonHeaders(headers),
     cache: "no-store",
