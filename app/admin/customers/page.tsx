@@ -18,6 +18,27 @@ function isRealProfileDocument(id?: string) {
   return Boolean(id && id !== "_serial_numbers_")
 }
 
+
+function getPostpayStatus(profile: IndividualProfile | OrganizationProfile) {
+  const direct = profile.payLaterConfiguration?.activationStatus
+  if (direct) return direct
+
+  const extensionCandidate = profile.extensions?.payLaterConfiguration
+  if (!extensionCandidate) return "DISABLED"
+
+  if (typeof extensionCandidate === "string") {
+    try {
+      const parsed = JSON.parse(extensionCandidate) as { activationStatus?: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED" }
+      return parsed?.activationStatus || "DISABLED"
+    } catch {
+      return "DISABLED"
+    }
+  }
+
+  const objectCandidate = extensionCandidate as { activationStatus?: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED" }
+  return objectCandidate?.activationStatus || "DISABLED"
+}
+
 function normalizeIndividual(item: IndividualProfile): AdminCustomerBillingRow {
   const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || item.email || item.userId || item.id
   return {
@@ -28,6 +49,7 @@ function normalizeIndividual(item: IndividualProfile): AdminCustomerBillingRow {
     email: item.email || "",
     phone: item.phone || "",
     status: item.status || "UNKNOWN",
+    postpayStatus: getPostpayStatus(item),
     updatedAt: item.updatedAt,
   }
 }
@@ -41,6 +63,7 @@ function normalizeOrganization(item: OrganizationProfile): AdminCustomerBillingR
     email: item.email || "",
     phone: item.phone || "",
     status: item.status || "UNKNOWN",
+    postpayStatus: getPostpayStatus(item),
     updatedAt: item.updatedAt,
   }
 }

@@ -85,7 +85,7 @@ export function CustomerBillingTable({ rows, ownerType, filters, meta }: Props) 
               <TableHead>User</TableHead>
               <TableHead>Owner Type</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>User ID</TableHead>
+              <TableHead>Postpay Status</TableHead>
               <TableHead>Updated</TableHead>
               <TableHead className="w-[44px]" />
             </TableRow>
@@ -106,7 +106,7 @@ export function CustomerBillingTable({ rows, ownerType, filters, meta }: Props) 
                     {humanize(row.status)}
                   </Badge>
                 </TableCell>
-                <TableCell className="max-w-[240px] truncate text-sm text-muted-foreground">{row.userId || "—"}</TableCell>
+                <TableCell className="max-w-[240px] truncate text-sm text-muted-foreground"><Badge variant="outline" className={statusBadgeClass(row.postpayStatus)}>{humanize(row.postpayStatus)}</Badge></TableCell>
                 <TableCell>{formatDate(row.updatedAt)}</TableCell>
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="outline" className="h-8 px-2">

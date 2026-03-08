@@ -113,6 +113,7 @@ export type AdminCustomerBillingRow = {
   email: string
   phone: string
   status: string
+  postpayStatus: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED"
   updatedAt?: string
 }
 
