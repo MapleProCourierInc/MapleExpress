@@ -71,7 +71,7 @@ export function CustomerBillingTable({ rows }: { rows: AdminCustomerBillingRow[]
                 <TableCell>{formatDate(row.updatedAt)}</TableCell>
                 <TableCell className="text-right">
                   <Button asChild size="sm" variant="outline" className="h-8 px-2">
-                    <Link href={`/admin/customers/${row.ownerType.toLowerCase()}/${row.id}`}>
+                    <Link href={`/admin/customers/${row.ownerType.toLowerCase()}/${row.userId}`}>
                       <ExternalLink className="mr-1 h-3.5 w-3.5" />
                       Open
                     </Link>

@@ -14,6 +14,7 @@ function normalizeIndividual(item: IndividualProfile): AdminCustomerBillingRow {
   const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || item.email || item.userId || item.id
   return {
     id: item.id,
+    userId: item.userId,
     ownerType: "INDIVIDUAL",
     displayName: fullName,
     email: item.email || "",
@@ -27,6 +28,7 @@ function normalizeIndividual(item: IndividualProfile): AdminCustomerBillingRow {
 function normalizeOrganization(item: OrganizationProfile): AdminCustomerBillingRow {
   return {
     id: item.id,
+    userId: item.userId,
     ownerType: "ORGANIZATION",
     displayName: item.name || item.email || item.userId || item.id,
     email: item.email || "",

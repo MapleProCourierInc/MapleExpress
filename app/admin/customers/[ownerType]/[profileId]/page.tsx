@@ -4,7 +4,7 @@ import { EnablePayLaterDialog } from "@/components/admin/enable-pay-later-dialog
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { getIndividualProfileById, getOrganizationProfileById } from "@/lib/admin-customer-billing-service"
+import { getIndividualProfileByUserId, getOrganizationProfileByUserId } from "@/lib/admin-customer-billing-service"
 import type {
   IndividualProfile,
   OrganizationProfile,
@@ -73,7 +73,7 @@ function extractBillingConfiguration(
 
   return {
     ownerType,
-    ownerId: profile.id,
+    ownerId: profile.userId,
     paymentTerms: profile.billingAccount?.billingAccountId ? "MONTHLY_INVOICE" : "PREPAID",
     activationStatus: profile.billingAccount?.billingAccountId ? "PENDING_BILLING_ACCOUNT" : "DISABLED",
     billingAccountId: profile.billingAccount?.billingAccountId || null,
@@ -95,7 +95,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
   const ownerType = rawOwnerType === "organization" ? "ORGANIZATION" : "INDIVIDUAL"
 
   const result =
-    ownerType === "ORGANIZATION" ? await getOrganizationProfileById(profileId) : await getIndividualProfileById(profileId)
+    ownerType === "ORGANIZATION" ? await getOrganizationProfileByUserId(profileId) : await getIndividualProfileByUserId(profileId)
 
   if (!result.data) {
     return (
@@ -134,7 +134,7 @@ export default async function AdminCustomerDetailPage({ params }: { params: Prom
           </div>
         </div>
 
-        <EnablePayLaterDialog ownerType={ownerType} ownerId={profile.id} displayName={displayName} />
+        <EnablePayLaterDialog ownerType={ownerType} ownerId={profile.userId} displayName={displayName} />
       </div>
 
       <div className="grid gap-4 lg:grid-cols-2">

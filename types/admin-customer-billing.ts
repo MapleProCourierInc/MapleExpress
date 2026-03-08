@@ -88,6 +88,7 @@ export type AdminEnablePayLaterRequest = {
 
 export type AdminCustomerBillingRow = {
   id: string
+  userId: string
   ownerType: OwnerType
   displayName: string
   email: string
