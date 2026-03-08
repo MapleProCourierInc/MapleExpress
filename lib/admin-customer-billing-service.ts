@@ -5,6 +5,7 @@ import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
 import type {
   AdminCustomerProfileListFilters,
   AdminEnablePayLaterRequest,
+  AdminUpdatePostpayStatusRequest,
   ApiErrorResponse,
   IndividualProfile,
   OrganizationProfile,
@@ -173,6 +174,28 @@ export async function enablePayLater(
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/pay-later/enable"), {
     method: "POST",
+    headers: withJsonHeaders(headers),
+    body: JSON.stringify(payload),
+    cache: "no-store",
+  })
+
+  if (!response.ok) {
+    const parsed = await parseError(response)
+    return { data: null, ...parsed }
+  }
+
+  return { data: (await response.json()) as ProfileBillingConfigurationResponse, error: null, textError: null }
+}
+
+
+export async function updatePostpayStatus(
+  payload: AdminUpdatePostpayStatusRequest,
+): Promise<ServiceResult<ProfileBillingConfigurationResponse>> {
+  const headers = await getAuthHeaders()
+  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+
+  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/postpay/status"), {
+    method: "PATCH",
     headers: withJsonHeaders(headers),
     body: JSON.stringify(payload),
     cache: "no-store",

@@ -105,6 +105,14 @@ export type AdminEnablePayLaterRequest = {
   notes?: string
 }
 
+export type AdminUpdatePostpayStatusRequest = {
+  ownerType: OwnerType
+  ownerId: string
+  action: "ENABLE" | "DISABLE"
+  reason: string
+  notes?: string
+}
+
 export type AdminCustomerBillingRow = {
   id: string
   userId: string
