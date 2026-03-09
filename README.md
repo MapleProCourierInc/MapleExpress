@@ -10,6 +10,27 @@ The project is tested with **Node.js 20**. Using newer versions such as Node 24 
 
 The application uses several environment variables for configuration. These are defined in `lib/config.ts` and can be overridden by setting them in `.env` or `.env.local` files.
 
+## Signup & Email Verification Flow (Cognito)
+
+The current signup flow uses AWS Cognito confirmation codes:
+
+1. Sign up with email + password.
+2. Cognito sends a numeric confirmation code to the user's email.
+3. Enter the code in the "Verify Your Email" UI to confirm the account.
+4. After confirmation, return to the login screen and sign in normally.
+5. If needed, resend the confirmation code from the same screen.
+
+## Logout Behavior (Cognito JWT)
+
+- Logout is handled entirely in the app: access/refresh cookies are cleared and local auth state is reset.
+- No legacy auth microservice logout endpoint is called.
+
+## Forgot Password Flow (Cognito Code Reset)
+
+1. Open "Forgot Password" and enter your email to request a reset code.
+2. Enter the confirmation code and a new password (with confirmation).
+3. Return to login and sign in with the new password.
+
 ### Auth Service
 - **AUTH_MICROSERVICE_URL**: URL for the authentication microservice
   - Default: `http://localhost:30080/usermanagement/auth`
@@ -20,6 +41,17 @@ The application uses several environment variables for configuration. These are 
 - **AUTH_API_KEY**: API key for authentication service
   - Default: `''` (empty string)
   - Used in: Authentication API calls that require an API key
+
+### Cognito
+- **COGNITO_REGION**: AWS region for the Cognito User Pool
+  - Default: `''` (empty string)
+  - Used in: Cognito auth API routes (`app/api/auth/login/route.ts`, `app/api/auth/signup/route.ts`)
+- **COGNITO_USER_POOL_ID**: Cognito User Pool ID
+  - Default: `''` (empty string)
+  - Used in: Reserved for future auth flows (for example, verification and admin calls)
+- **COGNITO_CLIENT_ID**: Cognito App Client ID
+  - Default: `''` (empty string)
+  - Used in: Cognito auth API routes (`app/api/auth/login/route.ts`, `app/api/auth/signup/route.ts`)
 
 ### Profile Service
 - **NEXT_PUBLIC_PROFILE_SERVICE_URL**: URL for the profile management service
@@ -88,11 +120,24 @@ Example `.env.local` file:
 ```
 AUTH_MICROSERVICE_URL=https://api.example.com/auth
 AUTH_API_KEY=your_auth_api_key
+COGNITO_REGION=ca-central-1
+COGNITO_USER_POOL_ID=ca-central-1_example
+COGNITO_CLIENT_ID=exampleclientid
 NEXT_PUBLIC_PROFILE_SERVICE_URL=https://api.example.com/profiles
 NEXT_PUBLIC_ORDER_SERVICE_URL=https://api.example.com/orders
 NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL=https://api.example.com/payments
 NEXT_PUBLIC_GOOGLE_MAPS_API_KEY=your_google_maps_api_key
 ```
+
+## Local Verification Testing Checklist
+
+1. Sign up with a new email address.
+2. Check the email inbox for the Cognito confirmation code.
+3. Enter the code in the "Verify Your Email" UI and confirm.
+4. Verify that the UI returns to login and that you can sign in.
+5. Use "Resend Code" to verify the resend flow.
+6. Use "Forgot Password" to request a reset code.
+7. Confirm the code with a new password and sign in again.
 
 ## Environment Variables in Next.js
 

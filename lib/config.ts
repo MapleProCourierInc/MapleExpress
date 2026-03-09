@@ -8,8 +8,18 @@ export const AUTH_MICROSERVICE_URL = process.env.AUTH_MICROSERVICE_URL || 'https
 export const AUTH_REFRESH_URL = process.env.AUTH_REFRESH_URL || `${AUTH_MICROSERVICE_URL}/refresh`;
 export const AUTH_API_KEY = process.env.AUTH_API_KEY || '';
 
+// Cognito
+export const COGNITO_REGION = process.env.COGNITO_REGION || '';
+export const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || '';
+export const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || '';
+
 // Profile Service
 export const PROFILE_SERVICE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || 'https://testapi.maplexpress.ca/usermanagement';
+
+// AWS Integration Service
+export const AWS_INTEGRATION_SERVICE_URL =
+  process.env.NEXT_PUBLIC_AWS_INTEGRATION_SERVICE_URL ||
+  'http://localhost:8086/aws-integration';
 
 // Order Service
 export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'https://testapi.maplexpress.ca/ordermanagement';
@@ -19,8 +29,10 @@ export const ORDER_FULFILMENT_SERVICE_URL =
   process.env.NEXT_PUBLIC_ORDER_FULFILMENT_SERVICE_URL ||
   'https://testapi.maplexpress.ca/orderfulfilment';
 
-// Payment Service
-export const PRICING_PAYMENT_SERVICE_URL = process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL || 'https://testapi.maplexpress.ca/paymentservice';
+// Payment / Pricing Service
+export const PRICING_PAYMENT_SERVICE_URL =
+  process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL ||
+  'https://testapi.maplexpress.ca/pricingpayment';
 
 // Google Maps API
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA3wSq5PrN2evVDM5MiRKPa4ZS69taWS8E';

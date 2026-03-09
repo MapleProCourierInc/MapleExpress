@@ -98,7 +98,7 @@ const analyticsData = {
 type SectionType = "dashboard" | "shipments" | "quotes" | "addresses" | "messages" | "billing" | "help" | "settings"
 
 export default function Dashboard() {
-  const { user, isLoading, individualProfile, organizationProfile, logout } = useAuth()
+  const { user, isLoading, me, individualProfile, organizationProfile, logout } = useAuth()
   const router = useRouter()
   const searchParams = useSearchParams()
   const initialSection = (searchParams.get("section") as SectionType) || "dashboard"
@@ -146,30 +146,25 @@ export default function Dashboard() {
     return null // Will redirect in the useEffect
   }
 
-  // Determine display name based on profile data
-  let displayName = ""
-  let userTypeDisplay = ""
-
-  if (individualProfile) {
-    displayName = `${individualProfile.firstName} ${individualProfile.lastName}`
-    userTypeDisplay = "Individual"
-  } else if (organizationProfile) {
-    displayName = organizationProfile.name
-    userTypeDisplay = "Business"
-  } else {
-    // Fallback to user ID if no profile is available
-    displayName = `User ${user.userId.split("_")[1]}`
-    userTypeDisplay = user.userType === "individualUser" ? "Individual" : "Business"
-  }
+  // Determine display name based on /me first, then profile fallback
+  const displayName =
+    me?.displayName ||
+    (individualProfile ? `${individualProfile.firstName} ${individualProfile.lastName}` : organizationProfile?.name) ||
+    `User ${user.userId.split("_")[1]}`
 
   // Get initials for avatar
-  const getInitials = (name: string) => {
-    return name
-      .split(" ")
-      .map((n) => n[0])
-      .join("")
-      .toUpperCase()
-      .substring(0, 2)
+  const getInitials = (name?: string | null) => {
+    const trimmed = name?.trim()
+    if (!trimmed) return ""
+
+    const parts = trimmed.split(/\s+/)
+    if (parts.length === 1) {
+      return parts[0].slice(0, 2).toUpperCase()
+    }
+
+    const first = parts[0][0] || ""
+    const last = parts[parts.length - 1][0] || ""
+    return `${first}${last}`.toUpperCase()
   }
 
   // Filter shipments based on search query
@@ -714,7 +709,6 @@ export default function Dashboard() {
               </Avatar>
               <div className="flex-1 overflow-hidden">
                 <p className="text-sm font-medium leading-none truncate">{displayName}</p>
-                <p className="text-xs text-muted-foreground">{userTypeDisplay}</p>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>

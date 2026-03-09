@@ -1,5 +1,30 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { AUTH_MICROSERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { cognitoRequest, getCognitoClientId } from "@/lib/cognito"
+
+type CognitoForgotPasswordResponse = {
+  CodeDeliveryDetails?: {
+    AttributeName?: string
+    DeliveryMedium?: string
+    Destination?: string
+  }
+}
+
+const getFriendlyErrorMessage = (errorType: string, fallback: string) => {
+  if (errorType.includes("UserNotFoundException")) {
+    return "We couldn't find an account for this email."
+  }
+  if (errorType.includes("LimitExceededException")) {
+    return "Too many attempts. Please wait a moment before trying again."
+  }
+  if (errorType.includes("TooManyRequestsException")) {
+    return "Too many requests. Please wait a moment before trying again."
+  }
+  if (errorType.includes("InvalidParameterException")) {
+    return "Please enter a valid email address."
+  }
+
+  return fallback
+}
 
 export async function POST(request: NextRequest) {
   try {
@@ -10,23 +35,33 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Email is required" }, { status: 400 })
     }
 
-    const endpoint = getEndpointUrl(AUTH_MICROSERVICE_URL, 'forgot-password')
-
-    const response = await fetch(endpoint, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Accept: 'application/json',
-        'Accept-Language': 'application/json',
-        'X-Real-IP': request.headers.get('x-forwarded-for') || '127.0.0.1',
+    const cognitoResponse = await cognitoRequest<CognitoForgotPasswordResponse>(
+      "AWSCognitoIdentityProviderService.ForgotPassword",
+      {
+        ClientId: getCognitoClientId(),
+        Username: email,
       },
-      body: JSON.stringify({ email }),
-    })
+    )
 
-    const data = await response.json()
-    return NextResponse.json(data, { status: response.status })
+    if (!cognitoResponse.ok) {
+      const errorType = cognitoResponse.error.__type || ""
+      return NextResponse.json(
+        {
+          message: getFriendlyErrorMessage(
+            errorType,
+            cognitoResponse.error.message || "Unable to send reset code.",
+          ),
+        },
+        { status: cognitoResponse.status },
+      )
+    }
+
+    return NextResponse.json(
+      { success: true, message: "Reset code sent successfully." },
+      { status: 200 },
+    )
   } catch (error) {
-    console.error('Forgot password error:', error)
-    return NextResponse.json({ message: 'Internal server error' }, { status: 500 })
+    console.error("Forgot password error:", error)
+    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }

@@ -173,7 +173,7 @@ export function ShipNowForm() {
           coordinates: address.coordinates,
         }
 
-        await createAddress(user.userId, addressData, user.userType)
+        await createAddress(addressData)
       } catch (err) {
         console.error("Error saving address:", err)
         setError("Failed to save address for future use, but your order will continue.")
@@ -205,7 +205,7 @@ export function ShipNowForm() {
           coordinates: address.coordinates,
         }
 
-        await createAddress(user.userId, addressData, user.userType)
+        await createAddress(addressData)
       } catch (err) {
         console.error("Error saving address:", err)
         setError("Failed to save address for future use, but your order will continue.")
@@ -575,4 +575,3 @@ export function ShipNowForm() {
       </div>
   )
 }
-

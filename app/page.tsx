@@ -27,6 +27,7 @@ import { VerificationPending } from "@/components/verification-pending"
 import { IndividualProfileForm } from "@/components/individual-profile-form"
 import { OrganizationProfileForm } from "@/components/organization-profile-form"
 import { UserProfile } from "@/components/user-profile"
+import { ServiceAvailabilitySection } from "@/components/service-availability-section"
 
 export default function LandingPage() {
   const { user, isLoading } = useAuth()
@@ -103,6 +104,11 @@ export default function LandingPage() {
     }
   }
 
+  const handleVerificationConfirmed = () => {
+    handleCloseVerification()
+    setIsLoginModalOpen(true)
+  }
+
   // Determine what to show based on user status or signup state
   const renderContent = () => {
     if (showVerification) {
@@ -111,6 +117,7 @@ export default function LandingPage() {
           <VerificationPending
             email={verificationEmail || "your email"}
             onClose={handleCloseVerification}
+            onConfirmed={handleVerificationConfirmed}
           />
         </div>
       )
@@ -127,6 +134,7 @@ export default function LandingPage() {
             <VerificationPending
               email={verificationEmail || "your email"}
               onClose={handleCloseVerification}
+              onConfirmed={handleVerificationConfirmed}
             />
           </div>
         )
@@ -163,6 +171,9 @@ export default function LandingPage() {
             </Link>
             <Link href="#services" className="text-sm font-medium hover:text-primary">
               Services
+            </Link>
+            <Link href="#availability" className="text-sm font-medium hover:text-primary">
+              Availability
             </Link>
             <Link href="#about" className="text-sm font-medium hover:text-primary">
               About Us
@@ -269,6 +280,11 @@ export default function LandingPage() {
                 <li>
                   <Link href="#services" className="text-muted-foreground hover:text-primary">
                     Services
+                  </Link>
+                </li>
+                <li>
+                  <Link href="#availability" className="text-muted-foreground hover:text-primary">
+                    Check Availability
                   </Link>
                 </li>
                 <li>
@@ -475,6 +491,8 @@ function LandingContent() {
           </div>
         </div>
       </section>
+
+      <ServiceAvailabilitySection />
 
       {/* Why Choose Us Section */}
       <section id="about" className="py-20">
@@ -866,4 +884,3 @@ function LandingContent() {
     </>
   )
 }
-

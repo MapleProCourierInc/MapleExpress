@@ -8,7 +8,6 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent } from "@/components/ui/dialog"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { AlertCircle, Loader2, Truck, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion } from "framer-motion"
@@ -24,7 +23,6 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
   const [email, setEmail] = useState("")
   const [password, setPassword] = useState("")
   const [confirmPassword, setConfirmPassword] = useState("")
-  const [accountType, setAccountType] = useState("Individual")
   const [tosAgreement, setTosAgreement] = useState(false)
   const [communicationConsent, setCommunicationConsent] = useState(false)
   const [isLoading, setIsLoading] = useState(false)
@@ -76,9 +74,6 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
     setIsLoading(true)
 
     try {
-      // Map account type to API expected format
-      const userType = accountType === "Individual" ? "individualUser" : "businessUser"
-
       const response = await fetch("/api/auth/signup", {
         method: "POST",
         headers: {
@@ -86,10 +81,7 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
         },
         body: JSON.stringify({
           email,
-          type: userType,
           password,
-          tosAgreement,
-          communicationConsent,
         }),
       })
 
@@ -108,7 +100,6 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
         setEmail("")
         setPassword("")
         setConfirmPassword("")
-        setAccountType("Individual")
         setTosAgreement(false)
         setCommunicationConsent(false)
       } else {
@@ -167,21 +158,6 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
                       required
                       className="w-full border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
                   />
-                </div>
-
-                <div>
-                  <Label htmlFor="accountType" className="block mb-1.5 font-medium">
-                    Account Type
-                  </Label>
-                  <Select value={accountType} onValueChange={setAccountType}>
-                    <SelectTrigger className="w-full border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary">
-                      <SelectValue placeholder="Select account type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="Individual">Individual</SelectItem>
-                      <SelectItem value="Organization">Organization</SelectItem>
-                    </SelectContent>
-                  </Select>
                 </div>
 
                 <div>
@@ -310,4 +286,3 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
       </Dialog>
   )
 }
-

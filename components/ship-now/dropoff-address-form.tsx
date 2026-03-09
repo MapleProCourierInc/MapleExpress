@@ -33,7 +33,7 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
 
       try {
         setIsLoading(true)
-        const addresses = await getAddresses(user.userId, user.userType)
+        const addresses = await getAddresses()
         setSavedAddresses(addresses)
       } catch (err) {
         console.error("Error fetching addresses:", err)
@@ -215,4 +215,3 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
       </div>
   )
 }
-

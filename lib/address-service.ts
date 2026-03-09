@@ -1,24 +1,45 @@
 import type { Address } from "@/types/address"
 
-// Get all addresses for a user
-export async function getAddresses(
-  userId: string,
-  userType: string,
-): Promise<Address[]> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
+type AddressInput = Omit<Address, "addressId" | "isPrimary"> & { isPrimary?: boolean }
 
-  if (!accessToken) {
-    throw new Error("Not authenticated")
+function getCookie(name: string): string | null {
+  if (typeof document === "undefined") return null
+
+  const value = `; ${document.cookie}`
+  const parts = value.split(`; ${name}=`)
+
+  if (parts.length === 2) {
+    return parts.pop()!.split(";").shift() || null
   }
 
-  const response = await fetch(
-    `/api/profile/address?userId=${userId}&userType=${userType}`,
-    {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
+  return null
+}
+
+function getAccessToken() {
+  return (
+    localStorage.getItem("maplexpress_access_token") ||
+    getCookie("accessToken") ||
+    getCookie("maplexpress_access_token")
   )
+}
+
+function getAuthHeaders(): HeadersInit {
+  const accessToken = getAccessToken()
+
+  if (!accessToken) {
+    return {}
+  }
+
+  return {
+    Authorization: `Bearer ${accessToken}`,
+  }
+}
+
+// Get all addresses for a user
+export async function getAddresses(): Promise<Address[]> {
+  const response = await fetch("/api/profile/address", {
+    headers: getAuthHeaders(),
+  })
 
   if (!response.ok) {
     const error = await response.json()
@@ -30,27 +51,15 @@ export async function getAddresses(
 
 // Create a new address
 export async function createAddress(
-  userId: string,
-  addressData: Omit<Address, "addressId">,
-  userType: string,
+  addressData: AddressInput,
 ): Promise<Address> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
-
-  if (!accessToken) {
-    throw new Error("Not authenticated")
-  }
-
   const response = await fetch("/api/profile/address", {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        ...getAuthHeaders(),
       },
-      body: JSON.stringify({
-        userId,
-        userType,
-        ...addressData,
-      }),
+      body: JSON.stringify(addressData),
   })
 
   if (!response.ok) {
@@ -63,27 +72,16 @@ export async function createAddress(
 
 // Update an address
 export async function updateAddress(
-  userId: string,
-  addressData: Address,
-  userType: string,
+  addressId: string,
+  addressData: AddressInput,
 ): Promise<Address> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
-
-  if (!accessToken) {
-    throw new Error("Not authenticated")
-  }
-
-  const response = await fetch("/api/profile/address", {
+  const response = await fetch(`/api/profile/address/${addressId}`, {
       method: "PATCH",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
+        ...getAuthHeaders(),
       },
-      body: JSON.stringify({
-        userId,
-        userType,
-        ...addressData,
-      }),
+      body: JSON.stringify(addressData),
   })
 
   if (!response.ok) {
@@ -96,25 +94,12 @@ export async function updateAddress(
 
 // Delete an address
 export async function deleteAddress(
-  userId: string,
   addressId: string,
-  userType: string,
 ): Promise<boolean> {
-  const accessToken = localStorage.getItem("maplexpress_access_token")
-
-  if (!accessToken) {
-    throw new Error("Not authenticated")
-  }
-
-  const response = await fetch(
-    `/api/profile/address?userId=${userId}&addressId=${addressId}&userType=${userType}`,
-    {
-      method: "DELETE",
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    },
-  )
+  const response = await fetch(`/api/profile/address/${addressId}`, {
+    method: "DELETE",
+    headers: getAuthHeaders(),
+  })
 
   if (!response.ok) {
     const error = await response.json()
@@ -123,4 +108,3 @@ export async function deleteAddress(
 
   return true
 }
-
