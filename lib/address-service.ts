@@ -2,48 +2,27 @@ import type { Address } from "@/types/address"
 
 type AddressInput = Omit<Address, "addressId" | "isPrimary"> & { isPrimary?: boolean }
 
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null
-
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-
-  if (parts.length === 2) {
-    return parts.pop()!.split(";").shift() || null
+async function getErrorMessage(response: Response, fallback: string) {
+  const text = await response.text()
+  if (!text) {
+    return fallback
   }
 
-  return null
-}
-
-function getAccessToken() {
-  return (
-    localStorage.getItem("maplexpress_access_token") ||
-    getCookie("accessToken") ||
-    getCookie("maplexpress_access_token")
-  )
-}
-
-function getAuthHeaders(): HeadersInit {
-  const accessToken = getAccessToken()
-
-  if (!accessToken) {
-    return {}
-  }
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
+  try {
+    const data = JSON.parse(text)
+    return data.message || fallback
+  } catch {
+    return fallback
   }
 }
 
 // Get all addresses for a user
 export async function getAddresses(): Promise<Address[]> {
-  const response = await fetch("/api/profile/address", {
-    headers: getAuthHeaders(),
-  })
+  const response = await fetch("/api/profile/address")
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to fetch addresses")
+    const message = await getErrorMessage(response, "Failed to fetch addresses")
+    throw new Error(message)
   }
 
   return response.json()
@@ -54,17 +33,16 @@ export async function createAddress(
   addressData: AddressInput,
 ): Promise<Address> {
   const response = await fetch("/api/profile/address", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(addressData),
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(addressData),
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to create address")
+    const message = await getErrorMessage(response, "Failed to create address")
+    throw new Error(message)
   }
 
   return response.json()
@@ -76,17 +54,16 @@ export async function updateAddress(
   addressData: AddressInput,
 ): Promise<Address> {
   const response = await fetch(`/api/profile/address/${addressId}`, {
-      method: "PATCH",
-      headers: {
-        "Content-Type": "application/json",
-        ...getAuthHeaders(),
-      },
-      body: JSON.stringify(addressData),
+    method: "PATCH",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(addressData),
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to update address")
+    const message = await getErrorMessage(response, "Failed to update address")
+    throw new Error(message)
   }
 
   return response.json()
@@ -98,12 +75,11 @@ export async function deleteAddress(
 ): Promise<boolean> {
   const response = await fetch(`/api/profile/address/${addressId}`, {
     method: "DELETE",
-    headers: getAuthHeaders(),
   })
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to delete address")
+    const message = await getErrorMessage(response, "Failed to delete address")
+    throw new Error(message)
   }
 
   return true
