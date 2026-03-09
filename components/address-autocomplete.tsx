@@ -39,6 +39,11 @@ export function AddressAutocomplete({
   const inputRef = useRef<HTMLInputElement>(null)
   const autocompleteRef = useRef<google.maps.places.Autocomplete | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const onChangeRef = useRef(onChange)
+
+  useEffect(() => {
+    onChangeRef.current = onChange
+  }, [onChange])
 
   // Load the Google Maps Places API script
   const scriptStatus = useScript(
@@ -49,38 +54,27 @@ export function AddressAutocomplete({
   // Initialize the autocomplete when the script is loaded
   useEffect(() => {
     if (scriptStatus !== "ready" || !inputRef.current) return
+    if (autocompleteRef.current) return
 
     setIsLoading(true)
 
     try {
-      // Create Autocomplete instance
       const options = {
         fields: ["address_components", "formatted_address", "geometry", "name"],
         types: ["address"],
         componentRestrictions: { country: "ca" },
       }
 
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(
-          inputRef.current,
-          options,
-      )
+      autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, options)
 
-      // Listen for place changes
       autocompleteRef.current.addListener("place_changed", () => {
         if (!autocompleteRef.current) return
 
         const place = autocompleteRef.current.getPlace()
+        if (!place || !place.geometry?.location) return
 
-        // If place details are incomplete, ignore this selection
-        if (!place || !place.geometry?.location) {
-          return
-        }
-
-        // Extract the final "street address" string
         const streetAddress = extractStreetAddress(place)
-
-        // Tell parent about it
-        onChange(streetAddress, place, "selection")
+        onChangeRef.current(streetAddress, place, "selection")
       })
     } catch (error) {
       console.error("Error initializing Google Places Autocomplete:", error)
@@ -88,13 +82,13 @@ export function AddressAutocomplete({
       setIsLoading(false)
     }
 
-    // Cleanup the event listeners on unmount
     return () => {
       if (autocompleteRef.current) {
         window.google.maps.event.clearInstanceListeners(autocompleteRef.current)
+        autocompleteRef.current = null
       }
     }
-  }, [scriptStatus, onChange])
+  }, [scriptStatus])
 
   // Helper function to build a street address from place components
   const extractStreetAddress = (place: google.maps.places.PlaceResult): string => {
@@ -127,9 +121,9 @@ export function AddressAutocomplete({
     const userValue = e.target.value
     // Clear place details if the user fully clears the input
     if (userValue === "") {
-      onChange("", undefined, "typing")
+      onChangeRef.current("", undefined, "typing")
     } else {
-      onChange(userValue, undefined, "typing")
+      onChangeRef.current(userValue, undefined, "typing")
     }
   }
 
