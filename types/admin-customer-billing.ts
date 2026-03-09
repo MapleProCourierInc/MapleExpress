@@ -25,6 +25,17 @@ export type PointOfContact = {
   phone?: string
 }
 
+export type PayLaterConfigurationEntity = {
+  paymentTerms?: "PREPAID" | "MONTHLY_INVOICE"
+  activationStatus?: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED"
+  billingAccountId?: string | null
+  enabledByAdminUserId?: string
+  enabledAt?: string
+  reason?: string
+  notes?: string
+  lastUpdatedAt?: string
+}
+
 export type ProfileBillingConfigurationResponse = {
   ownerType: OwnerType
   ownerId: string
@@ -54,7 +65,7 @@ export type IndividualProfile = {
   discounts?: Array<Record<string, unknown>>
   extensions?: Record<string, unknown>
   billingConfiguration?: ProfileBillingConfigurationResponse | null
-  payLaterConfiguration?: ProfileBillingConfigurationResponse | null
+  payLaterConfiguration?: PayLaterConfigurationEntity | null
 }
 
 export type OrganizationProfile = {
@@ -76,12 +87,28 @@ export type OrganizationProfile = {
   discounts?: Array<Record<string, unknown>>
   extensions?: Record<string, unknown>
   billingConfiguration?: ProfileBillingConfigurationResponse | null
-  payLaterConfiguration?: ProfileBillingConfigurationResponse | null
+  payLaterConfiguration?: PayLaterConfigurationEntity | null
+}
+
+export type PageResponse<T> = {
+  items: T[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
 }
 
 export type AdminEnablePayLaterRequest = {
   ownerType: OwnerType
   ownerId: string
+  reason: string
+  notes?: string
+}
+
+export type AdminUpdatePostpayStatusRequest = {
+  ownerType: OwnerType
+  ownerId: string
+  action: "ENABLE" | "DISABLE"
   reason: string
   notes?: string
 }
@@ -94,7 +121,7 @@ export type AdminCustomerBillingRow = {
   email: string
   phone: string
   status: string
-  secondaryInfo: string
+  postpayStatus: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED"
   updatedAt?: string
 }
 
@@ -105,6 +132,8 @@ export type AdminCustomerProfileListFilters = {
   type?: string
   name?: string
   industry?: string
+  page: number
+  size: number
 }
 
 export type ApiErrorResponse = {

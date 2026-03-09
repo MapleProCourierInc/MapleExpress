@@ -4,11 +4,40 @@ import { CustomerBillingTable } from "@/components/admin/customer-billing-table"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { listIndividualProfiles, listOrganizationProfiles } from "@/lib/admin-customer-billing-service"
-import type {
-  AdminCustomerBillingRow,
-  IndividualProfile,
-  OrganizationProfile,
-} from "@/types/admin-customer-billing"
+import type { AdminCustomerBillingRow, IndividualProfile, OrganizationProfile } from "@/types/admin-customer-billing"
+
+const DEFAULT_PAGE = 0
+const DEFAULT_SIZE = 20
+
+function normalizeNumber(value: string | undefined, fallback: number) {
+  const parsed = Number(value)
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback
+}
+
+function isRealProfileDocument(id?: string) {
+  return Boolean(id && id !== "_serial_numbers_")
+}
+
+
+function getPostpayStatus(profile: IndividualProfile | OrganizationProfile) {
+  const direct = profile.payLaterConfiguration?.activationStatus
+  if (direct) return direct
+
+  const extensionCandidate = profile.extensions?.payLaterConfiguration
+  if (!extensionCandidate) return "DISABLED"
+
+  if (typeof extensionCandidate === "string") {
+    try {
+      const parsed = JSON.parse(extensionCandidate) as { activationStatus?: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED" }
+      return parsed?.activationStatus || "DISABLED"
+    } catch {
+      return "DISABLED"
+    }
+  }
+
+  const objectCandidate = extensionCandidate as { activationStatus?: "DISABLED" | "PENDING_BILLING_ACCOUNT" | "ACTIVE" | "FAILED" }
+  return objectCandidate?.activationStatus || "DISABLED"
+}
 
 function normalizeIndividual(item: IndividualProfile): AdminCustomerBillingRow {
   const fullName = `${item.firstName || ""} ${item.lastName || ""}`.trim() || item.email || item.userId || item.id
@@ -20,7 +49,7 @@ function normalizeIndividual(item: IndividualProfile): AdminCustomerBillingRow {
     email: item.email || "",
     phone: item.phone || "",
     status: item.status || "UNKNOWN",
-    secondaryInfo: item.type ? `Type: ${item.type}` : item.userId,
+    postpayStatus: getPostpayStatus(item),
     updatedAt: item.updatedAt,
   }
 }
@@ -34,7 +63,7 @@ function normalizeOrganization(item: OrganizationProfile): AdminCustomerBillingR
     email: item.email || "",
     phone: item.phone || "",
     status: item.status || "UNKNOWN",
-    secondaryInfo: item.industry ? `Industry: ${item.industry}` : item.userId,
+    postpayStatus: getPostpayStatus(item),
     updatedAt: item.updatedAt,
   }
 }
@@ -58,6 +87,8 @@ export default async function AdminCustomersPage({
     type: getValue("type").trim(),
     name: getValue("name").trim(),
     industry: getValue("industry").trim(),
+    page: normalizeNumber(getValue("page"), DEFAULT_PAGE),
+    size: normalizeNumber(getValue("size"), DEFAULT_SIZE) || DEFAULT_SIZE,
   }
 
   const result =
@@ -67,18 +98,36 @@ export default async function AdminCustomersPage({
           userId: filters.userId,
           name: filters.name,
           industry: filters.industry,
+          page: filters.page,
+          size: filters.size,
         })
-      : await listIndividualProfiles({ email: filters.email, userId: filters.userId, type: filters.type })
+      : await listIndividualProfiles({
+          email: filters.email,
+          userId: filters.userId,
+          type: filters.type,
+          page: filters.page,
+          size: filters.size,
+        })
 
-  const rows = (result.data || []).map((item) =>
+  const filteredItems = (result.data?.items || []).filter((item) => isRealProfileDocument(item?.id))
+  const rows = filteredItems.map((item) =>
     ownerType === "organization" ? normalizeOrganization(item as OrganizationProfile) : normalizeIndividual(item as IndividualProfile),
   )
+
+  const dataMeta = result.data
+    ? {
+        page: result.data.page,
+        size: result.data.size,
+        totalElements: result.data.totalElements,
+        totalPages: result.data.totalPages,
+      }
+    : null
 
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl font-bold">Customer Billing</h1>
-        <p className="text-muted-foreground">Review customer profiles and enable postpay monthly billing terms.</p>
+        <h1 className="text-2xl font-bold">Users</h1>
+        <p className="text-muted-foreground">Review client profiles and manage postpay monthly billing access.</p>
       </div>
 
       <CustomerBillingFilters ownerType={ownerType} initialFilters={filters} />
@@ -100,7 +149,21 @@ export default async function AdminCustomersPage({
         </Card>
       )}
 
-      {!result.error && rows.length > 0 && <CustomerBillingTable rows={rows} />}
+      {!result.error && rows.length > 0 && (
+        <CustomerBillingTable
+          rows={rows}
+          ownerType={ownerType}
+          filters={{
+            email: filters.email,
+            userId: filters.userId,
+            type: filters.type,
+            name: filters.name,
+            industry: filters.industry,
+            size: filters.size,
+          }}
+          meta={dataMeta}
+        />
+      )}
     </div>
   )
 }
