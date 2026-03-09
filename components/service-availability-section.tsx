@@ -132,29 +132,46 @@ export function ServiceAvailabilitySection() {
 
           {availabilityState.kind === "success" && (
             <div
-              className={`mt-5 rounded-lg border px-4 py-3 md:px-5 md:py-4 text-sm md:text-base inline-flex items-start gap-2 md:gap-3 ${
+              className={`mt-5 rounded-2xl border px-4 py-4 md:px-6 md:py-5 ${
                 availabilityState.serviceable
-                  ? "border-emerald-300/80 bg-emerald-50/95 text-emerald-900"
-                  : "border-orange-300/80 bg-orange-50/95 text-orange-900"
+                  ? "border-emerald-200/70 bg-gradient-to-r from-emerald-50/90 to-background/90"
+                  : "border-orange-200/70 bg-gradient-to-r from-orange-50/90 to-background/90"
               }`}
             >
-              {availabilityState.serviceable ? (
-                <CheckCircle2 className="h-5 w-5 mt-0.5 shrink-0" />
-              ) : (
-                <XCircle className="h-5 w-5 mt-0.5 shrink-0" />
-              )}
-              <p className="font-medium">
-                {availabilityState.serviceable
-                  ? `Yes, we currently service your area${availabilityState.city ? ` in ${availabilityState.city}` : ""}.`
-                  : "Sorry, we do not currently service your area yet."}
-              </p>
+              <div className="flex items-start gap-3 md:gap-4">
+                <div
+                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    availabilityState.serviceable ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"
+                  }`}
+                >
+                  {availabilityState.serviceable ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm uppercase tracking-wide text-muted-foreground">Availability Result</p>
+                  <p className="text-lg font-semibold text-foreground">
+                    {availabilityState.serviceable
+                      ? `Great news — we service your area${availabilityState.city ? ` in ${availabilityState.city}` : ""}.`
+                      : "We’re not servicing this area yet."}
+                  </p>
+                  {!availabilityState.serviceable && (
+                    <p className="text-sm text-muted-foreground">Try a nearby address or check back soon as we expand coverage.</p>
+                  )}
+                </div>
+              </div>
             </div>
           )}
 
           {availabilityState.kind === "error" && (
-            <div className="mt-5 rounded-lg border border-destructive/40 bg-destructive/10 px-4 py-3 text-sm text-destructive inline-flex items-start gap-2">
-              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-              <span>{availabilityState.message}</span>
+            <div className="mt-5 rounded-2xl border border-destructive/30 bg-background/80 px-4 py-4 md:px-6 md:py-5">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm uppercase tracking-wide text-muted-foreground">Availability Result</p>
+                  <p className="font-medium text-foreground">{availabilityState.message}</p>
+                </div>
+              </div>
             </div>
           )}
         </div>
