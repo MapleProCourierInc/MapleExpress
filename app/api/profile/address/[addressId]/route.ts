@@ -6,13 +6,26 @@ function getToken(request: NextRequest) {
   const authHeader = request.headers.get("authorization")
   if (!authHeader || !authHeader.startsWith("Bearer ")) {
     return (
-      request.cookies.get("accessToken")?.value ||
       request.cookies.get("maplexpress_access_token")?.value ||
+      request.cookies.get("accessToken")?.value ||
       null
     )
   }
 
-  return authHeader.split(" ")[1]
+  return authHeader.slice("Bearer ".length).trim() || null
+}
+
+async function getJsonResponse(response: Response) {
+  const text = await response.text()
+  if (!text) {
+    return null
+  }
+
+  try {
+    return JSON.parse(text)
+  } catch {
+    return { message: text }
+  }
 }
 
 export async function PATCH(
@@ -40,9 +53,9 @@ export async function PATCH(
       body: JSON.stringify(addressData),
     })
 
-    const data = await response.json()
+    const data = await getJsonResponse(response)
 
-    return NextResponse.json(data, { status: response.status })
+    return NextResponse.json(data ?? {}, { status: response.status })
   } catch (error) {
     console.error("Update address error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
@@ -75,9 +88,9 @@ export async function DELETE(
       return NextResponse.json({ success: true }, { status: 200 })
     }
 
-    const data = await response.json()
+    const data = await getJsonResponse(response)
 
-    return NextResponse.json(data, { status: response.status })
+    return NextResponse.json(data ?? {}, { status: response.status })
   } catch (error) {
     console.error("Delete address error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
