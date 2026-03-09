@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo, useState } from "react"
+import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -17,12 +18,21 @@ export function ServiceAvailabilitySection() {
   const [validationMessage, setValidationMessage] = useState("")
   const [availabilityState, setAvailabilityState] = useState<AvailabilityState>({ kind: "idle" })
 
-  const canCheck = useMemo(() => Boolean(selectedCoords && !isChecking), [selectedCoords, isChecking])
+  const canCheck = useMemo(() => Boolean(selectedCoords) && !isChecking, [selectedCoords, isChecking])
 
-  const handleAddressChange = (value: string, placeDetails?: google.maps.places.PlaceResult) => {
+  const handleAddressChange = (
+    value: string,
+    placeDetails?: google.maps.places.PlaceResult,
+    changeSource: "selection" | "typing" = "typing",
+  ) => {
     setAddressInput(value)
     setValidationMessage("")
     setAvailabilityState({ kind: "idle" })
+
+    if (changeSource === "typing") {
+      setSelectedCoords(null)
+      return
+    }
 
     const location = placeDetails?.geometry?.location
     if (!location) {
@@ -30,15 +40,12 @@ export function ServiceAvailabilitySection() {
       return
     }
 
-    setSelectedCoords({
-      latitude: location.lat(),
-      longitude: location.lng(),
-    })
+    setSelectedCoords({ latitude: location.lat(), longitude: location.lng() })
   }
 
   const handleCheckAvailability = async () => {
     if (!selectedCoords) {
-      setValidationMessage("Please select a valid address from the suggestions before checking.")
+      setValidationMessage("Please choose an address from the suggestions before checking availability.")
       return
     }
 
@@ -74,58 +81,87 @@ export function ServiceAvailabilitySection() {
         station: payload.station,
       })
     } catch {
-      setAvailabilityState({
-        kind: "error",
-        message: "We couldn’t check availability right now. Please try again in a moment.",
-      })
+      setAvailabilityState({ kind: "error", message: "We couldn’t check availability right now. Please try again." })
     } finally {
       setIsChecking(false)
     }
   }
 
   return (
-    <section id="availability" className="py-20">
+    <section id="availability" className="py-20 bg-gradient-to-b from-background to-muted/50">
       <div className="container">
-        <Card className="border-none shadow-md bg-gradient-to-r from-secondary/10 to-primary/10">
-          <CardContent className="pt-8 pb-8 px-6 md:px-10">
-            <div className="max-w-[760px] mx-auto text-center">
-              <h2 className="text-3xl md:text-4xl font-bold mb-4">Check Service Availability</h2>
-              <p className="text-muted-foreground mb-8">
-                Enter your address to quickly see whether MapleX currently services your area.
-              </p>
+        <div className="max-w-4xl mx-auto">
+          <Card className="border-border/70 shadow-lg">
+            <CardContent className="p-6 md:p-10">
+              <div className="text-center space-y-4">
+                <p className="text-sm font-medium tracking-wide text-primary uppercase">Service Coverage</p>
+                <h2 className="text-3xl md:text-4xl font-bold">Check Service Availability</h2>
+                <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
+                  Enter your address and we’ll instantly confirm if MapleX currently services your area.
+                </p>
+              </div>
 
-              <div className="flex flex-col sm:flex-row gap-4">
-                <AddressAutocomplete
-                  value={addressInput}
-                  onChange={handleAddressChange}
-                  placeholder="Search your address"
-                  className="flex-1"
-                />
-                <Button onClick={handleCheckAvailability} disabled={!canCheck} className="sm:min-w-52">
-                  {isChecking ? "Checking..." : "Check Availability"}
+              <div className="mt-8 flex flex-col md:flex-row items-stretch gap-3 md:gap-4">
+                <div className="flex-1 relative">
+                  <AddressAutocomplete
+                    value={addressInput}
+                    onChange={handleAddressChange}
+                    placeholder="Search your address"
+                    className="h-12 md:h-14 px-4 text-base"
+                  />
+                </div>
+                <Button
+                  onClick={handleCheckAvailability}
+                  disabled={!canCheck}
+                  className="h-12 md:h-14 px-6 md:px-8 text-base font-semibold md:min-w-[220px]"
+                >
+                  {isChecking ? (
+                    <span className="inline-flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" /> Checking...
+                    </span>
+                  ) : (
+                    "Check Availability"
+                  )}
                 </Button>
               </div>
 
-              {validationMessage && <p className="text-sm text-destructive mt-4">{validationMessage}</p>}
+              {validationMessage && (
+                <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 inline-flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{validationMessage}</span>
+                </div>
+              )}
 
               {availabilityState.kind === "success" && (
-                <p
-                  className={`mt-6 text-sm md:text-base font-medium ${
-                    availabilityState.serviceable ? "text-green-700" : "text-amber-700"
+                <div
+                  className={`mt-5 rounded-lg border px-4 py-3 md:px-5 md:py-4 text-sm md:text-base inline-flex items-start gap-2 md:gap-3 ${
+                    availabilityState.serviceable
+                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+                      : "border-orange-200 bg-orange-50 text-orange-800"
                   }`}
                 >
-                  {availabilityState.serviceable
-                    ? `Yes, we service your area${availabilityState.city ? ` in ${availabilityState.city}` : ""}.`
-                    : "Sorry, we do not currently service your area."}
-                </p>
+                  {availabilityState.serviceable ? (
+                    <CheckCircle2 className="h-5 w-5 mt-0.5 shrink-0" />
+                  ) : (
+                    <XCircle className="h-5 w-5 mt-0.5 shrink-0" />
+                  )}
+                  <p className="font-medium">
+                    {availabilityState.serviceable
+                      ? `Yes, we currently service your area${availabilityState.city ? ` in ${availabilityState.city}` : ""}.`
+                      : "Sorry, we do not currently service your area yet."}
+                  </p>
+                </div>
               )}
 
               {availabilityState.kind === "error" && (
-                <p className="text-sm text-destructive mt-6">{availabilityState.message}</p>
+                <div className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive inline-flex items-start gap-2">
+                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+                  <span>{availabilityState.message}</span>
+                </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </div>
       </div>
     </section>
   )

@@ -411,8 +411,6 @@ function LandingContent() {
         <div className="absolute inset-0 bg-gradient-to-r from-primary/20 via-secondary/10 to-background/5 -z-10" />
       </section>
 
-      <ServiceAvailabilitySection />
-
       {/* Services Section */}
       <section id="services" className="py-20 bg-muted">
         <div className="container">
@@ -493,6 +491,8 @@ function LandingContent() {
           </div>
         </div>
       </section>
+
+      <ServiceAvailabilitySection />
 
       {/* Why Choose Us Section */}
       <section id="about" className="py-20">

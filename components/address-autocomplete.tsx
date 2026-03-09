@@ -9,7 +9,11 @@ import { GOOGLE_MAPS_API_KEY } from "@/lib/config"
 
 interface AddressAutocompleteProps {
   value: string
-  onChange: (value: string, placeDetails?: google.maps.places.PlaceResult) => void
+  onChange: (
+    value: string,
+    placeDetails?: google.maps.places.PlaceResult,
+    changeSource?: "selection" | "typing",
+  ) => void
   placeholder?: string
   required?: boolean
   disabled?: boolean
@@ -66,11 +70,9 @@ export function AddressAutocomplete({
         if (!autocompleteRef.current) return
 
         const place = autocompleteRef.current.getPlace()
-        console.log("Selected place:", place)
 
-        // If the place lacks details, skip
-        if (!place || !place.address_components) {
-          console.log("No place details available")
+        // If place details are incomplete, ignore this selection
+        if (!place || !place.geometry?.location) {
           return
         }
 
@@ -78,7 +80,7 @@ export function AddressAutocomplete({
         const streetAddress = extractStreetAddress(place)
 
         // Tell parent about it
-        onChange(streetAddress, place)
+        onChange(streetAddress, place, "selection")
       })
     } catch (error) {
       console.error("Error initializing Google Places Autocomplete:", error)
@@ -125,9 +127,9 @@ export function AddressAutocomplete({
     const userValue = e.target.value
     // Clear place details if the user fully clears the input
     if (userValue === "") {
-      onChange("", undefined)
+      onChange("", undefined, "typing")
     } else {
-      onChange(userValue)
+      onChange(userValue, undefined, "typing")
     }
   }
 
