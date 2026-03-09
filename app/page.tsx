@@ -500,7 +500,7 @@ function LandingContent() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
               <Image
-                src="/placeholder.svg?height=600&width=800"
+                src="/Why Choose Us Section.png?height=600&width=800"
                 alt="Courier service in action"
                 width={800}
                 height={600}
@@ -780,7 +780,7 @@ function LandingContent() {
             </div>
             <div className="hidden lg:block">
               <Image
-                src="/placeholder.svg?height=600&width=800"
+                src="/Request a quote.png?height=600&width=800"
                 alt="Customer service representative"
                 width={800}
                 height={600}
