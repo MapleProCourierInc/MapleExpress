@@ -10,6 +10,7 @@ import { AddressForm } from "@/components/ship-now/address-form"
 import { Plus, Loader2, ArrowRight } from "lucide-react"
 import { getAddresses } from "@/lib/address-service"
 import { useAuth } from "@/lib/auth-context"
+import { checkAddressServiceability } from "@/lib/serviceability-service"
 
 interface PickupAddressFormProps {
   selectedAddress: Address | null
@@ -25,6 +26,8 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
   const [error, setError] = useState<string | null>(null)
   const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(selectedAddress?.id || null)
+  const [serviceabilityState, setServiceabilityState] = useState<"unknown" | "checking" | "serviceable" | "non-serviceable" | "error">("unknown")
+  const [serviceabilityMessage, setServiceabilityMessage] = useState<string | null>(null)
 
   // Fetch saved addresses when component mounts
   useEffect(() => {
@@ -46,8 +49,10 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
     fetchAddresses()
   }, [user])
 
-  const handleAddressSelect = (addressId: string) => {
+  const handleAddressSelect = async (addressId: string) => {
     setSelectedAddressId(addressId)
+    setServiceabilityState("unknown")
+    setServiceabilityMessage(null)
     const address = savedAddresses.find((addr) => addr.addressId === addressId)
     if (address) {
       // Convert to the format expected by the form
@@ -68,6 +73,38 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
         coordinates: address.coordinates,
       }
       onSelectAddress(formattedAddress, false)
+
+      if (!formattedAddress.coordinates) {
+        setServiceabilityState("error")
+        setServiceabilityMessage("Unable to validate this saved address. Please add a new address using autocomplete.")
+        return
+      }
+
+      setServiceabilityState("checking")
+      setServiceabilityMessage("Checking MapleX serviceability...")
+
+      try {
+        const result = await checkAddressServiceability(
+          formattedAddress.coordinates.latitude,
+          formattedAddress.coordinates.longitude,
+        )
+
+        if (result.serviceable) {
+          setServiceabilityState("serviceable")
+          setServiceabilityMessage(result.message || "This address is within MapleX serviceable area.")
+          return
+        }
+
+        setServiceabilityState("non-serviceable")
+        setServiceabilityMessage(result.message || "Location is outside MapleX serviceable area.")
+      } catch (serviceabilityError) {
+        setServiceabilityState("error")
+        setServiceabilityMessage(
+          serviceabilityError instanceof Error
+            ? serviceabilityError.message
+            : "Unable to validate this address right now.",
+        )
+      }
       // No longer automatically proceed to next step
     }
     setShowNewAddressForm(false)
@@ -75,6 +112,8 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
 
   const handleNewAddressClick = () => {
     setSelectedAddressId(null)
+    setServiceabilityState("unknown")
+    setServiceabilityMessage(null)
     setShowNewAddressForm(true)
   }
 
@@ -91,7 +130,7 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
 
   // New function to handle continuing with the selected address
   const handleContinue = () => {
-    if (selectedAddressId) {
+    if (selectedAddressId && serviceabilityState === "serviceable") {
       onNext()
     }
   }
@@ -195,8 +234,13 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
                 <Button variant="outline" onClick={onBack}>
                   Back
                 </Button>
+                {(serviceabilityState === "serviceable" || serviceabilityState === "checking" || serviceabilityState === "non-serviceable" || serviceabilityState === "error") && (
+                  <p className={`text-sm ${serviceabilityState === "serviceable" ? "text-green-600" : serviceabilityState === "checking" ? "text-muted-foreground" : "text-red-600"}`}>
+                    {serviceabilityMessage}
+                  </p>
+                )}
                 {/* Add Continue button that's enabled only when an address is selected */}
-                <Button onClick={handleContinue} disabled={!selectedAddressId} className="flex items-center gap-2">
+                <Button onClick={handleContinue} disabled={!selectedAddressId || serviceabilityState !== "serviceable"} className="flex items-center gap-2">
                   Continue
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>

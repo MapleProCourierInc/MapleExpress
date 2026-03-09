@@ -231,7 +231,7 @@ export function ShipNowForm() {
       setCurrentStep("PRICING")
     } catch (err) {
       console.error("Error creating draft order:", err)
-      setError("Failed to create order. Please try again.")
+      setError(err instanceof Error && err.message ? err.message : "Failed to create order. Please try again.")
     } finally {
       setIsSubmitting(false)
     }

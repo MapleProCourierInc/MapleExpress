@@ -1,4 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { checkAuthenticatedServiceability } from "@/lib/serviceability-server"
 
 const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
 
@@ -66,6 +67,19 @@ export async function POST(request: NextRequest) {
     const token = getToken(request)
     if (!token) {
       return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    }
+
+    const latitude = Number(addressData?.coordinates?.latitude)
+    const longitude = Number(addressData?.coordinates?.longitude)
+
+    if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
+      const serviceability = await checkAuthenticatedServiceability(latitude, longitude, token)
+      if (!serviceability.serviceable) {
+        return NextResponse.json(
+          { message: serviceability.message || "Location is outside MapleX serviceable area." },
+          { status: 400 },
+        )
+      }
     }
 
     const endpoint = `${BASE_URL}/profile/addresses`
