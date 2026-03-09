@@ -185,12 +185,14 @@ export async function createDraftOrder(
             ? await updateOrder(requestBody)
             : await createOrder(requestBody)
 
-        if (!response.ok) {
-            throw new Error(`Failed to ${existingOrderId ? "update" : "create"} order: ${response.statusText}`)
-        }
+        const data = await response.json().catch(() => null)
 
-        // Parse the response and extract the shippingOrder object
-        const data = await response.json()
+        if (!response.ok) {
+            const backendMessage = data && typeof data === "object" && "message" in data ? (data as { message?: string }).message : null
+            throw new Error(
+                backendMessage || `Failed to ${existingOrderId ? "update" : "create"} order: ${response.statusText}`,
+            )
+        }
 
         // Return the shippingOrder object from the response
         return data.shippingOrder
