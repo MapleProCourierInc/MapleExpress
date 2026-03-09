@@ -3,12 +3,13 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
-import { Truck, Route, Building2, Settings, BadgeDollarSign, Users } from "lucide-react"
+import { Truck, Route, Building2, Settings, BadgeDollarSign, Users, Map } from "lucide-react"
 
 const navItems = [
   { href: "/admin/drivers", label: "Drivers", icon: Truck, disabled: false },
   { href: "/admin/customers", label: "Users", icon: Users, disabled: false },
   { href: "/admin/pricing", label: "Pricing", icon: BadgeDollarSign, disabled: false },
+  { href: "/admin/service-zones", label: "Service Zones", icon: Map, disabled: false },
   { href: "#", label: "Fleet", icon: Route, disabled: true },
   { href: "#", label: "Stations", icon: Building2, disabled: true },
   { href: "#", label: "Settings", icon: Settings, disabled: true },
@@ -23,7 +24,7 @@ export function AdminSidebar() {
       <nav className="space-y-1">
         {navItems.map((item) => {
           const Icon = item.icon
-          const active = !item.disabled && pathname === item.href
+          const active = !item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`))
 
           if (item.disabled) {
             return (
