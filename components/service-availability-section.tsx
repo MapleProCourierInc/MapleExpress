@@ -4,7 +4,6 @@ import { useMemo, useState } from "react"
 import { Loader2, CheckCircle2, XCircle, AlertCircle } from "lucide-react"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
 import { Button } from "@/components/ui/button"
-import { Card, CardContent } from "@/components/ui/card"
 
 type AvailabilityState =
   | { kind: "idle" }
@@ -88,79 +87,93 @@ export function ServiceAvailabilitySection() {
   }
 
   return (
-    <section id="availability" className="py-20 bg-gradient-to-b from-background to-muted/50">
-      <div className="container">
-        <div className="max-w-4xl mx-auto">
-          <Card className="border-border/70 shadow-lg">
-            <CardContent className="p-6 md:p-10">
-              <div className="text-center space-y-4">
-                <p className="text-sm font-medium tracking-wide text-primary uppercase">Service Coverage</p>
-                <h2 className="text-3xl md:text-4xl font-bold">Check Service Availability</h2>
-                <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
-                  Enter your address and we’ll instantly confirm if MapleX currently services your area.
-                </p>
-              </div>
+    <section id="availability" className="relative overflow-hidden py-20 bg-gradient-to-r from-primary/10 via-secondary/10 to-background">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,hsl(var(--primary)/0.16),transparent_50%),radial-gradient(circle_at_80%_75%,hsl(var(--secondary)/0.14),transparent_45%)]" />
+      <div className="container relative">
+        <div className="max-w-4xl mx-auto text-center space-y-4">
+          <p className="text-sm font-medium tracking-wide text-primary uppercase">Service Coverage</p>
+          <h2 className="text-3xl md:text-4xl font-bold">Check Service Availability</h2>
+          <p className="text-muted-foreground text-base md:text-lg max-w-2xl mx-auto">
+            Enter your address and we’ll instantly confirm if MapleX currently services your area.
+          </p>
+        </div>
 
-              <div className="mt-8 flex flex-col md:flex-row items-stretch gap-3 md:gap-4">
-                <div className="flex-1 relative">
-                  <AddressAutocomplete
-                    value={addressInput}
-                    onChange={handleAddressChange}
-                    placeholder="Search your address"
-                    className="h-12 md:h-14 px-4 text-base"
-                  />
-                </div>
-                <Button
-                  onClick={handleCheckAvailability}
-                  disabled={!canCheck}
-                  className="h-12 md:h-14 px-6 md:px-8 text-base font-semibold md:min-w-[220px]"
-                >
-                  {isChecking ? (
-                    <span className="inline-flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" /> Checking...
-                    </span>
-                  ) : (
-                    "Check Availability"
-                  )}
-                </Button>
-              </div>
-
-              {validationMessage && (
-                <div className="mt-5 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800 inline-flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>{validationMessage}</span>
-                </div>
+        <div className="mt-10 max-w-4xl mx-auto rounded-3xl border border-white/40 bg-background/75 backdrop-blur-md p-4 md:p-5 shadow-lg">
+          <div className="flex flex-col md:flex-row items-stretch gap-3 md:gap-4">
+            <div className="flex-1 relative">
+              <AddressAutocomplete
+                value={addressInput}
+                onChange={handleAddressChange}
+                placeholder="Search your address"
+                className="h-12 md:h-14 px-4 text-base bg-white/90"
+              />
+            </div>
+            <Button
+              onClick={handleCheckAvailability}
+              disabled={!canCheck}
+              className="h-12 md:h-14 px-6 md:px-8 text-base font-semibold md:min-w-[220px] bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
+            >
+              {isChecking ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" /> Checking...
+                </span>
+              ) : (
+                "Check Availability"
               )}
+            </Button>
+          </div>
 
-              {availabilityState.kind === "success" && (
+          {validationMessage && (
+            <div className="mt-5 rounded-lg border border-amber-300/70 bg-amber-50/95 px-4 py-3 text-sm text-amber-900 inline-flex items-start gap-2">
+              <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
+              <span>{validationMessage}</span>
+            </div>
+          )}
+
+          {availabilityState.kind === "success" && (
+            <div
+              className={`mt-5 rounded-2xl border px-4 py-4 md:px-6 md:py-5 ${
+                availabilityState.serviceable
+                  ? "border-emerald-200/70 bg-gradient-to-r from-emerald-50/90 to-background/90"
+                  : "border-orange-200/70 bg-gradient-to-r from-orange-50/90 to-background/90"
+              }`}
+            >
+              <div className="flex items-start gap-3 md:gap-4">
                 <div
-                  className={`mt-5 rounded-lg border px-4 py-3 md:px-5 md:py-4 text-sm md:text-base inline-flex items-start gap-2 md:gap-3 ${
-                    availabilityState.serviceable
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border-orange-200 bg-orange-50 text-orange-800"
+                  className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
+                    availabilityState.serviceable ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"
                   }`}
                 >
-                  {availabilityState.serviceable ? (
-                    <CheckCircle2 className="h-5 w-5 mt-0.5 shrink-0" />
-                  ) : (
-                    <XCircle className="h-5 w-5 mt-0.5 shrink-0" />
-                  )}
-                  <p className="font-medium">
+                  {availabilityState.serviceable ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
+                </div>
+                <div className="space-y-1">
+                  <p className="text-sm uppercase tracking-wide text-muted-foreground">Availability Result</p>
+                  <p className="text-lg font-semibold text-foreground">
                     {availabilityState.serviceable
-                      ? `Yes, we currently service your area${availabilityState.city ? ` in ${availabilityState.city}` : ""}.`
-                      : "Sorry, we do not currently service your area yet."}
+                      ? `Great news — we service your area${availabilityState.city ? ` in ${availabilityState.city}` : ""}.`
+                      : "We’re not servicing this area yet."}
                   </p>
+                  {!availabilityState.serviceable && (
+                    <p className="text-sm text-muted-foreground">Try a nearby address or check back soon as we expand coverage.</p>
+                  )}
                 </div>
-              )}
+              </div>
+            </div>
+          )}
 
-              {availabilityState.kind === "error" && (
-                <div className="mt-5 rounded-lg border border-destructive/30 bg-destructive/10 px-4 py-3 text-sm text-destructive inline-flex items-start gap-2">
-                  <AlertCircle className="h-4 w-4 mt-0.5 shrink-0" />
-                  <span>{availabilityState.message}</span>
+          {availabilityState.kind === "error" && (
+            <div className="mt-5 rounded-2xl border border-destructive/30 bg-background/80 px-4 py-4 md:px-6 md:py-5">
+              <div className="flex items-start gap-3">
+                <div className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-destructive/10 text-destructive">
+                  <AlertCircle className="h-5 w-5" />
                 </div>
-              )}
-            </CardContent>
-          </Card>
+                <div className="space-y-1">
+                  <p className="text-sm uppercase tracking-wide text-muted-foreground">Availability Result</p>
+                  <p className="font-medium text-foreground">{availabilityState.message}</p>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     </section>
