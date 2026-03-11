@@ -34,6 +34,14 @@ export const PRICING_PAYMENT_SERVICE_URL =
   process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL ||
   'https://testapi.maplexpress.ca/pricingpayment';
 
+
+export const MONERIS_CHECKOUT_SCRIPT_SRC =
+  process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_SCRIPT_SRC ||
+  "https://gateway.moneris.com/chkt/js/chkt_v1.00.js";
+
+export const MONERIS_CHECKOUT_MODE =
+  process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_MODE || "qa";
+
 // Google Maps API
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA3wSq5PrN2evVDM5MiRKPa4ZS69taWS8E';
 

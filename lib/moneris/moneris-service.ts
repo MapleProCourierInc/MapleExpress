@@ -2,7 +2,7 @@
 // This service will handle interactions with the Moneris backend APIs
 // and the Moneris frontend JavaScript library.
 
-import { MONERIS_API_CONFIG } from '../config'; 
+import { MONERIS_API_CONFIG, MONERIS_CHECKOUT_SCRIPT_SRC } from '../config'; 
 import type { Address } from '../../components/ship-now/ship-now-form'; 
 
 export interface MonerisBillingAddress {
@@ -113,7 +113,7 @@ export async function finalizeMonerisPayment(
 }
 
 const MONERIS_SCRIPT_ID = 'moneris-checkout-script';
-const MONERIS_SCRIPT_SRC = 'https://gateway.moneris.com/chkt/js/chkt_v1.00.js';
+const MONERIS_SCRIPT_SRC = MONERIS_CHECKOUT_SCRIPT_SRC;
 
 const CHECK_INTERVAL = 100; // ms
 const MAX_ATTEMPTS = 50; // e.g., 50 attempts * 100ms = 5 seconds timeout
