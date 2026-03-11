@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from 'next/navigation';
 import { useAuth } from "@/lib/auth-context"
 import { ShippingSteps } from "@/components/ship-now/shipping-steps"
@@ -104,6 +104,10 @@ export function ShipNowForm() {
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
   const router = useRouter();
+
+  useEffect(() => {
+    setError(null)
+  }, [currentStep])
 
   // Get current package
   const currentPackage = order.packages[currentPackageIndex]

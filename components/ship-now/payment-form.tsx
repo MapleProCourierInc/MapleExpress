@@ -226,8 +226,8 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             </CardHeader>
             <CardContent className="p-6 space-y-4">
               <p className="text-sm text-muted-foreground">
-                Clicking pay will start checkout. If your account is eligible for post-pay billing, your payment will be
-                posted directly without opening Moneris.
+                Clicking Pay will start secure payment. Accounts with monthly billing will have this order added to their
+                invoice.
               </p>
             </CardContent>
           </Card>

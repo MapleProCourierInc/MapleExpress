@@ -66,18 +66,11 @@ export function buildCheckoutBillingAddress(orderData: OrderResponse): BillingAd
 }
 
 export async function checkoutPayment(payload: PaymentCheckoutRequest): Promise<PaymentCheckoutResponse> {
-  const accessToken = localStorage.getItem("maplexpress_access_token") || ""
-
-  if (!accessToken) {
-    throw new Error("Authentication token not found")
-  }
-
   const response = await fetch("/api/payments/checkout", {
     method: "POST",
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
-      Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(payload),
   })
