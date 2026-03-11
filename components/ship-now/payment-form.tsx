@@ -35,6 +35,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
   const [isFinalizingMoneris, setIsFinalizingMoneris] = useState(false)
   const [paymentError, setPaymentError] = useState<string | null>(null)
   const [isMonerisCheckoutActive, setIsMonerisCheckoutActive] = useState(false)
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null)
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
@@ -44,6 +45,21 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
       maximumFractionDigits: 2,
     }).format(amount)
   }
+
+  const startMonerisCheckout = (ticketId: string) => {
+    if (!isMonerisScriptLoaded || !monerisCheckoutRef.current) {
+      setPendingTicketId(ticketId)
+      return
+    }
+
+    monerisCheckoutRef.current.startCheckout(ticketId)
+    setPendingTicketId(null)
+    setTimeout(() => {
+      const frame = document.querySelector("#monerisCheckoutDivId iframe") as HTMLIFrameElement | null
+      if (frame) frame.style.height = "760px"
+    }, 100)
+  }
+
 
   useEffect(() => {
     loadMonerisScript()
@@ -107,6 +123,14 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     }
   }, [isMonerisScriptLoaded, user])
 
+  useEffect(() => {
+    if (!pendingTicketId || !isMonerisScriptLoaded || !monerisCheckoutRef.current) {
+      return
+    }
+
+    startMonerisCheckout(pendingTicketId)
+  }, [pendingTicketId, isMonerisScriptLoaded])
+
   const handleMonerisPaymentComplete = async (ticketId: string) => {
     if (!user) {
       setPaymentError("User session expired. Please login again.")
@@ -156,7 +180,6 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
         currency: "CAD",
         billingAddress: buildCheckoutBillingAddress(orderData),
         description: `Shipping order checkout for ${orderData.shippingOrderId}`,
-        idempotencyKey: `${orderData.shippingOrderId}-${orderData.updatedAt}`,
       })
 
       if (checkoutResponse.checkoutFlow === "MONERIS") {
@@ -164,15 +187,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
           throw new Error("Checkout did not return a Moneris ticket.")
         }
 
-        if (!isMonerisScriptLoaded || !monerisCheckoutRef.current) {
-          throw new Error("Payment module not initialized.")
-        }
-
-        monerisCheckoutRef.current.startCheckout(checkoutResponse.ticketId)
-        setTimeout(() => {
-          const frame = document.querySelector("#monerisCheckoutDivId iframe") as HTMLIFrameElement | null
-          if (frame) frame.style.height = "760px"
-        }, 100)
+        startMonerisCheckout(checkoutResponse.ticketId)
         return
       }
 
