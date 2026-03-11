@@ -112,6 +112,49 @@ export async function finalizeMonerisPayment(
   }
 }
 
+
+export async function finalizeMonerisPaymentViaApi(requestData: FinalizePaymentRequest): Promise<FinalizePaymentResponse> {
+  const res = await fetch('/api/payments/moneris/finalize', {
+    method: 'POST',
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(requestData),
+  })
+
+  const raw = await res.text()
+
+  if (!res.ok) {
+    let msg = `Failed to finalize Moneris payment. Status ${res.status}`
+    if (raw) {
+      try {
+        const errJson = JSON.parse(raw) as { message?: string }
+        msg = errJson.message ?? msg
+      } catch {
+        msg = raw.slice(0, 200)
+      }
+    }
+    throw new Error(msg)
+  }
+
+  if (!raw) {
+    return {
+      success: true,
+      message:
+        res.status === 204
+          ? 'Payment finalized successfully (no content).'
+          : `Payment finalized with status ${res.status} (empty body).`,
+    } as FinalizePaymentResponse
+  }
+
+  try {
+    return JSON.parse(raw) as FinalizePaymentResponse
+  } catch {
+    throw new Error('Received an invalid JSON response from finalize payment.')
+  }
+}
+
 const MONERIS_SCRIPT_ID = 'moneris-checkout-script';
 const MONERIS_SCRIPT_SRC = MONERIS_CHECKOUT_SCRIPT_SRC;
 

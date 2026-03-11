@@ -10,7 +10,7 @@ import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth-context"
 import type { OrderResponse } from "@/lib/order-service"
 import { buildCheckoutBillingAddress, checkoutPayment } from "@/lib/payment-service"
-import { finalizeMonerisPayment, loadMonerisScript } from "@/lib/moneris/moneris-service"
+import { finalizeMonerisPaymentViaApi, loadMonerisScript } from "@/lib/moneris/moneris-service"
 import { MONERIS_CHECKOUT_MODE } from "@/lib/config"
 
 // Declare monerisCheckout on the window object for TypeScript
@@ -20,31 +20,6 @@ declare global {
   }
 }
 
-
-function getCookie(name: string): string | null {
-  if (typeof document === "undefined") return null
-
-  const value = `; ${document.cookie}`
-  const parts = value.split(`; ${name}=`)
-
-  if (parts.length === 2) {
-    return parts.pop()!.split(";").shift() || null
-  }
-
-  return null
-}
-
-function getAccessToken() {
-  if (typeof window === "undefined") return ""
-
-  return (
-    localStorage.getItem("maplexpress_access_token") ||
-    localStorage.getItem("accessToken") ||
-    getCookie("maplexpress_access_token") ||
-    getCookie("accessToken") ||
-    ""
-  )
-}
 
 interface PaymentFormProps {
   orderData: OrderResponse
@@ -167,17 +142,8 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     setIsFinalizingMoneris(true)
     setPaymentError(null)
 
-    const accessToken = getAccessToken()
-    if (!accessToken) {
-      setPaymentError("Authentication token not found. Please log in again.")
-      if (monerisCheckoutRef.current) monerisCheckoutRef.current.closeCheckout(ticketId)
-      setIsMonerisCheckoutActive(false)
-      setIsFinalizingMoneris(false)
-      return
-    }
-
     try {
-      await finalizeMonerisPayment({ ticketId }, accessToken)
+      await finalizeMonerisPaymentViaApi({ ticketId })
       onPaymentComplete(orderData.shippingOrderId)
       if (monerisCheckoutRef.current) monerisCheckoutRef.current.closeCheckout(ticketId)
       setIsMonerisCheckoutActive(false)
