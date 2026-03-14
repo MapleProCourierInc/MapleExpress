@@ -33,9 +33,26 @@ export interface FinalizePaymentRequest {
 }
 
 export interface FinalizePaymentResponse {
+  paymentId?: string;
+  ticketId?: string;
+  status?: string;
   success: boolean;
+  finalized?: boolean;
   message?: string;
-  orderId?: string;
+  failureReason?: string | null;
+  amount?: number;
+  currency?: string;
+  paymentMethodType?: string;
+  paymentProvider?: string;
+  shippingOrderId?: string;
+  invoiceId?: string | null;
+  billingAccountId?: string | null;
+  monerisResponseCode?: string;
+  monerisResponseMessage?: string;
+  transactionId?: string;
+  referenceNumber?: string;
+  approvalCode?: string;
+  transactionTimestamp?: string;
 }
 
 export async function initiateMonerisPayment(requestData: InitiatePaymentRequest, token: string): Promise<InitiatePaymentResponse> {
