@@ -37,7 +37,7 @@ export const PRICING_PAYMENT_SERVICE_URL =
 
 export const MONERIS_CHECKOUT_SCRIPT_SRC =
   process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_SCRIPT_SRC ||
-  "https://gateway.moneris.com/chkt/js/chkt_v1.00.js";
+  "https://gatewayt.moneris.com/chkt/js/chkt_v1.00.js";
 
 export const MONERIS_CHECKOUT_MODE =
   process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_MODE || "qa";
@@ -53,5 +53,5 @@ export const getEndpointUrl = (baseUrl: string, endpoint: string): string => {
 };
 
 export const MONERIS_API_CONFIG = {
-  baseUrl: "https://testapi.maplexpress.ca/pricingpayment/moneris/"
+  baseUrl: "http://localhost:8084/pricingpayment/moneris/"
 };
