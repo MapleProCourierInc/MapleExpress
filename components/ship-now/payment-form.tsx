@@ -3,6 +3,7 @@
 import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { ArrowLeft, Loader2, Lock, ShieldCheck } from "lucide-react"
+import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -10,7 +11,7 @@ import { Separator } from "@/components/ui/separator"
 import { useAuth } from "@/lib/auth-context"
 import type { OrderResponse } from "@/lib/order-service"
 import { buildCheckoutBillingAddress, checkoutPayment } from "@/lib/payment-service"
-import { finalizeMonerisPaymentViaApi, loadMonerisScript } from "@/lib/moneris/moneris-service"
+import { finalizeMonerisPaymentViaApi, loadMonerisScript, type FinalizePaymentResponse } from "@/lib/moneris/moneris-service"
 import { MONERIS_CHECKOUT_MODE } from "@/lib/config"
 
 // Declare monerisCheckout on the window object for TypeScript
@@ -30,6 +31,7 @@ interface PaymentFormProps {
 
 export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing }: PaymentFormProps) {
   const { user } = useAuth()
+  const router = useRouter()
 
   const [isMonerisScriptLoaded, setIsMonerisScriptLoaded] = useState(false)
   const monerisCheckoutRef = useRef<any>(null)
@@ -46,6 +48,25 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount)
+  }
+
+
+  const getRetryRoute = (result?: FinalizePaymentResponse, fallbackOrderId?: string) => {
+    const shippingOrderId = result?.shippingOrderId || fallbackOrderId || orderData.shippingOrderId
+    return shippingOrderId ? `/ship-now?shippingOrderId=${encodeURIComponent(shippingOrderId)}` : "/ship-now"
+  }
+
+  const resolveFinalizeFailureMessage = (result: FinalizePaymentResponse) => {
+    return (
+      result.message ||
+      result.failureReason ||
+      result.monerisResponseMessage ||
+      "Payment could not be completed. Please try your payment again."
+    )
+  }
+
+  const isFinalizeSuccess = (result: FinalizePaymentResponse) => {
+    return result.success === true && result.status === "SUCCESSFUL"
   }
 
   const startMonerisCheckout = (ticketId: string) => {
@@ -84,38 +105,39 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
         setIsMonerisCheckoutActive(true)
       })
 
-      mc.setCallback("cancel_transaction", () => {
-        setPaymentError("Payment was cancelled.")
+      mc.setCallback("cancel_transaction", (raw: any) => {
+        const data = parseMonerisCallback(raw)
+        if (data?.ticket) {
+          void handleMonerisPaymentFinalize(data.ticket)
+          return
+        }
+
+        setPaymentError("Payment was cancelled before we could confirm a payment ticket. Please try again.")
         setIsMonerisCheckoutActive(false)
       })
 
-      mc.setCallback("error_event", (data: any) => {
-        setPaymentError(`Payment error (code: ${data.response_code}). Please try again.`)
-        setIsMonerisCheckoutActive(false)
-        if (monerisCheckoutRef.current && data?.ticket) {
-          monerisCheckoutRef.current.closeCheckout(data.ticket)
+      mc.setCallback("error_event", (raw: any) => {
+        const data = parseMonerisCallback(raw)
+        if (data?.ticket) {
+          void handleMonerisPaymentFinalize(data.ticket)
+          return
         }
+
+        setPaymentError(
+          `Payment could not be completed${data?.response_code ? ` (code: ${data.response_code})` : ""}. Please try again.`,
+        )
+        setIsMonerisCheckoutActive(false)
       })
 
       mc.setCallback("payment_complete", (raw: any) => {
-        let data: { ticket?: string; response_code?: string }
-        try {
-          data = typeof raw === "string" ? JSON.parse(raw) : raw
-        } catch {
-          setPaymentError("We could not read the payment response. Please try again or contact support.")
+        const data = parseMonerisCallback(raw)
+        if (data?.ticket) {
+          void handleMonerisPaymentFinalize(data.ticket)
           return
         }
 
-        if (data?.ticket && data.response_code === "001") {
-          void handleMonerisPaymentComplete(data.ticket)
-          return
-        }
-
-        setPaymentError("Payment failed or returned an unexpected status. Please contact support.")
+        setPaymentError("We could not confirm your payment result. Please try your payment again.")
         setIsMonerisCheckoutActive(false)
-        if (monerisCheckoutRef.current && data?.ticket) {
-          monerisCheckoutRef.current.closeCheckout(data.ticket)
-        }
       })
 
       monerisCheckoutRef.current = mc
@@ -133,7 +155,15 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     startMonerisCheckout(pendingTicketId)
   }, [pendingTicketId, isMonerisScriptLoaded])
 
-  const handleMonerisPaymentComplete = async (ticketId: string) => {
+  const parseMonerisCallback = (raw: any): { ticket?: string; response_code?: string } | null => {
+    try {
+      return typeof raw === "string" ? JSON.parse(raw) : raw
+    } catch {
+      return null
+    }
+  }
+
+  const handleMonerisPaymentFinalize = async (ticketId: string) => {
     if (!user) {
       setPaymentError("User session expired. Please login again.")
       return
@@ -143,13 +173,25 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     setPaymentError(null)
 
     try {
-      await finalizeMonerisPaymentViaApi({ ticketId })
-      onPaymentComplete(orderData.shippingOrderId)
+      const finalizeResponse = await finalizeMonerisPaymentViaApi({ ticketId })
+
+      if (isFinalizeSuccess(finalizeResponse)) {
+        onPaymentComplete(finalizeResponse.shippingOrderId || orderData.shippingOrderId)
+      } else {
+        const failureMessage = resolveFinalizeFailureMessage(finalizeResponse)
+        setPaymentError(failureMessage)
+        router.push(getRetryRoute(finalizeResponse, orderData.shippingOrderId))
+      }
+
       if (monerisCheckoutRef.current) monerisCheckoutRef.current.closeCheckout(ticketId)
       setIsMonerisCheckoutActive(false)
     } catch (error: any) {
       console.error("Finalize Moneris Payment error:", error)
-      setPaymentError(error.message || "Failed to finalize payment. Please contact support.")
+      setPaymentError(
+        error.message ||
+          "We could not confirm your payment result. Please try your payment again. If money was deducted, contact support.",
+      )
+      router.push(getRetryRoute(undefined, orderData.shippingOrderId))
       if (monerisCheckoutRef.current) monerisCheckoutRef.current.closeCheckout(ticketId)
       setIsMonerisCheckoutActive(false)
     } finally {

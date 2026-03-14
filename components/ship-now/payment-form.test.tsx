@@ -1,6 +1,7 @@
 import React from 'react'
 import { fireEvent, render, screen, waitFor } from '@testing-library/react'
 import '@testing-library/jest-dom'
+import { useRouter } from 'next/navigation'
 
 import { PaymentForm } from './payment-form'
 import * as AuthContext from '@/lib/auth-context'
@@ -10,10 +11,12 @@ import * as MonerisService from '../../lib/moneris/moneris-service'
 jest.mock('@/lib/auth-context')
 jest.mock('@/lib/payment-service')
 jest.mock('../../lib/moneris/moneris-service')
+jest.mock('next/navigation', () => ({ useRouter: jest.fn() }))
 
 const mockedAuthContext = AuthContext as jest.Mocked<typeof AuthContext>
 const mockedPaymentService = PaymentService as jest.Mocked<typeof PaymentService>
 const mockedMonerisService = MonerisService as jest.Mocked<typeof MonerisService>
+const mockedUseRouter = useRouter as jest.Mock
 
 const mockMonerisCheckoutInstance = {
   setMode: jest.fn(),
@@ -62,6 +65,8 @@ describe('PaymentForm', () => {
 
     mockedAuthContext.useAuth.mockReturnValue({ user: { userId: 'user-test-123' } } as any)
     mockedMonerisService.loadMonerisScript.mockResolvedValue()
+    mockedUseRouter.mockReturnValue({ push: jest.fn() })
+
     mockedPaymentService.buildCheckoutBillingAddress.mockReturnValue({
       fullName: 'Pickup Person',
       streetAddress: '1 Main St',
@@ -137,4 +142,98 @@ describe('PaymentForm', () => {
     })
     expect(mockMonerisCheckoutInstance.startCheckout).not.toHaveBeenCalled()
   })
+
+  it('finalizes and completes order when Moneris callback returns ticket and backend confirms success', async () => {
+    const onPaymentComplete = jest.fn()
+    const callbacks: Record<string, (data: unknown) => void> = {}
+
+    mockMonerisCheckoutInstance.setCallback.mockImplementation((event: string, cb: (data: unknown) => void) => {
+      callbacks[event] = cb
+    })
+
+    mockedPaymentService.checkoutPayment.mockResolvedValueOnce({
+      paymentId: 'payment-1',
+      shippingOrderId: 'order123',
+      checkoutFlow: 'MONERIS',
+      status: 'PENDING',
+      paymentMethodType: 'CARD',
+      paymentProvider: 'MONERIS',
+      ticketId: 'ticket-123',
+      amount: 150,
+      currency: 'CAD',
+    })
+
+    mockedMonerisService.finalizeMonerisPaymentViaApi.mockResolvedValueOnce({
+      success: true,
+      status: 'SUCCESSFUL',
+      finalized: true,
+      shippingOrderId: 'order123',
+      message: 'Payment completed successfully.',
+    })
+
+    render(<PaymentForm orderData={mockOrderData} onBack={jest.fn()} onPaymentComplete={onPaymentComplete} isProcessing={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Proceed to Secure Payment/i }))
+
+    await waitFor(() => expect(mockMonerisCheckoutInstance.startCheckout).toHaveBeenCalledWith('ticket-123'))
+
+    callbacks.payment_complete?.({ ticket: 'ticket-123', response_code: '027' })
+
+    await waitFor(() => {
+      expect(mockedMonerisService.finalizeMonerisPaymentViaApi).toHaveBeenCalledWith({ ticketId: 'ticket-123' })
+    })
+    await waitFor(() => {
+      expect(onPaymentComplete).toHaveBeenCalledWith('order123')
+    })
+  })
+
+  it('shows finalize failure and redirects user back to ship-now for retry', async () => {
+    const callbacks: Record<string, (data: unknown) => void> = {}
+    const push = jest.fn()
+
+    mockedUseRouter.mockReturnValue({ push })
+
+    mockMonerisCheckoutInstance.setCallback.mockImplementation((event: string, cb: (data: unknown) => void) => {
+      callbacks[event] = cb
+    })
+
+    mockedPaymentService.checkoutPayment.mockResolvedValueOnce({
+      paymentId: 'payment-1',
+      shippingOrderId: 'order123',
+      checkoutFlow: 'MONERIS',
+      status: 'PENDING',
+      paymentMethodType: 'CARD',
+      paymentProvider: 'MONERIS',
+      ticketId: 'ticket-123',
+      amount: 150,
+      currency: 'CAD',
+    })
+
+    mockedMonerisService.finalizeMonerisPaymentViaApi.mockResolvedValueOnce({
+      success: false,
+      status: 'FAILED',
+      finalized: true,
+      message: 'Payment failed.',
+      failureReason: 'Card declined',
+      shippingOrderId: 'order123',
+    })
+
+    render(<PaymentForm orderData={mockOrderData} onBack={jest.fn()} onPaymentComplete={jest.fn()} isProcessing={false} />)
+
+    fireEvent.click(screen.getByRole('button', { name: /Proceed to Secure Payment/i }))
+
+    await waitFor(() => expect(mockMonerisCheckoutInstance.startCheckout).toHaveBeenCalledWith('ticket-123'))
+
+    callbacks.payment_complete?.({ ticket: 'ticket-123', response_code: '481' })
+
+    await waitFor(() => {
+      expect(mockedMonerisService.finalizeMonerisPaymentViaApi).toHaveBeenCalledWith({ ticketId: 'ticket-123' })
+    })
+
+    await waitFor(() => {
+      expect(screen.getByText('Payment failed.')).toBeInTheDocument()
+      expect(push).toHaveBeenCalledWith('/ship-now?shippingOrderId=order123')
+    })
+  })
+
 })
