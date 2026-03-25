@@ -147,7 +147,7 @@ export default function Dashboard() {
 
         <main className="flex-1 overflow-auto p-6">
           {activeSection === "shipments" ? (
-            <Shipments initialTrackingId={searchParams.get("trackingId") || undefined} />
+            <Shipments />
           ) : (
             <ProfileSection userId={user.userId} userType={user.userType} displayName={displayName} email={user.email} />
           )}

@@ -30,7 +30,7 @@ export async function GET(request: NextRequest) {
 
     const response = await fetch(url, {
       method: "GET",
-      headers: buildHeaders(token),
+      headers: buildHeaders(token, true),
     })
 
     const data = await response.json()
@@ -80,4 +80,3 @@ export async function PUT(request: NextRequest) {
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
-
