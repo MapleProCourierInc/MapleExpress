@@ -15,6 +15,28 @@ import { AlertCircle, CalendarClock, MapPinned, Package, RefreshCw, Route, Truck
 type SortOption = "newest" | "oldest" | "updated"
 
 const DEFAULT_PAGE_SIZE = 10
+const ORDER_STATUS_OPTIONS = [
+  { value: "all", label: "All statuses" },
+  { value: "draft", label: "Draft" },
+  { value: "payment_pending", label: "Payment pending" },
+  { value: "payment_failed", label: "Payment failed" },
+  { value: "confirmed", label: "Confirmed" },
+  { value: "pending", label: "Pending" },
+  { value: "label_created", label: "Label created" },
+  { value: "scheduled", label: "Scheduled" },
+  { value: "created", label: "Created" },
+  { value: "assigned", label: "Assigned" },
+  { value: "picked_up", label: "Picked up" },
+  { value: "in_transit", label: "In transit" },
+  { value: "delivered", label: "Delivered" },
+  { value: "pickup_failed", label: "Pickup failed" },
+  { value: "drop_off_failed", label: "Drop-off failed" },
+  { value: "returned", label: "Returned" },
+  { value: "failed", label: "Failed" },
+  { value: "cancelled", label: "Cancelled" },
+  { value: "end_of_day", label: "End of day" },
+  { value: "in_progress", label: "In progress" },
+]
 
 function getSortParams(sort: SortOption): Pick<ClientOrdersFilters, "sortBy" | "sortDir"> {
   switch (sort) {
@@ -28,24 +50,27 @@ function getSortParams(sort: SortOption): Pick<ClientOrdersFilters, "sortBy" | "
   }
 }
 
-function getStatusPill(status?: string | null, type: "order" | "payment" = "order") {
+function getStatusPill(status?: string | null) {
   const normalized = (status || "").toLowerCase()
 
-  const successSet = new Set(["delivered", "paid", "completed", "success"])
-  const warningSet = new Set(["pending", "payment_pending", "awaiting_payment"])
-  const transitSet = new Set(["confirmed", "picked_up", "in_transit", "processing"])
-  const dangerSet = new Set(["cancelled", "failed", "returned", "refunded"])
+  const successSet = new Set(["confirmed", "delivered"])
+  const warningSet = new Set(["payment_pending", "pending"])
+  const progressSet = new Set(["created", "assigned", "picked_up", "in_transit", "scheduled", "label_created", "in_progress"])
+  const dangerSet = new Set(["payment_failed", "pickup_failed", "drop_off_failed", "failed", "cancelled"])
+  const neutralSet = new Set(["draft", "returned", "end_of_day"])
 
   let classes = "bg-muted text-muted-foreground border-border"
 
   if (successSet.has(normalized)) {
     classes = "bg-emerald-100 text-emerald-800 border-emerald-200"
+  } else if (progressSet.has(normalized)) {
+    classes = "bg-sky-100 text-sky-900 border-sky-200"
+  } else if (neutralSet.has(normalized)) {
+    classes = "bg-slate-100 text-slate-700 border-slate-200"
   } else if (dangerSet.has(normalized)) {
     classes = "bg-rose-100 text-rose-800 border-rose-200"
   } else if (warningSet.has(normalized)) {
-    classes = type === "payment" ? "bg-amber-100 text-amber-900 border-amber-200" : "bg-yellow-100 text-yellow-900 border-yellow-200"
-  } else if (transitSet.has(normalized)) {
-    classes = "bg-sky-100 text-sky-900 border-sky-200"
+    classes = "bg-amber-100 text-amber-900 border-amber-200"
   }
 
   const label = status
@@ -94,7 +119,6 @@ export function Shipments() {
   const [totalElements, setTotalElements] = useState(0)
 
   const [orderStatus, setOrderStatus] = useState("all")
-  const [paymentStatus, setPaymentStatus] = useState("all")
   const [createdFrom, setCreatedFrom] = useState("")
   const [createdTo, setCreatedTo] = useState("")
   const [sortOption, setSortOption] = useState<SortOption>("newest")
@@ -104,7 +128,6 @@ export function Shipments() {
   const filters = useMemo<ClientOrdersFilters>(() => {
     return {
       orderStatus: orderStatus !== "all" ? orderStatus : undefined,
-      paymentStatus: paymentStatus !== "all" ? paymentStatus : undefined,
       createdFrom: createdFrom || undefined,
       createdTo: createdTo || undefined,
       page,
@@ -112,7 +135,7 @@ export function Shipments() {
       sortBy: sortParams.sortBy,
       sortDir: sortParams.sortDir,
     }
-  }, [orderStatus, paymentStatus, createdFrom, createdTo, page, sortParams])
+  }, [orderStatus, createdFrom, createdTo, page, sortParams])
 
   const fetchOrders = async () => {
     setIsLoading(true)
@@ -136,7 +159,6 @@ export function Shipments() {
 
   const handleResetFilters = () => {
     setOrderStatus("all")
-    setPaymentStatus("all")
     setCreatedFrom("")
     setCreatedTo("")
     setSortOption("newest")
@@ -179,37 +201,21 @@ export function Shipments() {
 
       <Card>
         <CardHeader className="py-3 px-4">
-          <CardTitle className="text-sm">Filters & Sort</CardTitle>
-          <CardDescription className="text-xs">Amount sorting is not exposed until backend supports sortable amount fields.</CardDescription>
+          <CardTitle className="text-sm">Filters</CardTitle>
+          <CardDescription className="text-xs">Filter by status and created date range.</CardDescription>
         </CardHeader>
         <CardContent className="pt-0 pb-3 px-4 space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
             <div className="space-y-1">
               <Label className="text-xs">Order Status</Label>
               <Select value={orderStatus} onValueChange={(value) => { setOrderStatus(value); setPage(0) }}>
                 <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="CONFIRMED">Confirmed</SelectItem>
-                  <SelectItem value="PICKED_UP">Picked Up</SelectItem>
-                  <SelectItem value="IN_TRANSIT">In Transit</SelectItem>
-                  <SelectItem value="DELIVERED">Delivered</SelectItem>
-                  <SelectItem value="CANCELLED">Cancelled</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Payment Status</Label>
-              <Select value={paymentStatus} onValueChange={(value) => { setPaymentStatus(value); setPage(0) }}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="All" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All</SelectItem>
-                  <SelectItem value="PAID">Paid</SelectItem>
-                  <SelectItem value="PENDING">Pending</SelectItem>
-                  <SelectItem value="FAILED">Failed</SelectItem>
-                  <SelectItem value="REFUNDED">Refunded</SelectItem>
+                  {ORDER_STATUS_OPTIONS.map((status) => (
+                    <SelectItem key={status.value} value={status.value}>
+                      {status.label}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
@@ -222,18 +228,6 @@ export function Shipments() {
             <div className="space-y-1">
               <Label className="text-xs">Created To</Label>
               <Input className="h-8 text-xs" type="date" value={createdTo} onChange={(e) => { setCreatedTo(e.target.value); setPage(0) }} />
-            </div>
-
-            <div className="space-y-1">
-              <Label className="text-xs">Sort By</Label>
-              <Select value={sortOption} onValueChange={(value: SortOption) => { setSortOption(value); setPage(0) }}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Sort" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="newest">Newest first</SelectItem>
-                  <SelectItem value="oldest">Oldest first</SelectItem>
-                  <SelectItem value="updated">Recently updated</SelectItem>
-                </SelectContent>
-              </Select>
             </div>
           </div>
 
@@ -255,6 +249,20 @@ export function Shipments() {
 
       <Card>
         <CardContent className="p-3">
+          <div className="mb-2 flex items-center justify-between gap-2">
+            <p className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Orders ({totalElements})</p>
+            <div className="flex items-center gap-2">
+              <Label className="text-xs text-muted-foreground">Sort</Label>
+              <Select value={sortOption} onValueChange={(value: SortOption) => { setSortOption(value); setPage(0) }}>
+                <SelectTrigger className="h-8 text-xs w-[160px]"><SelectValue placeholder="Sort" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="newest">Newest first</SelectItem>
+                  <SelectItem value="oldest">Oldest first</SelectItem>
+                  <SelectItem value="updated">Recently updated</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
           {isLoading ? (
             <ShipmentSkeleton />
           ) : orders.length === 0 ? (
@@ -270,8 +278,7 @@ export function Shipments() {
                   <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2">
                     <div className="flex flex-wrap items-center gap-2 min-w-0">
                       <p className="text-sm font-semibold truncate">{order.shippingOrderId || "N/A"}</p>
-                      {getStatusPill(order.orderStatus, "order")}
-                      {getStatusPill(order.paymentStatus, "payment")}
+                      {getStatusPill(order.orderStatus)}
                     </div>
                     <p className="text-sm font-semibold">{formatCurrency(order.aggregatedPricing?.totalAmount)}</p>
                   </div>
