@@ -109,17 +109,34 @@ type AuthContextType = {
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
+  const GROUP_COOKIE_NAME = "maplexpress_group"
+  const GROUP_COOKIE_MAX_AGE = 60 * 60 * 24 * 5
+
   const [user, setUser] = useState<User>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [me, setMe] = useState<MeResponse | null>(null)
   const [individualProfile, setIndividualProfile] = useState<IndividualProfile | null>(null)
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfile | null>(null)
 
+  const setClientGroupCookie = (groups?: string[]) => {
+    if (typeof document === "undefined") return
+
+    const group = groups?.[0]
+
+    if (group) {
+      document.cookie = `${GROUP_COOKIE_NAME}=${encodeURIComponent(group)}; path=/; max-age=${GROUP_COOKIE_MAX_AGE}; samesite=lax`
+      return
+    }
+
+    document.cookie = `${GROUP_COOKIE_NAME}=; path=/; max-age=0; samesite=lax`
+  }
+
   const clearSession = () => {
     localStorage.removeItem("maplexpress_user_data")
     localStorage.removeItem("maplexpress_me")
     localStorage.removeItem("maplexpress_individual_profile")
     localStorage.removeItem("maplexpress_organization_profile")
+    setClientGroupCookie()
     setUser(null)
     setMe(null)
     setIndividualProfile(null)
@@ -130,6 +147,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const meData = await getMe()
     setMe(meData)
     localStorage.setItem("maplexpress_me", JSON.stringify(meData))
+    setClientGroupCookie(meData.groups)
 
     const isSuperAdmin = meData.authenticated && meData.groups?.includes("admin_super")
 
@@ -424,6 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const meData = result.data
       setMe(meData)
       localStorage.setItem("maplexpress_me", JSON.stringify(meData))
+      setClientGroupCookie(meData.groups)
 
       if (user) {
         const updatedUser = { ...user, userStatus: "active" }
