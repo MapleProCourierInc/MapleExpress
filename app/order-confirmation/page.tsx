@@ -90,11 +90,11 @@ function OrderConfirmationContent() {
                     Ship Another Package
                   </Button>
                   <Button
-                    onClick={() => router.push("/dashboard")}
+                    onClick={() => router.push("/dashboard?section=shipments")}
                     className="w-full sm:w-auto bg-primary hover:bg-primary/90"
                   >
                     <Home className="mr-2 h-4 w-4" />
-                    Go to Dashboard
+                    Go to Shipments
                   </Button>
                 </div>
 
