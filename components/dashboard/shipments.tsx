@@ -36,8 +36,8 @@ function getSortParams(sort: SortOption): Pick<ClientOrdersFilters, "sortBy" | "
 function statusBadge(status?: string | null) {
   const value = (status || "").toLowerCase()
   const success = new Set(["confirmed", "delivered", "partial_complete"])
-  const progress = new Set(["label_created", "scheduled", "assigned", "picked_up", "in_transit", "in_progress", "created"])
-  const warning = new Set(["pending", "payment_pending", "end_of_day"])
+  const progress = new Set(["label_created", "scheduled", "assigned", "picked_up", "in_transit", "in_progress"])
+  const warning = new Set(["payment_pending", "end_of_day"])
   const danger = new Set(["payment_failed", "pickup_failed", "drop_off_failed", "failed", "cancelled"])
   const neutral = new Set(["draft", "returned"])
 
@@ -93,7 +93,7 @@ export function Shipments() {
   const [sortOption, setSortOption] = useState<SortOption>("newest")
   const [page, setPage] = useState(0)
 
-  const [orders, setOrders] = useState<ClientOrder[]>([])
+  const [ordersPage, setOrdersPage] = useState<ClientOrder[]>([])
   const [totalElements, setTotalElements] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null)
@@ -108,42 +108,20 @@ export function Shipments() {
     setError(null)
 
     try {
-      const statuses = TAB_STATUS_MAP[activeTab]
-      const responses = await Promise.all(
-        statuses.map((status) =>
-          getClientOrders({
-            orderStatus: status,
-            page,
-            size: PAGE_SIZE,
-            sortBy: sortParams.sortBy,
-            sortDir: sortParams.sortDir,
-          }),
-        ),
-      )
-
-      const merged = responses.flatMap((r) => r.orders)
-      const dedupedMap = new Map<string, ClientOrder>()
-      for (const order of merged) {
-        if (!dedupedMap.has(order.shippingOrderId)) {
-          dedupedMap.set(order.shippingOrderId, order)
-        }
-      }
-
-      const sorted = Array.from(dedupedMap.values()).sort((a, b) => {
-        const sortField = sortParams.sortBy === "updatedAt" ? "updatedAt" : "createdAt"
-        const aVal = new Date((a as any)[sortField] || a.createdAt).getTime()
-        const bVal = new Date((b as any)[sortField] || b.createdAt).getTime()
-        return sortParams.sortDir === "asc" ? aVal - bVal : bVal - aVal
+      const response = await getClientOrders({
+        page,
+        size: PAGE_SIZE,
+        sortBy: sortParams.sortBy,
+        sortDir: sortParams.sortDir,
       })
 
-      const total = responses.reduce((sum, r) => sum + (r.pagination?.totalElements || 0), 0)
-      setOrders(sorted.slice(0, PAGE_SIZE))
-      setTotalElements(total)
-      setTotalPages(Math.max(1, Math.ceil(total / PAGE_SIZE)))
+      setOrdersPage(response.orders || [])
+      setTotalElements(response.pagination?.totalElements || 0)
+      setTotalPages(Math.max(1, response.pagination?.totalPages || 1))
     } catch (err) {
-      console.error("Failed to fetch grouped orders", err)
+      console.error("Failed to fetch orders", err)
       setError("Failed to load shipments. Please try again.")
-      setOrders([])
+      setOrdersPage([])
       setTotalElements(0)
       setTotalPages(0)
     } finally {
@@ -153,23 +131,28 @@ export function Shipments() {
 
   useEffect(() => {
     loadOrders()
-  }, [activeTab, page, sortParams])
+  }, [page, sortParams])
+
+  const visibleOrders = useMemo(() => {
+    const statuses = new Set(TAB_STATUS_MAP[activeTab])
+    return ordersPage.filter((order) => statuses.has((order.orderStatus || "").toLowerCase()))
+  }, [ordersPage, activeTab])
 
   useEffect(() => {
-    if (!orders.length) {
+    if (!visibleOrders.length) {
       setSelectedOrderId(null)
       return
     }
 
-    const exists = selectedOrderId && orders.some((o) => o.shippingOrderId === selectedOrderId)
+    const exists = selectedOrderId && visibleOrders.some((o) => o.shippingOrderId === selectedOrderId)
     if (!exists) {
-      setSelectedOrderId(orders[0].shippingOrderId)
+      setSelectedOrderId(visibleOrders[0].shippingOrderId)
     }
-  }, [orders, selectedOrderId])
+  }, [visibleOrders, selectedOrderId, activeTab, page])
 
   const selectedOrder = useMemo(
-    () => orders.find((o) => o.shippingOrderId === selectedOrderId) || null,
-    [orders, selectedOrderId],
+    () => visibleOrders.find((o) => o.shippingOrderId === selectedOrderId) || null,
+    [visibleOrders, selectedOrderId],
   )
 
   const itemProgress = useMemo(() => {
@@ -200,7 +183,7 @@ export function Shipments() {
       )}
 
       <div className="grid grid-cols-1 lg:grid-cols-5 gap-3 min-h-[620px]">
-        <Card className="lg:col-span-2">
+        <Card className="lg:col-span-2 flex flex-col min-h-[620px]">
           <CardHeader className="px-3 py-3 space-y-2">
             <div className="flex items-center justify-between gap-2">
               <CardTitle className="text-sm">Shipping Orders</CardTitle>
@@ -222,13 +205,7 @@ export function Shipments() {
               </Select>
             </div>
 
-            <Tabs
-              value={activeTab}
-              onValueChange={(value) => {
-                setActiveTab(value as StatusTab)
-                setPage(0)
-              }}
-            >
+            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as StatusTab)}>
               <TabsList className="grid grid-cols-3 h-8">
                 <TabsTrigger value="delivered" className="text-xs">Delivered</TabsTrigger>
                 <TabsTrigger value="in_progress" className="text-xs">In Progress</TabsTrigger>
@@ -238,7 +215,7 @@ export function Shipments() {
             <CardDescription className="text-xs">{totalElements} orders</CardDescription>
           </CardHeader>
 
-          <CardContent className="px-0 pb-2">
+          <CardContent className="px-0 pb-2 flex-1 flex flex-col min-h-0">
             {isLoading ? (
               <div className="space-y-2 px-3">
                 {Array.from({ length: 8 }).map((_, i) => (
@@ -248,11 +225,13 @@ export function Shipments() {
                   </div>
                 ))}
               </div>
-            ) : orders.length === 0 ? (
-              <div className="px-4 py-10 text-center text-xs text-muted-foreground">No orders in this tab.</div>
+            ) : visibleOrders.length === 0 ? (
+              <div className="flex-1 px-4 py-10 text-center text-xs text-muted-foreground flex items-center justify-center">
+                No orders in this tab for the current fetched page.
+              </div>
             ) : (
-              <div className="divide-y border-y">
-                {orders.map((order) => {
+              <div className="divide-y border-y flex-1">
+                {visibleOrders.map((order) => {
                   const selected = selectedOrderId === order.shippingOrderId
                   return (
                     <button
@@ -276,7 +255,7 @@ export function Shipments() {
               </div>
             )}
 
-            <div className="flex items-center justify-between px-3 pt-2">
+            <div className="flex items-center justify-between px-3 pt-2 mt-auto border-t">
               <p className="text-[11px] text-muted-foreground">Page {page + 1} / {Math.max(totalPages, 1)}</p>
               <div className="flex gap-1">
                 <button
