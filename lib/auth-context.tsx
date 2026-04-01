@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
+import { apiFetch, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
 
 // Update the User type to match your API response
 type User = {
@@ -132,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   const clearSession = () => {
+    cleanupLegacyTokenStorage()
     localStorage.removeItem("maplexpress_user_data")
     localStorage.removeItem("maplexpress_me")
     localStorage.removeItem("maplexpress_individual_profile")
@@ -173,6 +175,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const checkAuth = async () => {
       try {
+        cleanupLegacyTokenStorage()
+        await initSessionRefresh()
         const userData = localStorage.getItem("maplexpress_user_data")
         const cachedMe = localStorage.getItem("maplexpress_me")
 
@@ -291,7 +295,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Update the logout function:
   const logout = async () => {
     try {
-      await fetch("/api/auth/logout", { method: "POST" })
+      await apiFetch("/api/auth/logout", { method: "POST" })
     } catch (error) {
       console.error("Logout error:", error)
     } finally {
@@ -352,7 +356,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileData: Omit<IndividualProfile, "id" | "status" | "email" | "createdAt" | "updatedAt">,
   ) => {
     try {
-      const response = await fetch("/api/profile/individual", {
+      const response = await apiFetch("/api/profile/individual", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -390,7 +394,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     profileData: Omit<OrganizationProfile, "id" | "status" | "createdAt" | "updatedAt">,
   ) => {
     try {
-      const response = await fetch("/api/profile/organization", {
+      const response = await apiFetch("/api/profile/organization", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -467,7 +471,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       if (currentUser.userType === "individualUser") {
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/profile/individual?email=${encodeURIComponent(currentUser.email)}`,
           {},
         )
@@ -482,7 +486,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           )
         }
       } else if (currentUser.userType === "businessUser") {
-        const response = await fetch(
+        const response = await apiFetch(
           `/api/profile/organization?email=${encodeURIComponent(currentUser.email)}`,
           {},
         )

@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/client-api"
 import type { OrderResponse } from "@/lib/order-service"
 
 export interface BillingAddress {
@@ -66,7 +67,7 @@ export function buildCheckoutBillingAddress(orderData: OrderResponse): BillingAd
 }
 
 export async function checkoutPayment(payload: PaymentCheckoutRequest): Promise<PaymentCheckoutResponse> {
-  const response = await fetch("/api/payments/checkout", {
+  const response = await apiFetch("/api/payments/checkout", {
     method: "POST",
     headers: {
       Accept: "application/json",

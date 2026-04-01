@@ -1,7 +1,7 @@
 import "server-only"
 
-import { cookies } from "next/headers"
 import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { getServerAuthHeaders } from "@/lib/server-auth"
 import type {
   CreateServiceZoneRequest,
   CreateServiceZoneResponse,
@@ -21,18 +21,6 @@ type ZoneFilters = {
   active?: boolean
   city?: string
   station?: string
-}
-
-async function getAuthHeaders() {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-  const idToken = cookieStore.get("maplexpress_id_token")?.value
-
-  if (!accessToken || !idToken) return null
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    "X-Id-Token": idToken,
-  }
 }
 
 function withJsonHeaders(headers: Record<string, string>) {
@@ -61,7 +49,7 @@ async function parseError(response: Response): Promise<{ error: ServiceZoneApiEr
 }
 
 export async function listServiceZones(filters: ZoneFilters = {}): Promise<ServiceResult<ListServiceZonesResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const params = new URLSearchParams()
@@ -85,7 +73,7 @@ export async function listServiceZones(filters: ZoneFilters = {}): Promise<Servi
 }
 
 export async function createServiceZone(payload: CreateServiceZoneRequest): Promise<ServiceResult<CreateServiceZoneResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, "/service-zones"), {
@@ -107,7 +95,7 @@ export async function toggleServiceZoneActive(
   id: string,
   payload: ToggleServiceZoneActiveRequest,
 ): Promise<ServiceResult<ToggleServiceZoneActiveResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, `/service-zones/${id}/active`), {

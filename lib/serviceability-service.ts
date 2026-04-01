@@ -1,7 +1,8 @@
+import { apiFetch } from "@/lib/client-api"
 import type { ServiceabilityResponse } from "@/lib/serviceability-server"
 
 export async function checkAddressServiceability(latitude: number, longitude: number): Promise<ServiceabilityResponse> {
-  const response = await fetch("/api/serviceability", {
+  const response = await apiFetch("/api/serviceability", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
