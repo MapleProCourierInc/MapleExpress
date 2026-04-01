@@ -19,6 +19,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
+import { apiFetch } from "@/lib/client-api"
 
 function humanize(value?: string | null) {
   if (!value) return "—"
@@ -87,7 +88,7 @@ export function ProfileBillingCard({
     try {
       setLoading(true)
       setReasonError(null)
-      const response = await fetch("/api/admin/customers/billing/postpay/status", {
+      const response = await apiFetch("/api/admin/customers/billing/postpay/status", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

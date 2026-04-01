@@ -4,6 +4,7 @@
 
 import { MONERIS_API_CONFIG, MONERIS_CHECKOUT_SCRIPT_SRC } from '../config'; 
 import type { Address } from '../../components/ship-now/ship-now-form'; 
+import { apiFetch } from '@/lib/client-api'
 
 export interface MonerisBillingAddress {
     fullName: string;
@@ -131,7 +132,7 @@ export async function finalizeMonerisPayment(
 
 
 export async function finalizeMonerisPaymentViaApi(requestData: FinalizePaymentRequest): Promise<FinalizePaymentResponse> {
-  const res = await fetch('/api/payments/moneris/finalize', {
+  const res = await apiFetch('/api/payments/moneris/finalize', {
     method: 'POST',
     headers: {
       Accept: 'application/json',

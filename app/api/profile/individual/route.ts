@@ -1,15 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { cookies } from "next/headers"
-
-const getBearerToken = async (request: NextRequest) => {
-  const authHeader = request.headers.get("authorization")
-  if (authHeader?.startsWith("Bearer ")) {
-    return authHeader.split(" ")[1]
-  }
-
-  const cookieStore = await cookies()
-  return cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-}
+import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
 
 export async function POST(request: NextRequest) {
   try {
@@ -20,22 +11,9 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
     }
 
-    const token = await getBearerToken(request)
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = `${BASE_URL}/profile/individual`
-
-    const response = await fetch(endpoint, {
+    return await proxyWithAuthRetry(request, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-        "X-Real-IP": request.headers.get("x-forwarded-for") || "127.0.0.1",
-      },
+      url: getEndpointUrl(PROFILE_SERVICE_URL, "/profile/individual"),
       body: JSON.stringify({
         userId,
         firstName,
@@ -44,10 +22,8 @@ export async function POST(request: NextRequest) {
         phone,
         type: "client",
       }),
+      contentTypeJson: true,
     })
-
-    const data = await response.json()
-    return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error("Create individual profile error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
@@ -64,25 +40,15 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ message: "userId or email is required" }, { status: 400 })
     }
 
-    const token = await getBearerToken(request)
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
+    const endpoint = userId
+      ? getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual?userId=${encodeURIComponent(userId)}`)
+      : getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual?email=${encodeURIComponent(email || "")}`)
 
-    const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-    const endpoint = userId ? `${BASE_URL}/profile/individual?userId=${userId}` : `${BASE_URL}/profile/individual?email=${email}`
-
-    const response = await fetch(endpoint, {
+    return await proxyWithAuthRetry(request, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      url: endpoint,
+      contentTypeJson: true,
     })
-
-    const data = await response.json()
-    return NextResponse.json(data, { status: response.status })
   } catch (error) {
     console.error("Get individual profile error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })

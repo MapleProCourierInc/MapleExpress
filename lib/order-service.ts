@@ -1,38 +1,6 @@
 import type { ShippingOrder, Address } from "@/components/ship-now/ship-now-form"
 
-function getCookie(name: string): string | null {
-    if (typeof document === "undefined") return null
-
-    const value = `; ${document.cookie}`
-    const parts = value.split(`; ${name}=`)
-
-    if (parts.length === 2) {
-        return parts.pop()!.split(";").shift() || null
-    }
-
-    return null
-}
-
-function getAccessToken() {
-    return (
-        localStorage.getItem("maplexpress_access_token") ||
-        getCookie("accessToken") ||
-        getCookie("maplexpress_access_token") ||
-        ""
-    )
-}
-
-function getAuthHeaders(): Record<string, string> {
-    const accessToken = getAccessToken()
-
-    if (!accessToken) {
-        return {}
-    }
-
-    return {
-        Authorization: `Bearer ${accessToken}`,
-    }
-}
+import { apiFetch } from "@/lib/client-api"
 
 // Define the API response types based on the actual response format
 export interface OrderResponse {
@@ -292,24 +260,22 @@ function formatOrderRequest(order: ShippingOrder, userId: string, priorityDelive
 }
 
 export async function createOrder(payload: OrderRequest) {
-    return fetch("/api/orders", {
+    return apiFetch("/api/orders", {
         method: "POST",
         headers: {
             accept: "application/json",
             "Content-Type": "application/json",
-            ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
     })
 }
 
 export async function updateOrder(payload: OrderRequest) {
-    return fetch("/api/orders", {
+    return apiFetch("/api/orders", {
         method: "PUT",
         headers: {
             accept: "application/json",
             "Content-Type": "application/json",
-            ...getAuthHeaders(),
         },
         body: JSON.stringify(payload),
     })
@@ -337,11 +303,10 @@ function formatAddress(address: Address | null) {
 export async function getPaidOrdersByCustomer(customerId: string): Promise<OrderResponse[]> {
     const url = `/api/orders?customerId=${encodeURIComponent(customerId)}&paymentStatus=paid`
 
-    const response = await fetch(url, {
+    const response = await apiFetch(url, {
         headers: {
             accept: "application/json",
             "Content-Type": "application/json",
-            ...getAuthHeaders(),
         },
     })
 
@@ -365,11 +330,10 @@ export async function getClientOrders(filters: ClientOrdersFilters): Promise<Cli
     params.set("sortBy", filters.sortBy ?? "createdAt")
     params.set("sortDir", filters.sortDir ?? "desc")
 
-    const response = await fetch(`/api/orders?${params.toString()}`, {
+    const response = await apiFetch(`/api/orders?${params.toString()}`, {
         headers: {
             Accept: "application/json",
             "Content-Type": "application/json",
-            ...getAuthHeaders(),
         },
     })
 

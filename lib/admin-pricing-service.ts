@@ -1,28 +1,13 @@
 import "server-only"
 
-import { cookies } from "next/headers"
 import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { authenticatedServerFetch } from "@/lib/server-auth"
 import type { CreatePricingModelRequest, PricingApiError, PricingModel } from "@/types/pricing"
 
 type ServiceResult<T> = {
   data: T | null
   error: PricingApiError | null
   textError?: string | null
-}
-
-async function getAuthHeaders() {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-  const idToken = cookieStore.get("maplexpress_id_token")?.value
-
-  if (!accessToken || !idToken) return null
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    "X-Id-Token": idToken,
-    Accept: "application/json",
-    "Content-Type": "application/json",
-  }
 }
 
 async function parseError(response: Response): Promise<{ error: PricingApiError | null; textError: string | null }> {
@@ -44,17 +29,21 @@ async function parseError(response: Response): Promise<{ error: PricingApiError 
 }
 
 export async function getAdminPricingModels(): Promise<ServiceResult<PricingModel[]>> {
-  const headers = await getAuthHeaders()
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"),
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    },
+    { includeIdToken: true },
+  )
 
-  if (!headers) {
+  if (!response) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
-
-  const response = await fetch(getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"), {
-    method: "GET",
-    headers,
-    cache: "no-store",
-  })
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -65,20 +54,22 @@ export async function getAdminPricingModels(): Promise<ServiceResult<PricingMode
 }
 
 export async function createAdminPricingModel(payload: CreatePricingModelRequest): Promise<ServiceResult<PricingModel>> {
-  const headers = await getAuthHeaders()
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
 
-  if (!headers) {
+  if (!response) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
-
-  const response = await fetch(getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"), {
-    method: "POST",
-    headers: {
-      ...headers,
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  })
 
   if (!response.ok) {
     const parsed = await parseError(response)

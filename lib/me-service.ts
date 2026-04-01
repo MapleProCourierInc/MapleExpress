@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/client-api"
 export type MeResponse = {
   authenticated: boolean
   sub: string
@@ -17,7 +18,7 @@ export class MeRequestError extends Error {
 }
 
 export async function getMe(): Promise<MeResponse> {
-  const response = await fetch("/api/profile/me", {
+  const response = await apiFetch("/api/profile/me", {
     method: "GET",
   })
 

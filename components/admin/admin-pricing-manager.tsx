@@ -21,6 +21,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { CreatePricingModelRequest, PricingApiError, PricingModel } from "@/types/pricing"
+import { apiFetch } from "@/lib/client-api"
 
 const DEFAULT_DIMENSIONAL_WEIGHT_UNIT = "cm3/kg"
 
@@ -224,7 +225,7 @@ export function AdminPricingManager({ initialData, initialError }: Props) {
 
     try {
       setIsSubmitting(true)
-      const response = await fetch("/api/admin/pricing", {
+      const response = await apiFetch("/api/admin/pricing", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

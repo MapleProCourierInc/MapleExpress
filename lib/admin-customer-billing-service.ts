@@ -1,7 +1,7 @@
 import "server-only"
 
-import { cookies } from "next/headers"
 import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   AdminCustomerProfileListFilters,
   AdminEnablePayLaterRequest,
@@ -19,21 +19,9 @@ type ServiceResult<T> = {
   textError?: string | null
 }
 
-async function getAuthHeaders() {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-  const idToken = cookieStore.get("maplexpress_id_token")?.value
-
-  if (!accessToken || !idToken) return null
+function withJsonHeaders(headers?: HeadersInit) {
   return {
-    Authorization: `Bearer ${accessToken}`,
-    "X-Id-Token": idToken,
-  }
-}
-
-function withJsonHeaders(headers: Record<string, string>) {
-  return {
-    ...headers,
+    ...(headers || {}),
     Accept: "application/json",
     "Content-Type": "application/json",
   }
@@ -81,16 +69,15 @@ function normalizePageResponse<T>(payload: unknown, fallbackPage: number, fallba
 export async function listIndividualProfiles(
   filters: Omit<AdminCustomerProfileListFilters, "ownerType">,
 ): Promise<ServiceResult<PageResponse<IndividualProfile>>> {
-  const headers = await getAuthHeaders()
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
-
   const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
   if (filters.email) params.set("email", filters.email)
   if (filters.userId) params.set("userId", filters.userId)
   if (filters.type) params.set("type", filters.type)
 
   const endpoint = `${getEndpointUrl(PROFILE_SERVICE_URL, "/profile/individual")}?${params.toString()}`
-  const response = await fetch(endpoint, { method: "GET", headers: withJsonHeaders(headers), cache: "no-store" })
+  const response = await authenticatedServerFetch(endpoint, { method: "GET", headers: withJsonHeaders() }, { includeIdToken: true })
+
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -102,14 +89,13 @@ export async function listIndividualProfiles(
 }
 
 export async function getIndividualProfileById(id: string): Promise<ServiceResult<IndividualProfile>> {
-  const headers = await getAuthHeaders()
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual/${id}`),
+    { method: "GET", headers: withJsonHeaders() },
+    { includeIdToken: true },
+  )
 
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual/${id}`), {
-    method: "GET",
-    headers: withJsonHeaders(headers),
-    cache: "no-store",
-  })
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -122,9 +108,6 @@ export async function getIndividualProfileById(id: string): Promise<ServiceResul
 export async function listOrganizationProfiles(
   filters: Omit<AdminCustomerProfileListFilters, "ownerType">,
 ): Promise<ServiceResult<PageResponse<OrganizationProfile>>> {
-  const headers = await getAuthHeaders()
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
-
   const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
   if (filters.userId) params.set("userId", filters.userId)
   if (filters.email) params.set("email", filters.email)
@@ -133,7 +116,9 @@ export async function listOrganizationProfiles(
 
   const endpoint = `${getEndpointUrl(PROFILE_SERVICE_URL, "/profile/organization")}?${params.toString()}`
 
-  const response = await fetch(endpoint, { method: "GET", headers: withJsonHeaders(headers), cache: "no-store" })
+  const response = await authenticatedServerFetch(endpoint, { method: "GET", headers: withJsonHeaders() }, { includeIdToken: true })
+
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -149,14 +134,13 @@ export async function listOrganizationProfiles(
 }
 
 export async function getOrganizationProfileById(id: string): Promise<ServiceResult<OrganizationProfile>> {
-  const headers = await getAuthHeaders()
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/${id}`),
+    { method: "GET", headers: withJsonHeaders() },
+    { includeIdToken: true },
+  )
 
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/${id}`), {
-    method: "GET",
-    headers: withJsonHeaders(headers),
-    cache: "no-store",
-  })
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -169,15 +153,17 @@ export async function getOrganizationProfileById(id: string): Promise<ServiceRes
 export async function enablePayLater(
   payload: AdminEnablePayLaterRequest,
 ): Promise<ServiceResult<ProfileBillingConfigurationResponse>> {
-  const headers = await getAuthHeaders()
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/pay-later/enable"),
+    {
+      method: "POST",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
 
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/pay-later/enable"), {
-    method: "POST",
-    headers: withJsonHeaders(headers),
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  })
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -187,19 +173,20 @@ export async function enablePayLater(
   return { data: (await response.json()) as ProfileBillingConfigurationResponse, error: null, textError: null }
 }
 
-
 export async function updatePostpayStatus(
   payload: AdminUpdatePostpayStatusRequest,
 ): Promise<ServiceResult<ProfileBillingConfigurationResponse>> {
-  const headers = await getAuthHeaders()
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/postpay/status"),
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
 
-  const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/postpay/status"), {
-    method: "PATCH",
-    headers: withJsonHeaders(headers),
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  })
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)

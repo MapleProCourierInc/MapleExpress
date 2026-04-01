@@ -12,6 +12,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { CreateServiceZoneResponse } from "@/types/admin-service-zones"
+import { apiFetch } from "@/lib/client-api"
 
 type FormState = {
   zoneName: string
@@ -152,7 +153,7 @@ export function AddServiceZoneForm() {
 
     try {
       setIsSubmitting(true)
-      const response = await fetch("/api/admin/service-zones", {
+      const response = await apiFetch("/api/admin/service-zones", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

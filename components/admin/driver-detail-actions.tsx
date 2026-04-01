@@ -13,6 +13,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { DriverActionDialog } from "@/components/admin/driver-action-dialog"
+import { apiFetch } from "@/lib/client-api"
 
 type ActionKey = "approve" | "reject" | "suspend" | "unsuspend" | "terminate"
 
@@ -37,7 +38,7 @@ export function DriverDetailActions({ driverId, profileStatus }: { driverId: str
 
     try {
       setLoading(true)
-      const response = await fetch(`/api/admin/drivers/${driverId}/${currentAction}`, {
+      const response = await apiFetch(`/api/admin/drivers/${driverId}/${currentAction}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ reason, notes }),

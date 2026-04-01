@@ -1,5 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { decodeJwtPayload, cognitoRequest, getCognitoClientId } from "@/lib/cognito"
+import { applyAuthCookies } from "@/lib/server-auth"
 
 type CognitoInitiateAuthResponse = {
   AuthenticationResult?: {
@@ -80,26 +81,7 @@ export async function POST(request: NextRequest) {
       { status: 200 },
     )
 
-    const isSecure = process.env.NODE_ENV === "production"
-    const accessTokenCookieOptions = {
-      httpOnly: true,
-      secure: isSecure,
-      sameSite: "lax" as const,
-      path: "/",
-      maxAge: 60 * 60,
-    }
-    const refreshTokenCookieOptions = {
-      httpOnly: true,
-      secure: isSecure,
-      sameSite: "lax" as const,
-      path: "/",
-      maxAge: 60 * 60 * 24 * 5,
-    }
-
-    response.cookies.set("maplexpress_access_token", accessToken, accessTokenCookieOptions)
-    response.cookies.set("accessToken", accessToken, accessTokenCookieOptions)
-    response.cookies.set("maplexpress_id_token", idToken, accessTokenCookieOptions)
-    response.cookies.set("maplexpress_refresh_token", refreshToken, refreshTokenCookieOptions)
+    applyAuthCookies(response, { accessToken, refreshToken, idToken })
 
     return response
   } catch (error) {
