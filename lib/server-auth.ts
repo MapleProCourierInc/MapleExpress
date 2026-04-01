@@ -14,7 +14,59 @@ type RefreshedTokens = {
   refreshToken?: string
 }
 
+type ServerAuthHeaderOptions = {
+  includeIdToken?: boolean
+  includeJsonContentType?: boolean
+}
+
+type AuthenticatedServerFetchOptions = {
+  includeIdToken?: boolean
+}
+
 let refreshPromise: Promise<RefreshedTokens | null> | null = null
+
+const ACCESS_TOKEN_MAX_AGE = 60 * 60
+const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 5
+
+function getCookieOptions(maxAge: number) {
+  return {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax" as const,
+    path: "/",
+    maxAge,
+  }
+}
+
+async function persistCookies(tokens: { accessToken: string; idToken?: string; refreshToken?: string }) {
+  try {
+    const cookieStore = await cookies()
+    cookieStore.set("maplexpress_access_token", tokens.accessToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE))
+    cookieStore.set("accessToken", tokens.accessToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE))
+
+    if (tokens.idToken) {
+      cookieStore.set("maplexpress_id_token", tokens.idToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE))
+    }
+
+    if (tokens.refreshToken) {
+      cookieStore.set("maplexpress_refresh_token", tokens.refreshToken, getCookieOptions(REFRESH_TOKEN_MAX_AGE))
+    }
+  } catch {
+    // cookie mutations are not available in all server contexts (e.g. some RSC renders)
+  }
+}
+
+async function clearCookiesInStore() {
+  try {
+    const cookieStore = await cookies()
+    cookieStore.set("maplexpress_access_token", "", getCookieOptions(0))
+    cookieStore.set("accessToken", "", getCookieOptions(0))
+    cookieStore.set("maplexpress_refresh_token", "", getCookieOptions(0))
+    cookieStore.set("maplexpress_id_token", "", getCookieOptions(0))
+  } catch {
+    // cookie mutations are not available in all server contexts
+  }
+}
 
 export function getAuthTokensFromRequest(request: NextRequest): AuthTokens {
   const authHeader = request.headers.get("authorization")
@@ -37,27 +89,7 @@ export async function getAuthTokensFromCookies(): Promise<AuthTokens> {
   }
 }
 
-
-
-type ServerAuthHeaderOptions = {
-  includeIdToken?: boolean
-  includeJsonContentType?: boolean
-}
-
-export async function getServerAuthHeaders(options: ServerAuthHeaderOptions = {}): Promise<Record<string, string> | null> {
-  const { includeIdToken = false, includeJsonContentType = false } = options
-  const tokens = await getAuthTokensFromCookies()
-
-  if (!tokens.accessToken) return null
-  if (includeIdToken && !tokens.idToken) return null
-
-  return {
-    Authorization: `Bearer ${tokens.accessToken}`,
-    ...(includeIdToken && tokens.idToken ? { "X-Id-Token": tokens.idToken } : {}),
-    ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
-  }
-}
-async function refreshWithToken(refreshToken: string, request: NextRequest): Promise<RefreshedTokens | null> {
+async function refreshWithToken(refreshToken: string, forwardedIp?: string | null): Promise<RefreshedTokens | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
       const response = await fetch(AUTH_REFRESH_URL, {
@@ -66,7 +98,7 @@ async function refreshWithToken(refreshToken: string, request: NextRequest): Pro
           "Content-Type": "application/json",
           Accept: "application/json",
           "Accept-Language": "application/json",
-          "X-Real-IP": request.headers.get("x-forwarded-for") || "127.0.0.1",
+          "X-Real-IP": forwardedIp || "127.0.0.1",
         },
         body: JSON.stringify({ refreshToken }),
       })
@@ -91,50 +123,81 @@ async function refreshWithToken(refreshToken: string, request: NextRequest): Pro
 
 export async function maybeRefreshTokens(tokens: AuthTokens, request: NextRequest) {
   if (!tokens.refreshToken) return null
-  return refreshWithToken(tokens.refreshToken, request)
+  return refreshWithToken(tokens.refreshToken, request.headers.get("x-forwarded-for"))
+}
+
+export async function getServerAuthHeaders(options: ServerAuthHeaderOptions = {}): Promise<Record<string, string> | null> {
+  const { includeIdToken = false, includeJsonContentType = false } = options
+  const tokens = await getAuthTokensFromCookies()
+
+  if (!tokens.accessToken) return null
+  if (includeIdToken && !tokens.idToken) return null
+
+  return {
+    Authorization: `Bearer ${tokens.accessToken}`,
+    ...(includeIdToken && tokens.idToken ? { "X-Id-Token": tokens.idToken } : {}),
+    ...(includeJsonContentType ? { "Content-Type": "application/json" } : {}),
+  }
+}
+
+export async function authenticatedServerFetch(
+  input: string,
+  init: RequestInit = {},
+  options: AuthenticatedServerFetchOptions = {},
+): Promise<Response | null> {
+  const { includeIdToken = false } = options
+  const tokens = await getAuthTokensFromCookies()
+
+  if (!tokens.accessToken) return null
+  if (includeIdToken && !tokens.idToken) return null
+
+  const baseHeaders = new Headers(init.headers || {})
+  baseHeaders.set("Authorization", `Bearer ${tokens.accessToken}`)
+  if (includeIdToken && tokens.idToken) {
+    baseHeaders.set("X-Id-Token", tokens.idToken)
+  }
+
+  const first = await fetch(input, { ...init, headers: baseHeaders, cache: init.cache ?? "no-store" })
+  if (first.status !== 401) return first
+
+  const refreshed = tokens.refreshToken ? await refreshWithToken(tokens.refreshToken) : null
+  if (!refreshed?.accessToken) {
+    await clearCookiesInStore()
+    return first
+  }
+
+  await persistCookies(refreshed)
+
+  const retryHeaders = new Headers(init.headers || {})
+  retryHeaders.set("Authorization", `Bearer ${refreshed.accessToken}`)
+  if (includeIdToken && (refreshed.idToken || tokens.idToken)) {
+    retryHeaders.set("X-Id-Token", refreshed.idToken || tokens.idToken || "")
+  }
+
+  const second = await fetch(input, { ...init, headers: retryHeaders, cache: init.cache ?? "no-store" })
+  if (second.status === 401) {
+    await clearCookiesInStore()
+  }
+
+  return second
 }
 
 export function applyAuthCookies(response: NextResponse, tokens: RefreshedTokens) {
-  const isSecure = process.env.NODE_ENV === "production"
-  const accessTokenCookieOptions = {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 60 * 60,
-  }
-  const refreshTokenCookieOptions = {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 60 * 60 * 24 * 5,
-  }
-
-  response.cookies.set("maplexpress_access_token", tokens.accessToken, accessTokenCookieOptions)
-  response.cookies.set("accessToken", tokens.accessToken, accessTokenCookieOptions)
+  response.cookies.set("maplexpress_access_token", tokens.accessToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE))
+  response.cookies.set("accessToken", tokens.accessToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE))
 
   if (tokens.idToken) {
-    response.cookies.set("maplexpress_id_token", tokens.idToken, accessTokenCookieOptions)
+    response.cookies.set("maplexpress_id_token", tokens.idToken, getCookieOptions(ACCESS_TOKEN_MAX_AGE))
   }
 
   if (tokens.refreshToken) {
-    response.cookies.set("maplexpress_refresh_token", tokens.refreshToken, refreshTokenCookieOptions)
+    response.cookies.set("maplexpress_refresh_token", tokens.refreshToken, getCookieOptions(REFRESH_TOKEN_MAX_AGE))
   }
 }
 
 export function clearAuthCookies(response: NextResponse) {
-  const isSecure = process.env.NODE_ENV === "production"
-  const cookieOptions = {
-    httpOnly: true,
-    secure: isSecure,
-    sameSite: "lax" as const,
-    path: "/",
-    maxAge: 0,
-  }
-
-  response.cookies.set("maplexpress_access_token", "", cookieOptions)
-  response.cookies.set("accessToken", "", cookieOptions)
-  response.cookies.set("maplexpress_refresh_token", "", cookieOptions)
-  response.cookies.set("maplexpress_id_token", "", cookieOptions)
+  response.cookies.set("maplexpress_access_token", "", getCookieOptions(0))
+  response.cookies.set("accessToken", "", getCookieOptions(0))
+  response.cookies.set("maplexpress_refresh_token", "", getCookieOptions(0))
+  response.cookies.set("maplexpress_id_token", "", getCookieOptions(0))
 }

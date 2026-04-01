@@ -1,7 +1,7 @@
 import "server-only"
 
 import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config"
-import { getServerAuthHeaders } from "@/lib/server-auth"
+import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   CreateServiceZoneRequest,
   CreateServiceZoneResponse,
@@ -23,9 +23,9 @@ type ZoneFilters = {
   station?: string
 }
 
-function withJsonHeaders(headers: Record<string, string>) {
+function withJsonHeaders(headers?: HeadersInit) {
   return {
-    ...headers,
+    ...(headers || {}),
     Accept: "application/json",
     "Content-Type": "application/json",
   }
@@ -49,20 +49,22 @@ async function parseError(response: Response): Promise<{ error: ServiceZoneApiEr
 }
 
 export async function listServiceZones(filters: ZoneFilters = {}): Promise<ServiceResult<ListServiceZonesResponse>> {
-  const headers = await getServerAuthHeaders({ includeIdToken: true })
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
-
   const params = new URLSearchParams()
   if (typeof filters.active === "boolean") params.set("active", String(filters.active))
   if (filters.city) params.set("city", filters.city)
   if (filters.station) params.set("station", filters.station)
 
   const suffix = params.toString() ? `?${params.toString()}` : ""
-  const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, `/service-zones${suffix}`), {
-    method: "GET",
-    headers: withJsonHeaders(headers),
-    cache: "no-store",
-  })
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(ORDER_SERVICE_URL, `/service-zones${suffix}`),
+    {
+      method: "GET",
+      headers: withJsonHeaders(),
+    },
+    { includeIdToken: true },
+  )
+
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -73,15 +75,17 @@ export async function listServiceZones(filters: ZoneFilters = {}): Promise<Servi
 }
 
 export async function createServiceZone(payload: CreateServiceZoneRequest): Promise<ServiceResult<CreateServiceZoneResponse>> {
-  const headers = await getServerAuthHeaders({ includeIdToken: true })
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(ORDER_SERVICE_URL, "/service-zones"),
+    {
+      method: "POST",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
 
-  const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, "/service-zones"), {
-    method: "POST",
-    headers: withJsonHeaders(headers),
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  })
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -95,15 +99,17 @@ export async function toggleServiceZoneActive(
   id: string,
   payload: ToggleServiceZoneActiveRequest,
 ): Promise<ServiceResult<ToggleServiceZoneActiveResponse>> {
-  const headers = await getServerAuthHeaders({ includeIdToken: true })
-  if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(ORDER_SERVICE_URL, `/service-zones/${id}/active`),
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
 
-  const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, `/service-zones/${id}/active`), {
-    method: "PATCH",
-    headers: withJsonHeaders(headers),
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  })
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   if (!response.ok) {
     const parsed = await parseError(response)

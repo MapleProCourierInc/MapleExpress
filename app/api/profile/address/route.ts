@@ -1,20 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
+import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
 import { checkAuthenticatedServiceability } from "@/lib/serviceability-server"
-
-const BASE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL || "http://localhost:30081/usermanagement"
-
-function getToken(request: NextRequest) {
-  const authHeader = request.headers.get("authorization")
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
-    return (
-      request.cookies.get("maplexpress_access_token")?.value ||
-      request.cookies.get("accessToken")?.value ||
-      null
-    )
-  }
-
-  return authHeader.slice("Bearer ".length).trim() || null
-}
 
 async function getJsonResponse(response: Response) {
   const text = await response.text()
@@ -29,51 +16,30 @@ async function getJsonResponse(response: Response) {
   }
 }
 
-// Get all addresses for a user
 export async function GET(request: NextRequest) {
   try {
-    const token = getToken(request)
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
-
-    const endpoint = `${BASE_URL}/profile/addresses`
-
-    // Forward the request to your microservice
-    const response = await fetch(endpoint, {
+    const response = await proxyWithAuthRetry(request, {
       method: "GET",
-      headers: {
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      url: getEndpointUrl(PROFILE_SERVICE_URL, "/profile/addresses"),
     })
 
-    // Get the response data
-    const data = await getJsonResponse(response)
-
-    // Return the response
-    return NextResponse.json(data ?? {}, { status: response.status })
+    const parsed = await getJsonResponse(response)
+    return NextResponse.json(parsed ?? {}, { status: response.status })
   } catch (error) {
     console.error("Get addresses error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
 
-// Create a new address
 export async function POST(request: NextRequest) {
   try {
     const addressData = await request.json()
-
-    const token = getToken(request)
-    if (!token) {
-      return NextResponse.json({ message: "Unauthorized" }, { status: 401 })
-    }
 
     const latitude = Number(addressData?.coordinates?.latitude)
     const longitude = Number(addressData?.coordinates?.longitude)
 
     if (Number.isFinite(latitude) && Number.isFinite(longitude)) {
-      const serviceability = await checkAuthenticatedServiceability(latitude, longitude, token)
+      const serviceability = await checkAuthenticatedServiceability(latitude, longitude)
       if (!serviceability.serviceable) {
         return NextResponse.json(
           { message: serviceability.message || "Location is outside MapleX serviceable area." },
@@ -82,24 +48,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const endpoint = `${BASE_URL}/profile/addresses`
-
-    // Forward the request to your microservice
-    const response = await fetch(endpoint, {
+    const response = await proxyWithAuthRetry(request, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        Authorization: `Bearer ${token}`,
-      },
+      url: getEndpointUrl(PROFILE_SERVICE_URL, "/profile/addresses"),
       body: JSON.stringify(addressData),
+      contentTypeJson: true,
     })
 
-    // Get the response data
-    const data = await getJsonResponse(response)
-
-    // Return the response
-    return NextResponse.json(data ?? {}, { status: response.status })
+    const parsed = await getJsonResponse(response)
+    return NextResponse.json(parsed ?? {}, { status: response.status })
   } catch (error) {
     console.error("Create address error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })

@@ -1,39 +1,44 @@
-import "server-only"
-
 import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { authenticatedServerFetch } from "@/lib/server-auth"
 
 export type ServiceabilityResponse = {
   serviceable: boolean
-  matchedZoneId?: string | null
-  matchedZoneName?: string | null
-  city?: string | null
-  station?: string | null
-  reasonCode?: string
   message?: string
+  station?: string
+  city?: string
 }
 
 export async function checkAuthenticatedServiceability(
   latitude: number,
   longitude: number,
-  token: string,
 ): Promise<ServiceabilityResponse> {
-  const response = await fetch(getEndpointUrl(ORDER_SERVICE_URL, "/service-zones/check-serviceability"), {
-    method: "POST",
-    headers: {
-      Accept: "application/json",
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`,
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(ORDER_SERVICE_URL, "/service-zones/check-serviceability"),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({ latitude, longitude }),
     },
-    body: JSON.stringify({ latitude, longitude }),
-    cache: "no-store",
-  })
+  )
+
+  if (!response) {
+    return {
+      serviceable: false,
+      message: "Unauthorized",
+    }
+  }
 
   const data = (await response.json().catch(() => null)) as ServiceabilityResponse | { message?: string } | null
 
   if (!response.ok) {
-    throw new Error((data as { message?: string } | null)?.message || "Failed to check address serviceability")
+    return {
+      serviceable: false,
+      message: (data as { message?: string } | null)?.message || "Unable to verify serviceability.",
+    }
   }
 
   return (data || { serviceable: false }) as ServiceabilityResponse
 }
-

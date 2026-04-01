@@ -16,6 +16,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import type { ApiErrorResponse } from "@/types/admin-drivers"
+import { apiFetch } from "@/lib/client-api"
 
 type FormState = {
   email: string
@@ -77,7 +78,7 @@ export function InviteDriverDialog() {
     try {
       setIsSubmitting(true)
 
-      const response = await fetch("/api/admin/drivers", {
+      const response = await apiFetch("/api/admin/drivers", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...form, email: normalizedEmail, companyName: "MAPLEX_EXPRESS_INC" }),

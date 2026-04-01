@@ -17,6 +17,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { apiFetch } from "@/lib/client-api"
 
 export function EnablePayLaterDialog({
   ownerType,
@@ -44,7 +45,7 @@ export function EnablePayLaterDialog({
     try {
       setLoading(true)
       setReasonError(null)
-      const response = await fetch("/api/admin/customers/billing/pay-later/enable", {
+      const response = await apiFetch("/api/admin/customers/billing/pay-later/enable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

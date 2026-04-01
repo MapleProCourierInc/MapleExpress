@@ -1,7 +1,7 @@
 import "server-only"
 
 import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
-import { getServerAuthHeaders } from "@/lib/server-auth"
+import { authenticatedServerFetch } from "@/lib/server-auth"
 import type { CreatePricingModelRequest, PricingApiError, PricingModel } from "@/types/pricing"
 
 type ServiceResult<T> = {
@@ -29,17 +29,21 @@ async function parseError(response: Response): Promise<{ error: PricingApiError 
 }
 
 export async function getAdminPricingModels(): Promise<ServiceResult<PricingModel[]>> {
-  const headers = await getServerAuthHeaders({ includeIdToken: true, includeJsonContentType: true })
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"),
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    },
+    { includeIdToken: true },
+  )
 
-  if (!headers) {
+  if (!response) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
-
-  const response = await fetch(getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"), {
-    method: "GET",
-    headers: { ...headers, Accept: "application/json" },
-    cache: "no-store",
-  })
 
   if (!response.ok) {
     const parsed = await parseError(response)
@@ -50,21 +54,22 @@ export async function getAdminPricingModels(): Promise<ServiceResult<PricingMode
 }
 
 export async function createAdminPricingModel(payload: CreatePricingModelRequest): Promise<ServiceResult<PricingModel>> {
-  const headers = await getServerAuthHeaders({ includeIdToken: true, includeJsonContentType: true })
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
 
-  if (!headers) {
+  if (!response) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
-
-  const response = await fetch(getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/pricing"), {
-    method: "POST",
-    headers: {
-      ...headers,
-      Accept: "application/json",
-    },
-    body: JSON.stringify(payload),
-    cache: "no-store",
-  })
 
   if (!response.ok) {
     const parsed = await parseError(response)

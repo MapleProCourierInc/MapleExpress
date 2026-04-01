@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { apiFetch } from "@/lib/client-api"
 
 type Props = {
   initialZones: ServiceZone[]
@@ -101,7 +102,7 @@ export function ServiceZonesOverview({ initialZones }: Props) {
   const toggleActive = async (zone: ServiceZone) => {
     try {
       setPendingZoneId(zone.id)
-      const response = await fetch(`/api/admin/service-zones/${zone.id}/active`, {
+      const response = await apiFetch(`/api/admin/service-zones/${zone.id}/active`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
