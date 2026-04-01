@@ -20,7 +20,7 @@ export default function OnboardingPage() {
     }
 
     if (me?.status === "ACTIVE") {
-      router.push("/dashboard")
+      router.push("/dashboard?section=shipments")
     }
   }, [user, me, isLoading, router])
 

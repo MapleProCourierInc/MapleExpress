@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { Settings, LogOut, User, Package, MapPin, CreditCard } from "lucide-react"
+import { LogOut, User, Package } from "lucide-react"
 import Link from "next/link"
 
 const getInitials = (name?: string | null) => {
@@ -34,6 +34,7 @@ export function UserProfile() {
   if (!user) return null
 
   const displayName = me?.displayName ?? undefined
+
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
@@ -51,36 +52,18 @@ export function UserProfile() {
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/dashboard" className="cursor-pointer flex w-full items-center">
-            <User className="mr-2 h-4 w-4" />
-            <span>Dashboard</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
           <Link href="/dashboard?section=shipments" className="cursor-pointer flex w-full items-center">
             <Package className="mr-2 h-4 w-4" />
-            <span>My Shipments</span>
+            <span>Shipments</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/dashboard?section=addresses" className="cursor-pointer flex w-full items-center">
-            <MapPin className="mr-2 h-4 w-4" />
-            <span>Addresses</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard?section=billing" className="cursor-pointer flex w-full items-center">
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Billing</span>
+          <Link href="/dashboard?section=profile" className="cursor-pointer flex w-full items-center">
+            <User className="mr-2 h-4 w-4" />
+            <span>Profile</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/dashboard?section=settings" className="cursor-pointer flex w-full items-center">
-            <Settings className="mr-2 h-4 w-4" />
-            <span>Settings</span>
-          </Link>
-        </DropdownMenuItem>
         <DropdownMenuItem onClick={() => logout()} className="cursor-pointer text-destructive">
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>

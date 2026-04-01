@@ -123,6 +123,53 @@ export interface OrderItemResponse {
     specialIncidents: any[]
 }
 
+export interface ClientOrder {
+    shippingOrderId: string
+    orderStatus: string
+    paymentStatus: string
+    priorityDelivery: boolean
+    createdAt: string
+    aggregatedPricing?: {
+        totalAmount?: number
+    }
+    orderItems: Array<{
+        trackingId?: string | null
+        pickup?: {
+            address?: {
+                city?: string
+            }
+        }
+        dropoff?: {
+            address?: {
+                city?: string
+            }
+        }
+    }>
+}
+
+export interface ClientOrdersFilters {
+    orderStatus?: string
+    paymentStatus?: string
+    createdFrom?: string
+    createdTo?: string
+    page?: number
+    size?: number
+    sortBy?: string
+    sortDir?: "asc" | "desc"
+}
+
+interface ClientOrdersResponse {
+    orders: ClientOrder[]
+    pagination: {
+        page: number
+        size: number
+        totalElements: number
+        totalPages: number
+        sortBy: string
+        sortDir: "asc" | "desc"
+    }
+}
+
 interface OrderRequestItem {
     pickup: {
         address: ReturnType<typeof formatAddress>
@@ -303,4 +350,58 @@ export async function getPaidOrdersByCustomer(customerId: string): Promise<Order
     }
 
     return response.json()
+}
+
+export async function getClientOrders(filters: ClientOrdersFilters): Promise<ClientOrdersResponse> {
+    const params = new URLSearchParams()
+
+    if (filters.orderStatus) params.set("orderStatus", filters.orderStatus)
+    if (filters.paymentStatus) params.set("paymentStatus", filters.paymentStatus)
+    if (filters.createdFrom) params.set("createdFrom", filters.createdFrom)
+    if (filters.createdTo) params.set("createdTo", filters.createdTo)
+
+    params.set("page", String(filters.page ?? 0))
+    params.set("size", String(filters.size ?? 10))
+    params.set("sortBy", filters.sortBy ?? "createdAt")
+    params.set("sortDir", filters.sortDir ?? "desc")
+
+    const response = await fetch(`/api/orders?${params.toString()}`, {
+        headers: {
+            Accept: "application/json",
+            "Content-Type": "application/json",
+            ...getAuthHeaders(),
+        },
+    })
+
+    if (!response.ok) {
+        throw new Error(`Failed to fetch orders: ${response.statusText}`)
+    }
+
+    const data = await response.json()
+
+    if (Array.isArray(data)) {
+        return {
+            orders: data,
+            pagination: {
+                page: filters.page ?? 0,
+                size: filters.size ?? 10,
+                totalElements: data.length,
+                totalPages: data.length ? 1 : 0,
+                sortBy: filters.sortBy ?? "createdAt",
+                sortDir: filters.sortDir ?? "desc",
+            },
+        }
+    }
+
+    return {
+        orders: data?.orders ?? [],
+        pagination: {
+            page: data?.pagination?.page ?? 0,
+            size: data?.pagination?.size ?? filters.size ?? 10,
+            totalElements: data?.pagination?.totalElements ?? 0,
+            totalPages: data?.pagination?.totalPages ?? 0,
+            sortBy: data?.pagination?.sortBy ?? "createdAt",
+            sortDir: data?.pagination?.sortDir === "asc" ? "asc" : "desc",
+        },
+    }
 }

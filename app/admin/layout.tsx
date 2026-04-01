@@ -7,7 +7,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   const me = await getServerMe()
 
   if (!isSuperAdmin(me)) {
-    redirect("/dashboard")
+    redirect("/dashboard?section=shipments")
   }
 
   return (

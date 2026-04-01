@@ -72,7 +72,7 @@ export function OnboardingFlow() {
       return
     }
 
-    router.push("/dashboard")
+    router.push("/dashboard?section=shipments")
   }
 
   const handleBusinessSubmit = async (e: FormEvent) => {
@@ -113,7 +113,7 @@ export function OnboardingFlow() {
       return
     }
 
-    router.push("/dashboard")
+    router.push("/dashboard?section=shipments")
   }
 
   return (
