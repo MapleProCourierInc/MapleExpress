@@ -1,7 +1,7 @@
 import "server-only"
 
-import { cookies } from "next/headers"
 import { AWS_INTEGRATION_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { getServerAuthHeaders } from "@/lib/server-auth"
 
 type PresignViewItem = {
   key: string
@@ -14,23 +14,11 @@ type PresignViewResponse = {
   items?: PresignViewItem[]
 }
 
-async function getAuthHeaders() {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-
-  if (!accessToken) return null
-
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    "Content-Type": "application/json",
-  }
-}
-
 export async function presignView(keys: string[]): Promise<Record<string, PresignViewItem>> {
   const uniqueKeys = Array.from(new Set(keys.filter(Boolean)))
   if (!uniqueKeys.length) return {}
 
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeJsonContentType: true })
   if (!headers) return {}
 
   const response = await fetch(getEndpointUrl(AWS_INTEGRATION_SERVICE_URL, "/v2/s3/presign/view"), {

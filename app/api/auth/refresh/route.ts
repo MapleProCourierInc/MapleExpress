@@ -1,37 +1,31 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { AUTH_REFRESH_URL } from "@/lib/config"
+import { maybeRefreshTokens, getAuthTokensFromRequest, applyAuthCookies, clearAuthCookies } from "@/lib/server-auth"
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json()
-    const { refreshToken } = body
+    const tokens = getAuthTokensFromRequest(request)
 
-    if (!refreshToken) {
-      return NextResponse.json({ message: "Refresh token is required" }, { status: 400 })
+    if (!tokens.refreshToken) {
+      const response = NextResponse.json({ message: "Refresh token is required" }, { status: 400 })
+      clearAuthCookies(response)
+      return response
     }
 
-    // Use the refresh URL from our centralized configuration
+    const refreshedTokens = await maybeRefreshTokens(tokens, request)
 
-    const response = await fetch(AUTH_REFRESH_URL, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-        "Accept-Language": "application/json",
-        "X-Real-IP": request.headers.get("x-forwarded-for") || "127.0.0.1",
-      },
-      body: JSON.stringify({ refreshToken }),
-    })
-
-    const data = await response.json()
-
-    if (response.ok) {
-      return NextResponse.json(data, { status: 200 })
-    } else {
-      return NextResponse.json({ message: data.message || "Failed to refresh token" }, { status: response.status })
+    if (!refreshedTokens) {
+      const response = NextResponse.json({ message: "Failed to refresh token" }, { status: 401 })
+      clearAuthCookies(response)
+      return response
     }
+
+    const response = NextResponse.json({ success: true }, { status: 200 })
+    applyAuthCookies(response, refreshedTokens)
+    return response
   } catch (error) {
     console.error("Token refresh error:", error)
-    return NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    const response = NextResponse.json({ message: "Internal server error" }, { status: 500 })
+    clearAuthCookies(response)
+    return response
   }
 }

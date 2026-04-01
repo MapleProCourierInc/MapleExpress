@@ -1,7 +1,7 @@
 import "server-only"
 
-import { cookies } from "next/headers"
 import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { getServerAuthHeaders } from "@/lib/server-auth"
 import type {
   AdminCustomerProfileListFilters,
   AdminEnablePayLaterRequest,
@@ -17,18 +17,6 @@ type ServiceResult<T> = {
   data: T | null
   error: ApiErrorResponse | null
   textError?: string | null
-}
-
-async function getAuthHeaders() {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-  const idToken = cookieStore.get("maplexpress_id_token")?.value
-
-  if (!accessToken || !idToken) return null
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    "X-Id-Token": idToken,
-  }
 }
 
 function withJsonHeaders(headers: Record<string, string>) {
@@ -81,7 +69,7 @@ function normalizePageResponse<T>(payload: unknown, fallbackPage: number, fallba
 export async function listIndividualProfiles(
   filters: Omit<AdminCustomerProfileListFilters, "ownerType">,
 ): Promise<ServiceResult<PageResponse<IndividualProfile>>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
@@ -102,7 +90,7 @@ export async function listIndividualProfiles(
 }
 
 export async function getIndividualProfileById(id: string): Promise<ServiceResult<IndividualProfile>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/individual/${id}`), {
@@ -122,7 +110,7 @@ export async function getIndividualProfileById(id: string): Promise<ServiceResul
 export async function listOrganizationProfiles(
   filters: Omit<AdminCustomerProfileListFilters, "ownerType">,
 ): Promise<ServiceResult<PageResponse<OrganizationProfile>>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const params = new URLSearchParams({ page: String(filters.page), size: String(filters.size) })
@@ -149,7 +137,7 @@ export async function listOrganizationProfiles(
 }
 
 export async function getOrganizationProfileById(id: string): Promise<ServiceResult<OrganizationProfile>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/${id}`), {
@@ -169,7 +157,7 @@ export async function getOrganizationProfileById(id: string): Promise<ServiceRes
 export async function enablePayLater(
   payload: AdminEnablePayLaterRequest,
 ): Promise<ServiceResult<ProfileBillingConfigurationResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/pay-later/enable"), {
@@ -191,7 +179,7 @@ export async function enablePayLater(
 export async function updatePostpayStatus(
   payload: AdminUpdatePostpayStatusRequest,
 ): Promise<ServiceResult<ProfileBillingConfigurationResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) return { data: null, error: { status: "401", message: "Unauthorized" } }
 
   const response = await fetch(getEndpointUrl(PROFILE_SERVICE_URL, "/admin/profile/billing/postpay/status"), {

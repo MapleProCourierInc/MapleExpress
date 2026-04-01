@@ -1,7 +1,7 @@
 import "server-only"
 
-import { cookies } from "next/headers"
 import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { getServerAuthHeaders } from "@/lib/server-auth"
 import type {
   AdminDriversQuery,
   AdminDriversResponse,
@@ -19,18 +19,6 @@ type ServiceResult<T> = {
   data: T | null
   error: ApiErrorResponse | null
   textError?: string | null
-}
-
-async function getAuthHeaders() {
-  const cookieStore = await cookies()
-  const accessToken = cookieStore.get("maplexpress_access_token")?.value || cookieStore.get("accessToken")?.value
-  const idToken = cookieStore.get("maplexpress_id_token")?.value
-
-  if (!accessToken || !idToken) return null
-  return {
-    Authorization: `Bearer ${accessToken}`,
-    "X-Id-Token": idToken,
-  }
 }
 
 async function parseError(response: Response): Promise<{ error: ApiErrorResponse | null; textError: string | null }> {
@@ -52,7 +40,7 @@ async function parseError(response: Response): Promise<{ error: ApiErrorResponse
 }
 
 export async function getAdminDrivers(query: AdminDriversQuery): Promise<ServiceResult<AdminDriversResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
@@ -79,7 +67,7 @@ export async function getAdminDrivers(query: AdminDriversQuery): Promise<Service
 }
 
 export async function getAdminDriverDetails(driverId: string): Promise<ServiceResult<DriverDetailsDto>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
@@ -103,7 +91,7 @@ export async function postAdminDriverAction(
   action: "approve" | "reject" | "suspend" | "unsuspend" | "terminate",
   payload: DriverActionRequestDto,
 ): Promise<ServiceResult<DriverActionResponseDto>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
@@ -130,7 +118,7 @@ export async function approveDriverLicense(
   driverId: string,
   payload: DriverLicenseApprovalRequestDto,
 ): Promise<ServiceResult<Record<string, unknown>>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
@@ -158,7 +146,7 @@ export async function approveDriverWorkEligibilityDocument(
   driverId: string,
   payload: DriverWorkEligibilityApprovalRequestDto,
 ): Promise<ServiceResult<Record<string, unknown>>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }
@@ -186,7 +174,7 @@ export async function approveDriverWorkEligibilityDocument(
 }
 
 export async function inviteAdminDriver(payload: AdminInviteDriverRequest): Promise<ServiceResult<AdminInviteDriverResponse>> {
-  const headers = await getAuthHeaders()
+  const headers = await getServerAuthHeaders({ includeIdToken: true })
   if (!headers) {
     return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
   }

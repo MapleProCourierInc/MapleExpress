@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/client-api"
 import type { MeResponse } from "@/lib/me-service"
 
 export type OnboardingUserType = "INDIVIDUAL" | "ORGANIZATION"
@@ -38,7 +39,7 @@ export type OnboardingResult = {
 }
 
 export async function submitOnboarding(payload: OnboardingPayload): Promise<OnboardingResult> {
-  const response = await fetch("/api/profile/onboarding", {
+  const response = await apiFetch("/api/profile/onboarding", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",

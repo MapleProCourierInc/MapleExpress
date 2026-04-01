@@ -1,3 +1,4 @@
+import { apiFetch } from "@/lib/client-api"
 import type { Address } from "@/types/address"
 
 type AddressInput = Omit<Address, "addressId" | "isPrimary"> & { isPrimary?: boolean }
@@ -18,7 +19,7 @@ async function getErrorMessage(response: Response, fallback: string) {
 
 // Get all addresses for a user
 export async function getAddresses(): Promise<Address[]> {
-  const response = await fetch("/api/profile/address")
+  const response = await apiFetch("/api/profile/address")
 
   if (!response.ok) {
     const message = await getErrorMessage(response, "Failed to fetch addresses")
@@ -32,7 +33,7 @@ export async function getAddresses(): Promise<Address[]> {
 export async function createAddress(
   addressData: AddressInput,
 ): Promise<Address> {
-  const response = await fetch("/api/profile/address", {
+  const response = await apiFetch("/api/profile/address", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -53,7 +54,7 @@ export async function updateAddress(
   addressId: string,
   addressData: AddressInput,
 ): Promise<Address> {
-  const response = await fetch(`/api/profile/address/${addressId}`, {
+  const response = await apiFetch(`/api/profile/address/${addressId}`, {
     method: "PATCH",
     headers: {
       "Content-Type": "application/json",
@@ -73,7 +74,7 @@ export async function updateAddress(
 export async function deleteAddress(
   addressId: string,
 ): Promise<boolean> {
-  const response = await fetch(`/api/profile/address/${addressId}`, {
+  const response = await apiFetch(`/api/profile/address/${addressId}`, {
     method: "DELETE",
   })
 
