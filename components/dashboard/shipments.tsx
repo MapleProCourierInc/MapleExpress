@@ -395,21 +395,21 @@ export function Shipments() {
                           key={item.trackingId || idx}
                           className="p-2.5 space-y-1.5"
                         >
-                          <div className="flex items-center justify-between gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <p className="text-sm font-medium">
-                                Item {idx + 1}
-                              </p>
-                              {statusBadge(item.itemStatus)}
-                            </div>
-                            <div className="text-right">
-                              <p className="text-sm font-semibold">
-                                {money(item.pricing?.totalAmount)}
-                              </p>
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="text-sm font-medium">
+                                  Item {idx + 1}
+                                </p>
+                                {statusBadge(item.itemStatus)}
+                              </div>
                               <p className="text-xs text-muted-foreground">
                                 Tracking: {item.trackingId || "N/A"}
                               </p>
                             </div>
+                            <p className="text-sm font-semibold whitespace-nowrap">
+                              {money(item.pricing?.totalAmount)}
+                            </p>
                           </div>
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-muted-foreground">
                             <div>
