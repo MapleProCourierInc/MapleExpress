@@ -158,7 +158,6 @@ export function Shipments() {
     <div className="space-y-3">
       <div className="rounded-lg border bg-background px-3 py-2">
         <h1 className="text-xl font-semibold tracking-tight">Shipments Workspace</h1>
-        <p className="text-xs text-muted-foreground">Browse orders on the left and inspect full order items on the right.</p>
       </div>
 
       {error && (
@@ -186,7 +185,6 @@ export function Shipments() {
                 <SelectContent>
                   <SelectItem value="newest">Newest first</SelectItem>
                   <SelectItem value="oldest">Oldest first</SelectItem>
-                  <SelectItem value="updated">Recently updated</SelectItem>
                 </SelectContent>
               </Select>
             </div>
