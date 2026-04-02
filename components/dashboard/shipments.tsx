@@ -5,21 +5,13 @@ import { getClientOrders, type ClientOrder, type ClientOrdersFilters } from "@/l
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 import { CalendarClock, Package, Route, Truck, AlertCircle } from "lucide-react"
 
 type SortOption = "newest" | "oldest" | "updated"
-type StatusTab = "delivered" | "in_progress" | "failed"
 
 const PAGE_SIZE = 10
-
-const TAB_STATUS_MAP: Record<StatusTab, string[]> = {
-  delivered: ["delivered", "partial_complete"],
-  in_progress: ["confirmed", "label_created", "scheduled", "assigned", "picked_up", "in_transit", "in_progress", "end_of_day", "drop_off_failed"],
-  failed: ["draft", "payment_pending", "payment_failed", "pickup_failed", "returned", "failed", "cancelled"],
-}
 
 function getSortParams(sort: SortOption): Pick<ClientOrdersFilters, "sortBy" | "sortDir"> {
   switch (sort) {
@@ -89,7 +81,6 @@ function itemBucket(status?: string | null): "delivered" | "in_progress" | "fail
 }
 
 export function Shipments() {
-  const [activeTab, setActiveTab] = useState<StatusTab>("delivered")
   const [sortOption, setSortOption] = useState<SortOption>("newest")
   const [page, setPage] = useState(0)
 
@@ -133,26 +124,21 @@ export function Shipments() {
     loadOrders()
   }, [page, sortParams])
 
-  const visibleOrders = useMemo(() => {
-    const statuses = new Set(TAB_STATUS_MAP[activeTab])
-    return ordersPage.filter((order) => statuses.has((order.orderStatus || "").toLowerCase()))
-  }, [ordersPage, activeTab])
-
   useEffect(() => {
-    if (!visibleOrders.length) {
+    if (!ordersPage.length) {
       setSelectedOrderId(null)
       return
     }
 
-    const exists = selectedOrderId && visibleOrders.some((o) => o.shippingOrderId === selectedOrderId)
+    const exists = selectedOrderId && ordersPage.some((o) => o.shippingOrderId === selectedOrderId)
     if (!exists) {
-      setSelectedOrderId(visibleOrders[0].shippingOrderId)
+      setSelectedOrderId(ordersPage[0].shippingOrderId)
     }
-  }, [visibleOrders, selectedOrderId, activeTab, page])
+  }, [ordersPage, selectedOrderId, page])
 
   const selectedOrder = useMemo(
-    () => visibleOrders.find((o) => o.shippingOrderId === selectedOrderId) || null,
-    [visibleOrders, selectedOrderId],
+    () => ordersPage.find((o) => o.shippingOrderId === selectedOrderId) || null,
+    [ordersPage, selectedOrderId],
   )
 
   const itemProgress = useMemo(() => {
@@ -205,13 +191,6 @@ export function Shipments() {
               </Select>
             </div>
 
-            <Tabs value={activeTab} onValueChange={(value) => setActiveTab(value as StatusTab)}>
-              <TabsList className="grid grid-cols-3 h-8">
-                <TabsTrigger value="delivered" className="text-xs">Delivered</TabsTrigger>
-                <TabsTrigger value="in_progress" className="text-xs">In Progress</TabsTrigger>
-                <TabsTrigger value="failed" className="text-xs">Failed</TabsTrigger>
-              </TabsList>
-            </Tabs>
             <CardDescription className="text-xs">{totalElements} orders</CardDescription>
           </CardHeader>
 
@@ -225,13 +204,13 @@ export function Shipments() {
                   </div>
                 ))}
               </div>
-            ) : visibleOrders.length === 0 ? (
+            ) : ordersPage.length === 0 ? (
               <div className="flex-1 px-4 py-10 text-center text-xs text-muted-foreground flex items-center justify-center">
-                No orders in this tab for the current fetched page.
+                No orders found for the current page.
               </div>
             ) : (
               <div className="divide-y border-y flex-1">
-                {visibleOrders.map((order) => {
+                {ordersPage.map((order) => {
                   const selected = selectedOrderId === order.shippingOrderId
                   return (
                     <button
