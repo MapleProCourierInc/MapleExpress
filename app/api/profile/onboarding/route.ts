@@ -8,7 +8,7 @@ export async function POST(request: NextRequest) {
 
     return await proxyWithAuthRetry(request, {
       method: "POST",
-      url: getEndpointUrl(PROFILE_SERVICE_URL, "/onboarding"),
+      url: getEndpointUrl(PROFILE_SERVICE_URL, "/profile/onboarding"),
       body: JSON.stringify(body),
       includeIdToken: true,
       contentTypeJson: true,

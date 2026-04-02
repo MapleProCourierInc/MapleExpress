@@ -6,11 +6,9 @@
 // Auth Service
 export const AUTH_MICROSERVICE_URL = process.env.AUTH_MICROSERVICE_URL || 'https://testapi.maplexpress.ca/usermanagement/auth';
 export const AUTH_REFRESH_URL = process.env.AUTH_REFRESH_URL || `${AUTH_MICROSERVICE_URL}/refresh`;
-export const AUTH_API_KEY = process.env.AUTH_API_KEY || '';
 
 // Cognito
 export const COGNITO_REGION = process.env.COGNITO_REGION || '';
-export const COGNITO_USER_POOL_ID = process.env.COGNITO_USER_POOL_ID || '';
 export const COGNITO_CLIENT_ID = process.env.COGNITO_CLIENT_ID || '';
 
 // Profile Service

@@ -34,7 +34,7 @@ export async function GET(request: NextRequest) {
   try {
     return await proxyWithAuthRetry(request, {
       method: "GET",
-      url: getEndpointUrl(PROFILE_SERVICE_URL, "/usermanagement/profile/individual"),
+      url: getEndpointUrl(PROFILE_SERVICE_URL, "/profile/individual"),
       contentTypeJson: true,
     })
   } catch (error) {

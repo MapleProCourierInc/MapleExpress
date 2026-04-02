@@ -3,6 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
+import { getIndividualProfileOrNull, getOrganizationProfileOrNull } from "@/lib/profile-service"
 import { apiFetch, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
 
 // Update the User type to match your API response
@@ -448,9 +449,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       if (!result.success || !result.data) {
         if (result.statusCode === 401) {
-          clearSession()
-          if (window.location.pathname !== "/") {
-            window.location.href = "/"
+          try {
+            const meData = await getMe()
+            setMe(meData)
+            localStorage.setItem("maplexpress_me", JSON.stringify(meData))
+            setClientStateCookies(meData)
+          } catch (error) {
+            if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
+              clearSession()
+              if (window.location.pathname !== "/") {
+                window.location.href = "/"
+              }
+            }
           }
         }
 
@@ -485,34 +495,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     try {
       if (currentUser.userType === "individualUser") {
-        const response = await apiFetch(
-          `/api/profile/individual?email=${encodeURIComponent(currentUser.email)}`,
-          {},
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          const profile = Array.isArray(data) ? data[0] : data
+        const profile = await getIndividualProfileOrNull(currentUser.userId)
+        if (profile) {
           setIndividualProfile(profile)
-          localStorage.setItem(
-            "maplexpress_individual_profile",
-            JSON.stringify(profile),
-          )
+          localStorage.setItem("maplexpress_individual_profile", JSON.stringify(profile))
+        } else {
+          localStorage.removeItem("maplexpress_individual_profile")
+          setIndividualProfile(null)
         }
       } else if (currentUser.userType === "businessUser") {
-        const response = await apiFetch(
-          `/api/profile/organization?email=${encodeURIComponent(currentUser.email)}`,
-          {},
-        )
-
-        if (response.ok) {
-          const data = await response.json()
-          const profile = Array.isArray(data) ? data[0] : data
+        const profile = await getOrganizationProfileOrNull(currentUser.userId)
+        if (profile) {
           setOrganizationProfile(profile)
-          localStorage.setItem(
-            "maplexpress_organization_profile",
-            JSON.stringify(profile),
-          )
+          localStorage.setItem("maplexpress_organization_profile", JSON.stringify(profile))
+        } else {
+          localStorage.removeItem("maplexpress_organization_profile")
+          setOrganizationProfile(null)
         }
       }
     } catch (error) {
