@@ -149,7 +149,7 @@ export default function Dashboard() {
           {activeSection === "shipments" ? (
             <Shipments />
           ) : (
-            <ProfileSection userId={user.userId} userType={user.userType} displayName={displayName} email={user.email} />
+            <ProfileSection userId={user.userId} userType={user.userType} displayName={displayName} email={user.email} me={me} />
           )}
         </main>
       </div>

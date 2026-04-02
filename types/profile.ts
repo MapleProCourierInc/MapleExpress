@@ -17,6 +17,11 @@ export interface BillingAccount {
   billingAccountId: string
 }
 
+export interface PayLaterConfiguration {
+  paymentTerms?: string | null
+  activationStatus?: string | null
+}
+
 export interface IndividualProfile {
   id: string
   userId: string
@@ -35,6 +40,7 @@ export interface IndividualProfile {
   billingAccount?: BillingAccount
   discounts?: Discount[]
   extensions?: Record<string, string>
+  payLaterConfiguration?: PayLaterConfiguration | null
 }
 
 export interface PointOfContact {
@@ -62,5 +68,5 @@ export interface OrganizationProfile {
   billingAccount?: BillingAccount
   discounts?: Discount[]
   extensions?: Record<string, string>
+  payLaterConfiguration?: PayLaterConfiguration | null
 }
-

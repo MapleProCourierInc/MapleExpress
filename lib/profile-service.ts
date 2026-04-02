@@ -1,40 +1,66 @@
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
 import { apiFetch } from "@/lib/client-api"
 
-// Get individual profile
-export async function getIndividualProfile(userId: string): Promise<IndividualProfile> {
+type PaginatedResponse<T> = {
+  items?: T[]
+}
 
-  const response = await apiFetch(`/api/profile/individual?userId=${userId}`)
+function getFirstItem<T>(payload: unknown): T | null {
+  if (Array.isArray(payload)) {
+    return (payload[0] as T | undefined) || null
+  }
+
+  if (payload && typeof payload === "object" && "items" in payload) {
+    const paginated = payload as PaginatedResponse<T>
+    return Array.isArray(paginated.items) ? (paginated.items[0] || null) : null
+  }
+
+  return (payload as T) || null
+}
+
+// Get individual profile
+export async function getIndividualProfile(_userId?: string): Promise<IndividualProfile> {
+  const response = await apiFetch("/api/profile/individual")
 
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || "Failed to fetch individual profile")
   }
 
-  return response.json()
+  const data = await response.json()
+  const profile = getFirstItem<IndividualProfile>(data)
+
+  if (!profile) {
+    throw new Error("Individual profile not found")
+  }
+
+  return profile
 }
 
 // Get organization profile
-export async function getOrganizationProfile(userId: string): Promise<OrganizationProfile> {
-
-  const response = await apiFetch(`/api/profile/organization?userId=${userId}`)
+export async function getOrganizationProfile(_userId?: string): Promise<OrganizationProfile> {
+  const response = await apiFetch("/api/profile/organization")
 
   if (!response.ok) {
     const error = await response.json()
     throw new Error(error.message || "Failed to fetch organization profile")
   }
 
-  return response.json()
+  const data = await response.json()
+  const profile = getFirstItem<OrganizationProfile>(data)
+
+  if (!profile) {
+    throw new Error("Organization profile not found")
+  }
+
+  return profile
 }
 
 // Get individual profile by email
 export async function getIndividualProfileByEmail(
-  email: string,
+  _email: string,
 ): Promise<IndividualProfile> {
-
-  const response = await apiFetch(
-    `/api/profile/individual?email=${encodeURIComponent(email)}`,
-  )
+  const response = await apiFetch("/api/profile/individual")
 
   if (!response.ok) {
     const error = await response.json()
@@ -42,17 +68,20 @@ export async function getIndividualProfileByEmail(
   }
 
   const data = await response.json()
-  return Array.isArray(data) ? data[0] : data
+  const profile = getFirstItem<IndividualProfile>(data)
+
+  if (!profile) {
+    throw new Error("Individual profile not found")
+  }
+
+  return profile
 }
 
 // Get organization profile by email
 export async function getOrganizationProfileByEmail(
-  email: string,
+  _email: string,
 ): Promise<OrganizationProfile> {
-
-  const response = await apiFetch(
-    `/api/profile/organization?email=${encodeURIComponent(email)}`,
-  )
+  const response = await apiFetch("/api/profile/organization")
 
   if (!response.ok) {
     const error = await response.json()
@@ -60,7 +89,37 @@ export async function getOrganizationProfileByEmail(
   }
 
   const data = await response.json()
-  return Array.isArray(data) ? data[0] : data
+  const profile = getFirstItem<OrganizationProfile>(data)
+
+  if (!profile) {
+    throw new Error("Organization profile not found")
+  }
+
+  return profile
+}
+
+export async function getIndividualProfileOrNull(_userId?: string): Promise<IndividualProfile | null> {
+  const response = await apiFetch("/api/profile/individual")
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || "Failed to fetch individual profile")
+  }
+
+  const data = await response.json()
+  return getFirstItem<IndividualProfile>(data)
+}
+
+export async function getOrganizationProfileOrNull(_userId?: string): Promise<OrganizationProfile | null> {
+  const response = await apiFetch("/api/profile/organization")
+
+  if (!response.ok) {
+    const error = await response.json()
+    throw new Error(error.message || "Failed to fetch organization profile")
+  }
+
+  const data = await response.json()
+  return getFirstItem<OrganizationProfile>(data)
 }
 
 // Update individual profile
@@ -209,4 +268,3 @@ export async function changePassword(
 
   return data
 }
-

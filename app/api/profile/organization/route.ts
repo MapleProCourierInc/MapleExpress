@@ -36,21 +36,9 @@ export async function POST(request: NextRequest) {
 
 export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url)
-    const userId = searchParams.get("userId")
-    const email = searchParams.get("email")
-
-    if (!userId && !email) {
-      return NextResponse.json({ message: "userId or email is required" }, { status: 400 })
-    }
-
-    const endpoint = userId
-      ? getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization?userId=${encodeURIComponent(userId)}`)
-      : getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization?email=${encodeURIComponent(email || "")}`)
-
     return await proxyWithAuthRetry(request, {
       method: "GET",
-      url: endpoint,
+      url: getEndpointUrl(PROFILE_SERVICE_URL, "/usermanagement/profile/Organization"),
       contentTypeJson: true,
     })
   } catch (error) {

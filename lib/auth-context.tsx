@@ -111,6 +111,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const GROUP_COOKIE_NAME = "maplexpress_group"
+  const CLIENT_TYPE_COOKIE_NAME = "maplexpress_client_type"
   const GROUP_COOKIE_MAX_AGE = 60 * 60 * 24 * 5
 
   const [user, setUser] = useState<User>(null)
@@ -119,17 +120,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [individualProfile, setIndividualProfile] = useState<IndividualProfile | null>(null)
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfile | null>(null)
 
-  const setClientGroupCookie = (groups?: string[]) => {
+  const getClientTypeFromGroups = (groups?: string[]) => {
+    if (!groups || groups.length === 0) return null
+    if (groups.includes("client_individual")) return "client_individual"
+    if (groups.includes("client_organization")) return "client_organization"
+    return null
+  }
+
+  const setClientStateCookies = (meData?: Pick<MeResponse, "authenticated" | "groups">) => {
     if (typeof document === "undefined") return
 
-    const group = groups?.[0]
+    const group = meData?.groups?.[0]
+    const clientType = meData?.authenticated ? getClientTypeFromGroups(meData.groups) : null
 
     if (group) {
       document.cookie = `${GROUP_COOKIE_NAME}=${encodeURIComponent(group)}; path=/; max-age=${GROUP_COOKIE_MAX_AGE}; samesite=lax`
-      return
+    } else {
+      document.cookie = `${GROUP_COOKIE_NAME}=; path=/; max-age=0; samesite=lax`
     }
 
-    document.cookie = `${GROUP_COOKIE_NAME}=; path=/; max-age=0; samesite=lax`
+    if (clientType) {
+      document.cookie = `${CLIENT_TYPE_COOKIE_NAME}=${encodeURIComponent(clientType)}; path=/; max-age=${GROUP_COOKIE_MAX_AGE}; samesite=lax`
+    } else {
+      document.cookie = `${CLIENT_TYPE_COOKIE_NAME}=; path=/; max-age=0; samesite=lax`
+    }
   }
 
   const clearSession = () => {
@@ -138,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("maplexpress_me")
     localStorage.removeItem("maplexpress_individual_profile")
     localStorage.removeItem("maplexpress_organization_profile")
-    setClientGroupCookie()
+    setClientStateCookies()
     setUser(null)
     setMe(null)
     setIndividualProfile(null)
@@ -149,7 +163,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const meData = await getMe()
     setMe(meData)
     localStorage.setItem("maplexpress_me", JSON.stringify(meData))
-    setClientGroupCookie(meData.groups)
+    setClientStateCookies(meData)
 
     const isSuperAdmin = meData.authenticated && meData.groups?.includes("admin_super")
 
@@ -446,7 +460,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const meData = result.data
       setMe(meData)
       localStorage.setItem("maplexpress_me", JSON.stringify(meData))
-      setClientGroupCookie(meData.groups)
+      setClientStateCookies(meData)
 
       if (user) {
         const updatedUser = { ...user, userStatus: "active" }
