@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
-import { apiFetch, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
+import { apiFetch, AUTH_INVALID_EVENT, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
 
 // Update the User type to match your API response
 type User = {
@@ -223,6 +223,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     checkAuth()
+  }, [])
+
+  useEffect(() => {
+    const handleAuthInvalid = () => {
+      clearSession()
+      if (window.location.pathname !== "/") {
+        window.location.href = "/"
+      }
+    }
+
+    window.addEventListener(AUTH_INVALID_EVENT, handleAuthInvalid)
+    return () => {
+      window.removeEventListener(AUTH_INVALID_EVENT, handleAuthInvalid)
+    }
   }, [])
 
   // Update the login function to handle different user statuses:
