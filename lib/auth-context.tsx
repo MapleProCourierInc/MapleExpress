@@ -188,22 +188,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (userData) {
-          // Check if token is expired
-          const user = JSON.parse(userData)
-          const expirationDate = new Date(user.tokenExpiration)
+        const parsedUser = userData ? (JSON.parse(userData) as NonNullable<User>) : null
 
-          if (expirationDate > new Date()) {
-            setUser(user)
-            const meData = await syncMe(user)
+        if (parsedUser) {
+          setUser(parsedUser)
+        }
 
-            if (meData.status === "ACTIVE" && user.userStatus === "active") {
-              fetchUserProfile(user)
-            }
-          } else {
-            // Token is expired, clear it
-            clearSession()
+        const seedUser: NonNullable<User> =
+          parsedUser || {
+            userId: "",
+            userStatus: "active",
+            userType: "individualUser",
+            tokenExpiration: "",
+            email: "",
           }
+
+        const meData = await syncMe(seedUser)
+
+        if (meData.status === "ACTIVE" && parsedUser?.userStatus === "active") {
+          fetchUserProfile(parsedUser)
         }
       } catch (error) {
         console.error("Authentication check failed:", error)
