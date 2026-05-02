@@ -254,6 +254,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
+        // Reset profile cache so role/account switches do not render stale client data
+        setIndividualProfile(null)
+        setOrganizationProfile(null)
+        localStorage.removeItem("maplexpress_individual_profile")
+        localStorage.removeItem("maplexpress_organization_profile")
+
         // Create user object from response
         const user = {
           userId: data.userId,
