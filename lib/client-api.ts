@@ -2,6 +2,13 @@
 
 let refreshPromise: Promise<boolean> | null = null
 
+const AUTH_INVALID_EVENT = "maplexpress:auth-invalid"
+
+const dispatchAuthInvalidEvent = () => {
+  if (typeof window === "undefined") return
+  window.dispatchEvent(new CustomEvent(AUTH_INVALID_EVENT))
+}
+
 const clearLegacyAuthStorage = () => {
   localStorage.removeItem("maplexpress_access_token")
   localStorage.removeItem("maplexpress_refresh_token")
@@ -21,6 +28,9 @@ const refreshSession = async (): Promise<boolean> => {
 
         if (!response.ok) {
           clearLegacyAuthStorage()
+          if (response.status === 400 || response.status === 401) {
+            dispatchAuthInvalidEvent()
+          }
           return false
         }
 
@@ -51,6 +61,7 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {},
 
   const refreshed = await refreshSession()
   if (!refreshed) {
+    dispatchAuthInvalidEvent()
     return response
   }
 
@@ -66,3 +77,5 @@ export async function initSessionRefresh() {
   if (typeof window === "undefined") return
   await refreshSession()
 }
+
+export { AUTH_INVALID_EVENT }

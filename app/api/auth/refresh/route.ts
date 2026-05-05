@@ -24,8 +24,9 @@ export async function POST(request: NextRequest) {
     return response
   } catch (error) {
     console.error("Token refresh error:", error)
-    const response = NextResponse.json({ message: "Internal server error" }, { status: 500 })
-    clearAuthCookies(response)
-    return response
+    return NextResponse.json(
+      { message: "Token refresh temporarily unavailable" },
+      { status: 503 },
+    )
   }
 }

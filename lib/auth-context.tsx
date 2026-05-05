@@ -3,7 +3,7 @@
 import { createContext, useContext, useState, useEffect, type ReactNode } from "react"
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
-import { apiFetch, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
+import { apiFetch, AUTH_INVALID_EVENT, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
 
 // Update the User type to match your API response
 type User = {
@@ -188,22 +188,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           }
         }
 
-        if (userData) {
-          // Check if token is expired
-          const user = JSON.parse(userData)
-          const expirationDate = new Date(user.tokenExpiration)
+        const parsedUser = userData ? (JSON.parse(userData) as NonNullable<User>) : null
 
-          if (expirationDate > new Date()) {
-            setUser(user)
-            const meData = await syncMe(user)
+        if (parsedUser) {
+          setUser(parsedUser)
+        }
 
-            if (meData.status === "ACTIVE" && user.userStatus === "active") {
-              fetchUserProfile(user)
-            }
-          } else {
-            // Token is expired, clear it
-            clearSession()
+        const seedUser: NonNullable<User> =
+          parsedUser || {
+            userId: "",
+            userStatus: "active",
+            userType: "individualUser",
+            tokenExpiration: "",
+            email: "",
           }
+
+        const meData = await syncMe(seedUser)
+
+        if (meData.status === "ACTIVE" && parsedUser?.userStatus === "active") {
+          fetchUserProfile(parsedUser)
         }
       } catch (error) {
         console.error("Authentication check failed:", error)
@@ -220,6 +223,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     checkAuth()
+  }, [])
+
+  useEffect(() => {
+    const handleAuthInvalid = () => {
+      clearSession()
+      if (window.location.pathname !== "/") {
+        window.location.href = "/"
+      }
+    }
+
+    window.addEventListener(AUTH_INVALID_EVENT, handleAuthInvalid)
+    return () => {
+      window.removeEventListener(AUTH_INVALID_EVENT, handleAuthInvalid)
+    }
   }, [])
 
   // Update the login function to handle different user statuses:
@@ -250,6 +267,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             userStatus: "pendingEmailVerification",
           }
         }
+
+        // Reset profile cache so role/account switches do not render stale client data
+        setIndividualProfile(null)
+        setOrganizationProfile(null)
+        localStorage.removeItem("maplexpress_individual_profile")
+        localStorage.removeItem("maplexpress_organization_profile")
 
         // Create user object from response
         const user = {
