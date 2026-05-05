@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { AUTH_REFRESH_URL } from "@/lib/config"
+import { cognitoRequest, getCognitoClientId } from "@/lib/cognito"
 
 export type AuthTokens = {
   accessToken: string | null
@@ -89,29 +89,29 @@ export async function getAuthTokensFromCookies(): Promise<AuthTokens> {
   }
 }
 
-async function refreshWithToken(refreshToken: string, forwardedIp?: string | null): Promise<RefreshedTokens | null> {
+async function refreshWithToken(refreshToken: string, _forwardedIp?: string | null): Promise<RefreshedTokens | null> {
   if (!refreshPromise) {
     refreshPromise = (async () => {
-      const response = await fetch(AUTH_REFRESH_URL, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-          "Accept-Language": "application/json",
-          "X-Real-IP": forwardedIp || "127.0.0.1",
+      const cognitoResponse = await cognitoRequest<{ AuthenticationResult?: { AccessToken?: string; IdToken?: string } }>(
+        "AWSCognitoIdentityProviderService.InitiateAuth",
+        {
+          AuthFlow: "REFRESH_TOKEN_AUTH",
+          ClientId: getCognitoClientId(),
+          AuthParameters: {
+            REFRESH_TOKEN: refreshToken,
+          },
         },
-        body: JSON.stringify({ refreshToken }),
-      })
+      )
 
-      if (!response.ok) return null
+      if (!cognitoResponse.ok) return null
 
-      const data = (await response.json()) as { accessToken?: string; refreshToken?: string; idToken?: string }
-      if (!data.accessToken) return null
+      const authResult = cognitoResponse.data.AuthenticationResult
+      if (!authResult?.AccessToken) return null
 
       return {
-        accessToken: data.accessToken,
-        refreshToken: data.refreshToken,
-        idToken: data.idToken,
+        accessToken: authResult.AccessToken,
+        idToken: authResult.IdToken,
+        refreshToken,
       }
     })().finally(() => {
       refreshPromise = null

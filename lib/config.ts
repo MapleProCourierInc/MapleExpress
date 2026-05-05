@@ -5,7 +5,6 @@
 
 // Auth Service
 export const AUTH_MICROSERVICE_URL = process.env.AUTH_MICROSERVICE_URL || 'https://testapi.maplexpress.ca/usermanagement/auth';
-export const AUTH_REFRESH_URL = process.env.AUTH_REFRESH_URL || `${AUTH_MICROSERVICE_URL}/refresh`;
 export const AUTH_API_KEY = process.env.AUTH_API_KEY || '';
 
 // Cognito
