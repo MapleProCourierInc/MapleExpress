@@ -52,5 +52,5 @@ export const getEndpointUrl = (baseUrl: string, endpoint: string): string => {
 };
 
 export const MONERIS_API_CONFIG = {
-  baseUrl: "http://localhost:8084/pricingpayment/moneris/"
+  baseUrl: "http://localhost/pricingpayment/moneris/"
 };

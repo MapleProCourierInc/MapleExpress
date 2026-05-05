@@ -262,7 +262,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
         <div className="mb-4 p-3 bg-red-100 text-red-700 border border-red-300 rounded-md text-center">{paymentError}</div>
       )}
 
-      <div className="moneris-checkout-container-wrapper">
+      <div className={`moneris-checkout-container-wrapper ${!isMonerisCheckoutActive ? "hidden" : ""}`}>
         <div
           id="monerisCheckoutDivId"
           className={!isMonerisCheckoutActive ? "hidden" : ""}
