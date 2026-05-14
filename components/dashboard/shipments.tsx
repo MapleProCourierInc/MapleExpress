@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   getClientOrderDetail,
   getClientOrders,
@@ -157,6 +158,10 @@ function documentLabel(document: GeneratedDocument) {
 }
 
 export function Shipments() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const orderIdParam = searchParams.get("orderId")?.trim() || null;
+
   const [sortOption, setSortOption] = useState<SortOption>("newest");
   const [page, setPage] = useState(0);
 
@@ -218,11 +223,21 @@ export function Shipments() {
   }, [page, sortParams]);
 
   useEffect(() => {
+    if (orderIdParam) {
+      setSelectedOrderId(orderIdParam);
+    }
+  }, [orderIdParam]);
+
+  useEffect(() => {
     if (!ordersPage.length) {
-      setSelectedOrderId(null);
-      setSelectedOrderDetail(null);
+      if (!orderIdParam) {
+        setSelectedOrderId(null);
+        setSelectedOrderDetail(null);
+      }
       return;
     }
+
+    if (orderIdParam) return;
 
     const exists =
       selectedOrderId &&
@@ -230,7 +245,7 @@ export function Shipments() {
     if (!exists) {
       setSelectedOrderId(ordersPage[0].shippingOrderId);
     }
-  }, [ordersPage, selectedOrderId]);
+  }, [ordersPage, selectedOrderId, orderIdParam]);
 
   useEffect(() => {
     if (!selectedOrderId) {
@@ -258,7 +273,9 @@ export function Shipments() {
       } catch (err) {
         if (cancelled) return;
         console.error("Failed to fetch order detail", err);
-        setDetailError("Failed to load this shipment. Please try again.");
+        setDetailError(
+          "We could not load this order. Please check the link or try again.",
+        );
       } finally {
         if (!cancelled) setIsDetailLoading(false);
       }
@@ -270,6 +287,15 @@ export function Shipments() {
       cancelled = true;
     };
   }, [selectedOrderId]);
+
+  const handleSelectOrder = (shippingOrderId: string) => {
+    setSelectedOrderId(shippingOrderId);
+
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("section", "shipments");
+    params.set("orderId", shippingOrderId);
+    router.push(`/dashboard?${params.toString()}`);
+  };
 
   const selectedSummary = useMemo(
     () =>
@@ -358,7 +384,7 @@ export function Shipments() {
                     <button
                       key={order.shippingOrderId}
                       className={`w-full text-left px-3 py-2.5 hover:bg-muted/30 ${selected ? "bg-muted/60" : ""}`}
-                      onClick={() => setSelectedOrderId(order.shippingOrderId)}
+                      onClick={() => handleSelectOrder(order.shippingOrderId)}
                     >
                       <div className="flex items-center justify-between gap-2">
                         <p className="text-sm font-semibold truncate">
