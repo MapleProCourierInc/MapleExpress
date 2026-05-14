@@ -42,7 +42,7 @@ export const MONERIS_CHECKOUT_MODE =
   process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_MODE || "qa";
 
 // Google Maps API
-export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || 'AIzaSyA3wSq5PrN2evVDM5MiRKPa4ZS69taWS8E';
+export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || '';
 
 /**
  * Helper function to get the full URL for a specific endpoint
