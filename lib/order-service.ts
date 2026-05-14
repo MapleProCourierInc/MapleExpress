@@ -1,6 +1,6 @@
 import type {
-  ShippingOrder,
-  Address,
+  ShippingOrder as DraftShippingOrder,
+  Address as DraftAddress,
 } from "@/components/ship-now/ship-now-form";
 
 import { apiFetch } from "@/lib/client-api";
@@ -94,39 +94,133 @@ export interface OrderItemResponse {
   specialIncidents: any[];
 }
 
-export interface ClientOrder {
-  shippingOrderId: string;
-  orderStatus: string;
-  paymentStatus: string;
-  priorityDelivery: boolean;
-  createdAt: string;
-  updatedAt?: string;
-  aggregatedPricing?: {
-    totalAmount?: number;
-  };
-  orderItems: Array<{
-    trackingId?: string | null;
-    itemStatus?: string | null;
-    pickup?: {
-      address?: {
-        city?: string;
-        streetAddress?: string;
-      };
-    };
-    dropoff?: {
-      address?: {
-        city?: string;
-        streetAddress?: string;
-      };
-    };
-    packageDetails?: {
-      weight?: number | null;
-    };
-    pricing?: {
-      totalAmount?: number | null;
-    };
-  }>;
+export interface Tax {
+  amount: number;
+  taxType: string;
 }
+
+export interface Pricing {
+  basePrice?: number | null;
+  distanceCharge?: number | null;
+  weightCharge?: number | null;
+  dimensionalWeightCharge?: number | null;
+  prioritySurcharge?: number | null;
+  taxes?: Tax[];
+  discount?: number | null;
+  totalAmount?: number | null;
+  pricingId?: string | null;
+}
+
+export interface Address {
+  fullName?: string | null;
+  company?: string | null;
+  streetAddress?: string | null;
+  addressLine2?: string | null;
+  city?: string | null;
+  province?: string | null;
+  postalCode?: string | null;
+  country?: string | null;
+  phoneNumber?: string | null;
+  deliveryInstructions?: string | null;
+}
+
+export interface Coordinates {
+  latitude?: number | null;
+  longitude?: number | null;
+}
+
+export interface Stop {
+  address?: Address | null;
+  coordinates?: Coordinates | null;
+  time?: string | null;
+  notes?: string | null;
+  images?: unknown[];
+}
+
+export interface OrderItem {
+  orderItemId?: string | null;
+  trackingId?: string | null;
+  pickup?: Stop | null;
+  dropoff?: Stop | null;
+  distanceToDelivery?: number | null;
+  packageDetails?: {
+    weight?: number | null;
+    dimensions?: {
+      length?: number | null;
+      width?: number | null;
+      height?: number | null;
+    } | null;
+    type?: string | null;
+    value?: number | null;
+    images?: unknown[];
+  } | null;
+  pricing?: Pricing | null;
+  itemStatus?: string | null;
+  assignedDriverId?: string | null;
+  isFragile?: boolean | null;
+  estimatedDeliveryTime?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  specialIncidents?: unknown[];
+}
+
+export interface ShippingOrder {
+  shippingOrderId: string;
+  userId?: string | null;
+  clientUserId?: string | null;
+  clientType?: string | null;
+  customerContact?: {
+    name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+  } | null;
+  priorityDelivery?: boolean | null;
+  orderStatus?: string | null;
+  assignedDriverId?: string | null;
+  paymentStatus?: string | null;
+  paymentId?: string | null;
+  createdAt?: string | null;
+  updatedAt?: string | null;
+  aggregatedPricing?: Pricing | null;
+  orderItems?: OrderItem[];
+}
+
+export interface GeneratedDocument {
+  documentType?: string | null;
+  documentName?: string | null;
+  s3Key?: string | null;
+  presignedUrl?: string | null;
+}
+
+export interface CustomerOrderDetailResponse {
+  shippingOrder?: ShippingOrder | null;
+  documents?: GeneratedDocument[];
+}
+
+export interface CustomerOrderSummaryResponse {
+  shippingOrderId: string;
+  createdAt?: string | null;
+  orderStatus?: string | null;
+  amount?: number | null;
+  numberOfOrderItems?: number | null;
+}
+
+export interface PaginationMetadata {
+  page: number;
+  size: number;
+  totalElements: number;
+  totalPages: number;
+  sortBy: string;
+  sortDir: "asc" | "desc";
+}
+
+export interface PagedCustomerOrderSummaryResponse {
+  orders: CustomerOrderSummaryResponse[];
+  pagination: PaginationMetadata;
+}
+
+export type ClientOrdersResponse = PagedCustomerOrderSummaryResponse;
+export type ClientOrder = CustomerOrderSummaryResponse;
 
 export interface ClientOrdersFilters {
   orderStatus?: string;
@@ -137,18 +231,6 @@ export interface ClientOrdersFilters {
   size?: number;
   sortBy?: string;
   sortDir?: "asc" | "desc";
-}
-
-interface ClientOrdersResponse {
-  orders: ClientOrder[];
-  pagination: {
-    page: number;
-    size: number;
-    totalElements: number;
-    totalPages: number;
-    sortBy: string;
-    sortDir: "asc" | "desc";
-  };
 }
 
 interface OrderRequestItem {
@@ -196,7 +278,7 @@ interface AddressResponse {
 
 // Function to create or update a draft order
 export async function createDraftOrder(
-  order: ShippingOrder,
+  order: DraftShippingOrder,
   userId: string,
   priorityDelivery = false,
   existingOrderId?: string,
@@ -244,7 +326,7 @@ export async function createDraftOrder(
 
 // Helper function to format the order request
 function formatOrderRequest(
-  order: ShippingOrder,
+  order: DraftShippingOrder,
   userId: string,
   priorityDelivery: boolean,
   existingOrderId?: string,
@@ -312,7 +394,7 @@ export async function updateOrder(payload: OrderRequest) {
 }
 
 // Helper function to format address
-function formatAddress(address: Address | null) {
+function formatAddress(address: DraftAddress | null) {
   if (!address) return null;
 
   return {
@@ -364,7 +446,7 @@ export async function getClientOrders(
   params.set("sortBy", filters.sortBy ?? "createdAt");
   params.set("sortDir", filters.sortDir ?? "desc");
 
-  const response = await apiFetch(`/api/orders?${params.toString()}`, {
+  const response = await apiFetch(`/api/orders/my-orders?${params.toString()}`, {
     headers: {
       Accept: "application/json",
       "Content-Type": "application/json",
@@ -378,21 +460,33 @@ export async function getClientOrders(
   const data = await response.json();
 
   if (Array.isArray(data)) {
+    const orders = data.filter(
+      (order: CustomerOrderSummaryResponse) =>
+        order?.orderStatus?.toLowerCase() !== "draft",
+    );
+
     return {
-      orders: data,
+      orders,
       pagination: {
         page: filters.page ?? 0,
         size: filters.size ?? 10,
-        totalElements: data.length,
-        totalPages: data.length ? 1 : 0,
+        totalElements: orders.length,
+        totalPages: orders.length ? 1 : 0,
         sortBy: filters.sortBy ?? "createdAt",
         sortDir: filters.sortDir ?? "desc",
       },
     };
   }
 
+  const orders = Array.isArray(data?.orders)
+    ? data.orders.filter(
+        (order: CustomerOrderSummaryResponse) =>
+          order?.orderStatus?.toLowerCase() !== "draft",
+      )
+    : [];
+
   return {
-    orders: data?.orders ?? [],
+    orders,
     pagination: {
       page: data?.pagination?.page ?? 0,
       size: data?.pagination?.size ?? filters.size ?? 10,
@@ -401,5 +495,28 @@ export async function getClientOrders(
       sortBy: data?.pagination?.sortBy ?? "createdAt",
       sortDir: data?.pagination?.sortDir === "asc" ? "asc" : "desc",
     },
+  };
+}
+
+export async function getClientOrderDetail(
+  shippingOrderId: string,
+): Promise<CustomerOrderDetailResponse> {
+  const response = await apiFetch(
+    `/api/orders/my-orders/${encodeURIComponent(shippingOrderId)}`,
+    {
+      headers: {
+        Accept: "application/json",
+      },
+    },
+  );
+
+  if (!response.ok) {
+    throw new Error(`Failed to fetch order details: ${response.statusText}`);
+  }
+
+  const data = await response.json();
+  return {
+    shippingOrder: data?.shippingOrder ?? null,
+    documents: Array.isArray(data?.documents) ? data.documents : [],
   };
 }
