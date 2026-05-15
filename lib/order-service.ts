@@ -92,6 +92,7 @@ export interface OrderItemResponse {
   trackingNumber: string | null;
   estimatedDeliveryTime: string | null;
   specialIncidents: any[];
+  trackingEvents?: TrackingEvent[];
 }
 
 export interface Tax {
@@ -137,6 +138,15 @@ export interface Stop {
   images?: unknown[];
 }
 
+export interface TrackingEvent {
+  status?: string | null;
+  timestamp?: string | null;
+  location?: Coordinates | null;
+  statusMessage?: string | null;
+  driverComments?: string | null;
+  photographUrls?: string[];
+}
+
 export interface OrderItem {
   orderItemId?: string | null;
   trackingId?: string | null;
@@ -162,6 +172,7 @@ export interface OrderItem {
   createdAt?: string | null;
   updatedAt?: string | null;
   specialIncidents?: unknown[];
+  trackingEvents?: TrackingEvent[];
 }
 
 export interface ShippingOrder {
