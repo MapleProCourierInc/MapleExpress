@@ -25,7 +25,6 @@ import {
   Navigation,
   UserCheck,
   XCircle,
-  RotateCcw,
   Moon,
   AlertTriangle,
   CalendarClock,
@@ -68,7 +67,7 @@ function TrackingPageContent() {
 
     try {
       const data = await getTrackingEvents(tracking)
-      data.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime())
+      data.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
       setEvents(data)
     } catch (e) {
       console.error(e)
@@ -95,7 +94,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-4/10",
           textColor: "text-chart-4",
           label: "Scheduled",
-          description: "Your package pickup has been scheduled",
           isPositive: true,
         }
       case "CREATED":
@@ -105,7 +103,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-5/10",
           textColor: "text-chart-5",
           label: "Order Created",
-          description: "Your shipment has been created and is being prepared",
           isPositive: true,
         }
       case "LABEL_CREATED":
@@ -115,7 +112,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-5/10",
           textColor: "text-chart-5",
           label: "Label Created",
-          description: "Shipping label has been generated and your order is ready for pickup",
           isPositive: true,
         }
       case "ASSIGNED":
@@ -125,7 +121,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-1/10",
           textColor: "text-chart-1",
           label: "Driver Assigned",
-          description: "A courier has been assigned to your package",
           isPositive: true,
         }
       case "IN_TRANSIT":
@@ -135,7 +130,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-1/10",
           textColor: "text-chart-1",
           label: "In Transit",
-          description: "Your package is on its way to the destination",
           isPositive: true,
         }
       case "DELIVERED":
@@ -145,7 +139,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-2/10",
           textColor: "text-chart-2",
           label: "Delivered",
-          description: "Package successfully delivered!",
           isPositive: true,
         }
       case "PICKUP_FAILED":
@@ -155,7 +148,6 @@ function TrackingPageContent() {
           bgColor: "bg-destructive/10",
           textColor: "text-destructive",
           label: "Pickup Failed",
-          description: "Unable to pick up the package. We'll try again soon.",
           isPositive: false,
         }
       case "DROP_OFF_FAILED":
@@ -165,7 +157,6 @@ function TrackingPageContent() {
           bgColor: "bg-destructive/10",
           textColor: "text-destructive",
           label: "Delivery Failed",
-          description: "Delivery attempt unsuccessful. We'll try again soon.",
           isPositive: false,
         }
       case "CANCELLED":
@@ -175,7 +166,6 @@ function TrackingPageContent() {
           bgColor: "bg-muted/50",
           textColor: "text-muted-foreground",
           label: "Cancelled",
-          description: "This shipment has been cancelled",
           isPositive: false,
         }
       case "END_OF_DAY":
@@ -185,7 +175,6 @@ function TrackingPageContent() {
           bgColor: "bg-chart-3/10",
           textColor: "text-chart-3",
           label: "End of Day",
-          description: "Delivery will be reattempted tomorrow during business hours",
           isPositive: true,
         }
       default:
@@ -195,18 +184,10 @@ function TrackingPageContent() {
           bgColor: "bg-muted/50",
           textColor: "text-muted-foreground",
           label: status,
-          description: "Status update received",
           isPositive: true,
         }
     }
   }
-
-  const getCurrentStatus = () => {
-    if (!events || events.length === 0) return null
-    return events[events.length - 1]
-  }
-
-  const currentStatus = getCurrentStatus()
 
   return (
       <div className="min-h-screen bg-background">
@@ -278,136 +259,7 @@ function TrackingPageContent() {
                 </div>
             )}
 
-            {/* Current Status Highlight */}
-            {currentStatus && !loading && (
-                <div className="mb-12">
-                  <div
-                      className={`relative overflow-hidden rounded-3xl bg-gradient-to-br ${
-                          getStatusConfig(currentStatus.status).isPositive
-                              ? "from-card via-card to-primary/5"
-                              : "from-card via-card to-destructive/5"
-                      } shadow-xl`}
-                  >
-                    {/* Subtle pattern overlay */}
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/5 to-transparent" />
-
-                    <div className="relative p-8">
-                      <div className="flex items-start gap-6">
-                        {/* Status Icon with colored background */}
-                        <div className="relative">
-                          <div
-                              className={`absolute inset-0 ${getStatusConfig(currentStatus.status).bgColor} rounded-2xl blur-sm opacity-60`}
-                          />
-                          <div
-                              className={`relative p-5 ${getStatusConfig(currentStatus.status).bgColor} rounded-2xl ${getStatusConfig(currentStatus.status).textColor} shadow-lg`}
-                          >
-                            {getStatusConfig(currentStatus.status).icon}
-                          </div>
-                        </div>
-
-                        <div className="flex-1">
-                          {/* Status Header */}
-                          <div className="flex items-center gap-4 mb-4">
-                            <Badge
-                                className={`${getStatusConfig(currentStatus.status).color} px-4 py-2 text-sm font-semibold border-0 shadow-sm`}
-                            >
-                              {getStatusConfig(currentStatus.status).label}
-                            </Badge>
-
-                            {!getStatusConfig(currentStatus.status).isPositive && (
-                                <div className="flex items-center gap-2 px-3 py-1 bg-destructive/15 text-destructive rounded-full">
-                                  <AlertTriangle className="h-3 w-3" />
-                                  <span className="text-xs font-medium">Needs Attention</span>
-                                </div>
-                            )}
-                          </div>
-
-                          {/* Main Status Text */}
-                          <h3 className="text-2xl font-bold text-foreground mb-3 leading-tight">
-                            {getStatusConfig(currentStatus.status).description}
-                          </h3>
-
-                          {/* Timestamp */}
-                          <div className="flex items-center gap-2 text-muted-foreground mb-6">
-                            <div className="p-1.5 bg-muted/50 rounded-lg">
-                              <Calendar className="h-4 w-4" />
-                            </div>
-                            <span className="text-sm">
-                          {format(new Date(currentStatus.timestamp), "EEEE, MMMM do 'at' h:mm a")}
-                        </span>
-                          </div>
-
-                          {/* Special Status Messages */}
-                          {currentStatus.status.toUpperCase() === "END_OF_DAY" && (
-                              <div className="p-4 bg-gradient-to-r from-chart-3/15 to-transparent rounded-xl">
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-chart-3/20 rounded-full">
-                                    <RotateCcw className="h-4 w-4 text-chart-3" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-chart-3">Tomorrow's Delivery</p>
-                                    <p className="text-sm text-chart-3/80">
-                                      We'll attempt delivery again during business hours
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                          )}
-
-                          {(currentStatus.status.toUpperCase() === "PICKUP_FAILED" ||
-                              currentStatus.status.toUpperCase() === "DROP_OFF_FAILED") && (
-                              <div className="p-4 bg-gradient-to-r from-destructive/15 to-transparent rounded-xl">
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-destructive/20 rounded-full">
-                                    <RotateCcw className="h-4 w-4 text-destructive" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-destructive">Automatic Retry</p>
-                                    <p className="text-sm text-destructive/80">
-                                      We'll try again automatically - no action needed
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                          )}
-
-                          {currentStatus.status.toUpperCase() === "DELIVERED" && (
-                              <div className="p-4 bg-gradient-to-r from-chart-2/15 to-transparent rounded-xl">
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-chart-2/20 rounded-full">
-                                    <CheckCircle className="h-4 w-4 text-chart-2" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-chart-2">Successfully Delivered!</p>
-                                    <p className="text-sm text-chart-2/80">Your package has reached its destination</p>
-                                  </div>
-                                </div>
-                              </div>
-                          )}
-
-                          {currentStatus.status.toUpperCase() === "LABEL_CREATED" && (
-                              <div className="p-4 bg-gradient-to-r from-chart-5/15 to-transparent rounded-xl">
-                                <div className="flex items-center gap-3">
-                                  <div className="p-2 bg-chart-5/20 rounded-full">
-                                    <Package className="h-4 w-4 text-chart-5" />
-                                  </div>
-                                  <div>
-                                    <p className="font-medium text-chart-5">Ready for Pickup</p>
-                                    <p className="text-sm text-chart-5/80">
-                                      Your shipping label is ready and the package is awaiting courier pickup
-                                    </p>
-                                  </div>
-                                </div>
-                              </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-            )}
-
-            {/* Timeline - Redesigned as Cards */}
+            {/* Timeline */}
             {events && events.length > 0 && !loading && (
                 <div className="space-y-6">
                   <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -418,36 +270,50 @@ function TrackingPageContent() {
                   <div className="grid gap-4">
                     {events.map((event, idx) => {
                       const config = getStatusConfig(event.status)
+                      const isLatest = idx === 0
+                      const message = event.statusMessage?.trim() || config.label
                       return (
                           <div
                               key={idx}
-                              className={`group relative p-6 bg-card border rounded-2xl hover:shadow-lg transition-all duration-300 ${
-                                  config.isPositive ? "border-border hover:border-primary/20" : "border-destructive/20"
+                              className={`group relative bg-card border transition-all duration-300 ${
+                                  isLatest
+                                      ? `p-8 rounded-3xl shadow-xl ${
+                                          config.isPositive ? "border-primary/20" : "border-destructive/20"
+                                      }`
+                                      : `p-6 rounded-2xl hover:shadow-lg ${
+                                          config.isPositive ? "border-border hover:border-primary/20" : "border-destructive/20"
+                                      }`
                               }`}
                           >
-                            <div className="flex items-start gap-4">
-                              <div className={`p-3 ${config.bgColor} rounded-xl ${config.textColor} transition-colors`}>
+                            <div className={`flex items-start ${isLatest ? "gap-6" : "gap-4"}`}>
+                              <div className={`${isLatest ? "p-5 rounded-2xl shadow-lg" : "p-3 rounded-xl"} ${config.bgColor} ${config.textColor} transition-colors`}>
                                 {config.icon}
                               </div>
 
                               <div className="flex-1">
-                                <div className="flex items-center justify-between mb-2">
-                                  <Badge className={`${config.color} border font-medium`}>{config.label}</Badge>
-                                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                                    <Star className="h-3 w-3" />
-                                    Step {idx + 1}
+                                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                                  <Badge className={`${config.color} border font-medium ${isLatest ? "px-4 py-2 text-sm" : ""}`}>
+                                    {config.label}
+                                  </Badge>
+                                  <div className={`flex items-center gap-1 ${isLatest ? "text-sm" : "text-xs"} text-muted-foreground`}>
+                                    {isLatest ? (
+                                        "Latest update"
+                                    ) : (
+                                        <>
+                                          <Star className="h-3 w-3" />
+                                          Step {idx + 1}
+                                        </>
+                                    )}
                                   </div>
                                 </div>
 
-                                <p className="text-foreground font-medium mb-2">{config.description}</p>
+                                <p className={`text-foreground font-semibold mb-3 ${isLatest ? "text-xl sm:text-2xl leading-tight" : "text-base"}`}>
+                                  {message}
+                                </p>
 
-                                {event.statusMessage && event.statusMessage !== config.description && (
-                                    <p className="text-sm text-muted-foreground mb-2">{event.statusMessage}</p>
-                                )}
-
-                                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <div className={`flex items-center gap-2 ${isLatest ? "text-base" : "text-sm"} text-muted-foreground`}>
                                   <Calendar className="h-4 w-4" />
-                                  {format(new Date(event.timestamp), "PPpp")}
+                                  {format(new Date(event.timestamp), isLatest ? "EEEE, MMMM do 'at' h:mm a" : "PPpp")}
                                 </div>
                               </div>
                             </div>
