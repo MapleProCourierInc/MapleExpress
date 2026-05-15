@@ -1,31 +1,23 @@
-import { ORDER_FULFILMENT_SERVICE_URL, getEndpointUrl } from './config'
+import "server-only"
 
-export interface TrackingEvent {
-  status: string
-  timestamp: string
-  location?: {
-    latitude: number
-    longitude: number
-  } | null
-  statusMessage: string
-  driverComments: string | null
-  photographUrls: string[]
-}
+import { ORDER_FULFILMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import type { TrackingEvent } from "@/lib/tracking-types"
 
 export async function getTrackingEvents(trackingNumber: string): Promise<TrackingEvent[]> {
   const endpoint = getEndpointUrl(
     ORDER_FULFILMENT_SERVICE_URL,
-    `/v1/track/${trackingNumber}`
+    `/public/track/${encodeURIComponent(trackingNumber)}`,
   )
 
   const res = await fetch(endpoint, {
     headers: { Accept: 'application/json' },
-    method: 'GET'
+    method: 'GET',
+    cache: 'no-store',
   })
 
   if (!res.ok) {
     throw new Error('Failed to fetch tracking information')
   }
 
-  return res.json()
+  return (await res.json()) as TrackingEvent[]
 }

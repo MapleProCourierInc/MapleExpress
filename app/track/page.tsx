@@ -9,7 +9,7 @@ import { Footer } from "@/components/shared/footer"
 import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { getTrackingEvents, type TrackingEvent } from "@/lib/tracking-service"
+import { getTrackingEvents, type TrackingEvent } from "@/lib/tracking-client-service"
 import { format } from "date-fns"
 import {
   Package,
@@ -72,7 +72,7 @@ function TrackingPageContent() {
       setEvents(data)
     } catch (e) {
       console.error(e)
-      setError("Failed to fetch tracking information.")
+      setError("Tracking is temporarily unavailable. Please try again shortly.")
     } finally {
       setLoading(false)
     }
