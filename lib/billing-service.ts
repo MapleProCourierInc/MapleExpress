@@ -123,6 +123,24 @@ export interface BillingPageParams {
   toDate?: string
 }
 
+export interface BillingPaymentInitiateRequest {
+  billingAccountId: string
+  amount: number
+  currency: string
+  paymentCategory: "BILLING_ACCOUNT_ADJUSTMENT"
+  paymentForType: "BILLING_ACCOUNT"
+  description?: string | null
+}
+
+export interface BillingPaymentInitiateResponse {
+  ticketId?: string | null
+  paymentId?: string | null
+  amount?: number | null
+  currency?: string | null
+  status?: string | null
+  message?: string | null
+}
+
 function pageParams(params: BillingPageParams) {
   const search = new URLSearchParams()
 
@@ -255,4 +273,30 @@ export async function getClientBillingPayments(
   )
 
   return readPage<BillingPayment>(response, "paymentDate")
+}
+
+export async function initiateBillingBalancePayment(
+  payload: BillingPaymentInitiateRequest,
+): Promise<BillingPaymentInitiateResponse> {
+  const response = await apiFetch("/api/billing/payments/initiate", {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  })
+
+  const responseBody = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    const backendMessage =
+      responseBody && typeof responseBody === "object" && "message" in responseBody
+        ? (responseBody as { message?: string }).message
+        : null
+
+    throw new Error(backendMessage || "Failed to start billing payment.")
+  }
+
+  return responseBody as BillingPaymentInitiateResponse
 }

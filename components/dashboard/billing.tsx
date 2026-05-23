@@ -1,14 +1,18 @@
 "use client"
 
-import { useEffect, useMemo, useState, type ReactNode } from "react"
+import { useEffect, useMemo, useRef, useState, type ReactNode } from "react"
+import { useRouter, useSearchParams } from "next/navigation"
 import {
   AlertCircle,
   ArrowRight,
+  ArrowLeft,
   Banknote,
   CalendarClock,
   CheckCircle2,
   Download,
+  Loader2,
   ReceiptText,
+  XCircle,
   WalletCards,
 } from "lucide-react"
 import {
@@ -16,20 +20,30 @@ import {
   getClientInvoices,
   getClientUnbilledCharges,
   getBillingDashboard,
+  initiateBillingBalancePayment,
   type BillingPageResponse,
   type BillingDashboardResponse,
   type BillingInvoice,
   type BillingPayment,
   type BillingUnbilledCharge,
 } from "@/lib/billing-service"
+import {
+  finalizeMonerisPaymentViaApi,
+  loadMonerisScript,
+  type FinalizePaymentResponse,
+} from "@/lib/moneris/moneris-service"
+import { MONERIS_CHECKOUT_MODE } from "@/lib/config"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type StatusTone = "success" | "warning" | "danger" | "progress" | "neutral"
 type BillingTab = "overview" | "invoices" | "payments" | "unbilled"
+type BillingView = "dashboard" | "payment"
+type PaymentStep = "entry" | "initiating" | "checkout" | "finalizing" | "success" | "failed" | "cancelled" | "unknown"
 
 const HISTORY_PAGE_SIZE = 20
+const BILLING_CHECKOUT_DIV_ID = "billingMonerisCheckoutDivId"
 
 const statusStyles: Record<StatusTone, string> = {
   success: "border-emerald-200 bg-emerald-50 text-emerald-800",
@@ -502,7 +516,436 @@ function InvoiceDetail({
   )
 }
 
+function parseMonerisCallback(raw: unknown): { ticket?: string; response_code?: string; message?: string } | null {
+  try {
+    return typeof raw === "string" ? JSON.parse(raw) : (raw as { ticket?: string; response_code?: string; message?: string })
+  } catch {
+    return null
+  }
+}
+
+function isFinalizeSuccess(result: FinalizePaymentResponse) {
+  return result.success === true && result.status === "SUCCESSFUL"
+}
+
+function finalizeMessage(result: FinalizePaymentResponse) {
+  return (
+    result.message ||
+    result.failureReason ||
+    result.monerisResponseMessage ||
+    "Payment could not be completed. Please try again."
+  )
+}
+
+function BillingPaymentView({
+  dashboard,
+  onBack,
+  onSuccess,
+}: {
+  dashboard: BillingDashboardResponse
+  onBack: () => void
+  onSuccess: () => Promise<void>
+}) {
+  const balanceDue = dashboard.summary.balanceDue
+  const currency = dashboard.summary.currency || dashboard.billingAccount?.currency || "CAD"
+  const billingAccountId = dashboard.billingAccount?.billingAccountId
+  const [amountInput, setAmountInput] = useState(() => (balanceDue > 0 ? balanceDue.toFixed(2) : ""))
+  const [step, setStep] = useState<PaymentStep>("entry")
+  const [paymentError, setPaymentError] = useState<string | null>(null)
+  const [result, setResult] = useState<FinalizePaymentResponse | null>(null)
+  const [ticketId, setTicketId] = useState<string | null>(null)
+  const [isMonerisScriptLoaded, setIsMonerisScriptLoaded] = useState(false)
+  const [pendingTicketId, setPendingTicketId] = useState<string | null>(null)
+  const monerisCheckoutRef = useRef<any>(null)
+  const finalizedTicketsRef = useRef<Set<string>>(new Set())
+  const ticketIdRef = useRef<string | null>(null)
+
+  const amount = Number(amountInput)
+  const amountError = useMemo(() => {
+    if (!amountInput.trim()) return "Enter a payment amount."
+    if (!Number.isFinite(amount)) return "Enter a valid payment amount."
+    if (amount <= 0) return "Payment amount must be greater than 0."
+    if (amount > balanceDue) return "Payment amount cannot be greater than the total balance due."
+    return null
+  }, [amount, amountInput, balanceDue])
+
+  const formatCurrency = (value?: number | null) => money(value, currency)
+
+  const closeCheckout = (ticket?: string | null) => {
+    if (ticket && monerisCheckoutRef.current) {
+      try {
+        monerisCheckoutRef.current.closeCheckout(ticket)
+      } catch (error) {
+        console.warn("Moneris checkout was already closed or unavailable.", error)
+      }
+    }
+  }
+
+  useEffect(() => {
+    ticketIdRef.current = ticketId
+  }, [ticketId])
+
+  useEffect(() => {
+    return () => {
+      closeCheckout(ticketIdRef.current)
+    }
+  }, [])
+
+  const startMonerisCheckout = (nextTicketId: string) => {
+    if (!isMonerisScriptLoaded || !monerisCheckoutRef.current) {
+      setPendingTicketId(nextTicketId)
+      return
+    }
+
+    setStep("checkout")
+    monerisCheckoutRef.current.startCheckout(nextTicketId)
+    setPendingTicketId(null)
+    setTimeout(() => {
+      const frame = document.querySelector(`#${BILLING_CHECKOUT_DIV_ID} iframe`) as HTMLIFrameElement | null
+      if (frame) frame.style.height = "760px"
+    }, 100)
+  }
+
+  const finalizeTicket = async (nextTicketId: string) => {
+    if (finalizedTicketsRef.current.has(nextTicketId)) return
+    finalizedTicketsRef.current.add(nextTicketId)
+
+    setStep("finalizing")
+    setPaymentError(null)
+
+    try {
+      const finalizeResult = await finalizeMonerisPaymentViaApi({ ticketId: nextTicketId })
+      setResult(finalizeResult)
+
+      if (isFinalizeSuccess(finalizeResult)) {
+        setStep("success")
+        await onSuccess()
+      } else if (finalizeResult.finalized === false || finalizeResult.status === "CANCELLED") {
+        setStep("cancelled")
+        setPaymentError(finalizeMessage(finalizeResult))
+      } else if (finalizeResult.status) {
+        setStep("failed")
+        setPaymentError(finalizeMessage(finalizeResult))
+      } else {
+        setStep("unknown")
+        setPaymentError(finalizeMessage(finalizeResult))
+      }
+    } catch (error) {
+      console.error("Finalize billing payment error:", error)
+      setStep("unknown")
+      setPaymentError(
+        error instanceof Error
+          ? error.message
+          : "We could not confirm the payment result. Please return to billing and check again.",
+      )
+    } finally {
+      closeCheckout(nextTicketId)
+    }
+  }
+
+  useEffect(() => {
+    loadMonerisScript()
+      .then(() => setIsMonerisScriptLoaded(true))
+      .catch((error) => {
+        console.error("Failed to load Moneris script:", error)
+        setPaymentError("Payment checkout could not be loaded. Please try again.")
+      })
+  }, [])
+
+  useEffect(() => {
+    if (!isMonerisScriptLoaded || !window.monerisCheckout) return
+
+    try {
+      const mc = new window.monerisCheckout()
+      mc.setMode(MONERIS_CHECKOUT_MODE)
+      mc.setCheckoutDiv(BILLING_CHECKOUT_DIV_ID)
+
+      mc.setCallback("page_loaded", () => {
+        setStep("checkout")
+      })
+
+      mc.setCallback("payment_complete", (raw: unknown) => {
+        const data = parseMonerisCallback(raw)
+        if (data?.ticket) {
+          void finalizeTicket(data.ticket)
+          return
+        }
+
+        setStep("unknown")
+        setPaymentError("Payment status could not be confirmed. Please return to billing and check again.")
+      })
+
+      mc.setCallback("cancel_transaction", (raw: unknown) => {
+        const data = parseMonerisCallback(raw)
+        if (data?.ticket) {
+          void finalizeTicket(data.ticket)
+          return
+        }
+
+        setStep("cancelled")
+        setPaymentError("Payment cancelled.")
+      })
+
+      mc.setCallback("error_event", (raw: unknown) => {
+        const data = parseMonerisCallback(raw)
+        if (data?.ticket) {
+          void finalizeTicket(data.ticket)
+          return
+        }
+
+        setStep("failed")
+        setPaymentError(data?.message || "Payment checkout returned an error. Please try again.")
+      })
+
+      monerisCheckoutRef.current = mc
+    } catch (error) {
+      console.error("Error during billing Moneris initialization:", error)
+      setPaymentError("Failed to initialize payment checkout.")
+    }
+  }, [isMonerisScriptLoaded])
+
+  useEffect(() => {
+    if (!pendingTicketId || !isMonerisScriptLoaded || !monerisCheckoutRef.current) return
+    startMonerisCheckout(pendingTicketId)
+  }, [pendingTicketId, isMonerisScriptLoaded])
+
+  const resetForRetry = () => {
+    if (ticketId) closeCheckout(ticketId)
+    setTicketId(null)
+    setResult(null)
+    setPaymentError(null)
+    setStep("entry")
+    finalizedTicketsRef.current.clear()
+  }
+
+  const handleStartPayment = async () => {
+    if (!billingAccountId) {
+      setPaymentError("Billing account is not available.")
+      return
+    }
+
+    if (amountError) {
+      setPaymentError(amountError)
+      return
+    }
+
+    setStep("initiating")
+    setPaymentError(null)
+    setResult(null)
+
+    try {
+      const initiateResponse = await initiateBillingBalancePayment({
+        billingAccountId,
+        amount,
+        currency,
+        paymentCategory: "BILLING_ACCOUNT_ADJUSTMENT",
+        paymentForType: "BILLING_ACCOUNT",
+        description: `Billing account payment for ${billingAccountId}`,
+      })
+
+      if (!initiateResponse.ticketId) {
+        throw new Error(initiateResponse.message || "Checkout did not return a Moneris ticket.")
+      }
+
+      setTicketId(initiateResponse.ticketId)
+      startMonerisCheckout(initiateResponse.ticketId)
+    } catch (error) {
+      console.error("Initiate billing payment error:", error)
+      setStep("entry")
+      setPaymentError(error instanceof Error ? error.message : "Failed to initiate payment. Please try again.")
+    }
+  }
+
+  if (!billingAccountId || balanceDue <= 0) {
+    return (
+      <div className="space-y-6">
+        <button className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-950" onClick={onBack} type="button">
+          <ArrowLeft className="h-4 w-4" />
+          Back to billing
+        </button>
+        <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
+          <h1 className="text-xl font-bold text-slate-950">No payment due</h1>
+          <p className="mt-2 text-sm text-slate-500">There is no outstanding balance on this billing account.</p>
+        </div>
+      </div>
+    )
+  }
+
+  const isBusy = step === "initiating" || step === "finalizing"
+  const showCheckout = step === "checkout" || step === "finalizing"
+
+  return (
+    <div className="space-y-6">
+      <button className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-950" onClick={onBack} type="button">
+        <ArrowLeft className="h-4 w-4" />
+        Back to billing
+      </button>
+
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+          <div>
+            <h1 className="text-2xl font-bold text-slate-950">Pay Balance</h1>
+            <p className="mt-2 text-sm text-slate-500">Payments are applied to your oldest unpaid invoices first.</p>
+          </div>
+
+          {(step === "entry" || step === "initiating") && (
+            <div className="mt-6 space-y-5">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 p-5">
+                <p className="text-xs font-medium text-slate-500">Current total balance due</p>
+                <p className="mt-2 font-mono text-3xl font-bold text-slate-950">{formatCurrency(balanceDue)}</p>
+              </div>
+
+              <div>
+                <label className="text-sm font-semibold text-slate-950" htmlFor="billing-payment-amount">
+                  Payment amount
+                </label>
+                <div className="mt-2 flex overflow-hidden rounded-lg border border-slate-200 bg-white focus-within:ring-2 focus-within:ring-slate-950">
+                  <span className="flex items-center border-r border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+                    {currency}
+                  </span>
+                  <input
+                    className="min-w-0 flex-1 border-0 px-3 py-2.5 font-mono text-sm font-semibold outline-none focus:ring-0"
+                    disabled={isBusy}
+                    id="billing-payment-amount"
+                    inputMode="decimal"
+                    min="0.01"
+                    onChange={(event) => setAmountInput(event.target.value)}
+                    step="0.01"
+                    type="number"
+                    value={amountInput}
+                  />
+                </div>
+                {amountError ? <p className="mt-2 text-sm text-red-700">{amountError}</p> : null}
+              </div>
+
+              {paymentError ? (
+                <Alert variant="destructive" className="py-2">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertDescription className="text-sm">{paymentError}</AlertDescription>
+                </Alert>
+              ) : null}
+
+              <button
+                className="inline-flex h-11 w-full items-center justify-center gap-2 rounded-lg bg-red-700 px-4 text-sm font-semibold text-white transition-colors hover:bg-red-800 disabled:opacity-60"
+                disabled={isBusy || Boolean(amountError)}
+                onClick={handleStartPayment}
+                type="button"
+              >
+                {step === "initiating" ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Starting checkout...
+                  </>
+                ) : (
+                  <>Continue to payment</>
+                )}
+              </button>
+            </div>
+          )}
+
+          <div className={`${showCheckout ? "mt-6 block" : "hidden"}`}>
+            <div className="rounded-lg border border-slate-200">
+              <div id={BILLING_CHECKOUT_DIV_ID} style={{ minHeight: "650px", width: "100%" }} />
+            </div>
+            {step === "finalizing" ? (
+              <div className="mt-4 flex items-center gap-2 text-sm font-medium text-slate-600">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Confirming payment result...
+              </div>
+            ) : null}
+          </div>
+
+          {step === "success" ? (
+            <div className="mt-6 rounded-lg border border-emerald-200 bg-emerald-50 p-6">
+              <div className="flex items-start gap-3">
+                <CheckCircle2 className="mt-0.5 h-6 w-6 text-emerald-700" />
+                <div>
+                  <h2 className="text-lg font-bold text-emerald-900">Payment successful</h2>
+                  <p className="mt-1 text-sm text-emerald-800">Your balance may take a few moments to update.</p>
+                  <div className="mt-4 space-y-1 text-sm text-emerald-900">
+                    <p>
+                      Amount paid: <span className="font-mono font-bold">{formatCurrency(result?.amount ?? amount)}</span>
+                    </p>
+                    {result?.paymentId ? (
+                      <p>
+                        Reference: <span className="font-mono font-bold">{result.paymentId}</span>
+                      </p>
+                    ) : null}
+                  </div>
+                  <button
+                    className="mt-5 rounded-lg bg-slate-950 px-4 py-2 text-sm font-semibold text-white hover:bg-slate-800"
+                    onClick={onBack}
+                    type="button"
+                  >
+                    Back to billing
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : null}
+
+          {(step === "failed" || step === "cancelled" || step === "unknown") ? (
+            <div className="mt-6 rounded-lg border border-red-200 bg-red-50 p-6">
+              <div className="flex items-start gap-3">
+                <XCircle className="mt-0.5 h-6 w-6 text-red-700" />
+                <div>
+                  <h2 className="text-lg font-bold text-red-900">
+                    {step === "cancelled"
+                      ? "Payment cancelled"
+                      : step === "unknown"
+                        ? "Payment status could not be confirmed"
+                        : "Payment failed"}
+                  </h2>
+                  <p className="mt-1 text-sm text-red-800">
+                    {paymentError || "Please try again or return to billing and refresh later."}
+                  </p>
+                  <div className="mt-5 flex flex-wrap gap-2">
+                    <button
+                      className="rounded-lg bg-red-700 px-4 py-2 text-sm font-semibold text-white hover:bg-red-800"
+                      onClick={resetForRetry}
+                      type="button"
+                    >
+                      Try again
+                    </button>
+                    <button
+                      className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+                      onClick={onBack}
+                      type="button"
+                    >
+                      Back to billing
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : null}
+        </section>
+
+        <aside className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+          <p className="text-xs font-medium text-slate-500">Billing account</p>
+          <p className="mt-1 truncate font-mono text-sm font-bold text-slate-950">{billingAccountId}</p>
+          <div className="mt-5 space-y-3 border-t border-slate-200 pt-5">
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Balance due</span>
+              <span className="font-mono font-bold text-slate-950">{formatCurrency(balanceDue)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Currency</span>
+              <span className="font-semibold text-slate-950">{currency}</span>
+            </div>
+          </div>
+          <div className="mt-5 rounded-lg bg-slate-50 p-4 text-sm text-slate-600">
+            Secure checkout is processed by Moneris. Final payment status is confirmed after checkout completes.
+          </div>
+        </aside>
+      </div>
+    </div>
+  )
+}
+
 export function Billing() {
+  const router = useRouter()
+  const searchParams = useSearchParams()
   const [dashboard, setDashboard] = useState<BillingDashboardResponse | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -520,6 +963,25 @@ export function Billing() {
   const [paymentsPageData, setPaymentsPageData] = useState<BillingPageResponse<BillingPayment> | null>(null)
   const [isPaymentsLoading, setIsPaymentsLoading] = useState(false)
   const [paymentsError, setPaymentsError] = useState<string | null>(null)
+  const billingView: BillingView = searchParams.get("billingView") === "payment" ? "payment" : "dashboard"
+
+  const navigateBillingView = (view: BillingView) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("section", "billing")
+
+    if (view === "payment") {
+      params.set("billingView", "payment")
+    } else {
+      params.delete("billingView")
+    }
+
+    router.push(`/dashboard?${params.toString()}`)
+  }
+
+  const refreshBillingDashboard = async () => {
+    const data = await getBillingDashboard()
+    setDashboard(data)
+  }
 
   useEffect(() => {
     let cancelled = false
@@ -695,6 +1157,16 @@ export function Billing() {
     )
   }
 
+  if (billingView === "payment") {
+    return (
+      <BillingPaymentView
+        dashboard={dashboard}
+        onBack={() => navigateBillingView("dashboard")}
+        onSuccess={refreshBillingDashboard}
+      />
+    )
+  }
+
   const tabs: Array<{ value: BillingTab; label: string; count?: number }> = [
     { value: "overview", label: "Overview" },
     { value: "invoices", label: "Invoices", count: invoicePageData?.totalElements ?? dashboard.recentInvoices.length },
@@ -742,13 +1214,14 @@ export function Billing() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 action={
-                  dashboard.actions.canPayBalance ? (
-                    <a
+                  dashboard.actions.canPayBalance && dashboard.summary.balanceDue > 0 ? (
+                    <button
                       className="inline-flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800"
-                      href="mailto:billing@maplexpress.com?subject=Billing%20payment%20request"
+                      onClick={() => navigateBillingView("payment")}
+                      type="button"
                     >
                       Pay Balance
-                    </a>
+                    </button>
                   ) : undefined
                 }
                 emphasized={dashboard.summary.hasOutstandingBalance}
