@@ -33,6 +33,12 @@ export const PRICING_PAYMENT_SERVICE_URL =
   process.env.NEXT_PUBLIC_PRICING_PAYMENT_SERVICE_URL ||
   'https://testapi.maplexpress.ca/pricingpayment';
 
+// Billing Management Service
+export const BILLING_MANAGEMENT_SERVICE_URL =
+  process.env.BILLING_MANAGEMENT_SERVICE_URL ||
+  process.env.NEXT_PUBLIC_BILLING_MANAGEMENT_SERVICE_URL ||
+  'http://localhost/billingmanagement';
+
 
 export const MONERIS_CHECKOUT_SCRIPT_SRC =
   process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_SCRIPT_SRC ||
