@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { LogOut, User, Package } from "lucide-react"
+import { CreditCard, LogOut, User, Package } from "lucide-react"
 import Link from "next/link"
 
 const getInitials = (name?: string | null) => {
@@ -55,6 +55,12 @@ export function UserProfile() {
           <Link href="/dashboard?section=shipments" className="cursor-pointer flex w-full items-center">
             <Package className="mr-2 h-4 w-4" />
             <span>Shipments</span>
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <Link href="/dashboard?section=billing" className="cursor-pointer flex w-full items-center">
+            <CreditCard className="mr-2 h-4 w-4" />
+            <span>Billing</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
