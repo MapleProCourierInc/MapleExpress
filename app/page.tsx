@@ -28,9 +28,10 @@ import { IndividualProfileForm } from "@/components/individual-profile-form"
 import { OrganizationProfileForm } from "@/components/organization-profile-form"
 import { UserProfile } from "@/components/user-profile"
 import { ServiceAvailabilitySection } from "@/components/service-availability-section"
+import { isIndividualAccount } from "@/lib/profile-account-type"
 
 export default function LandingPage() {
-  const { user, isLoading } = useAuth()
+  const { user, isLoading, me } = useAuth()
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
   const [showVerification, setShowVerification] = useState(false)
@@ -141,7 +142,7 @@ export default function LandingPage() {
       case "pendingProfileCompletion":
         return (
           <div className="container py-20">
-            {user.userType === "individualUser" ? <IndividualProfileForm /> : <OrganizationProfileForm />}
+            {isIndividualAccount(me?.groups, user.userType) ? <IndividualProfileForm /> : <OrganizationProfileForm />}
           </div>
         )
       case "active":

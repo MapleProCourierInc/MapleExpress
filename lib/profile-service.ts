@@ -1,116 +1,48 @@
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
 import { apiFetch } from "@/lib/client-api"
 
-// Get individual profile
-export async function getIndividualProfile(userId: string): Promise<IndividualProfile> {
-
-  const response = await apiFetch(`/api/profile/individual?userId=${userId}`)
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to fetch individual profile")
-  }
-
-  return response.json()
+interface ProfilePage<T> {
+  items?: T[]
 }
 
-// Get organization profile
-export async function getOrganizationProfile(userId: string): Promise<OrganizationProfile> {
-
-  const response = await apiFetch(`/api/profile/organization?userId=${userId}`)
+async function readProfileResponse<T>(response: Response, message: string): Promise<T> {
+  const data = await response.json().catch(() => null)
 
   if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to fetch organization profile")
+    throw new Error(data?.message || message)
   }
 
-  return response.json()
-}
+  const profile = Array.isArray(data?.items)
+    ? (data as ProfilePage<T>).items?.[0]
+    : Array.isArray(data)
+      ? data[0]
+      : data
 
-// Get individual profile by email
-export async function getIndividualProfileByEmail(
-  email: string,
-): Promise<IndividualProfile> {
-
-  const response = await apiFetch(
-    `/api/profile/individual?email=${encodeURIComponent(email)}`,
-  )
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to fetch individual profile")
+  if (!profile) {
+    throw new Error(message)
   }
 
-  const data = await response.json()
-  return Array.isArray(data) ? data[0] : data
+  return profile as T
 }
 
-// Get organization profile by email
-export async function getOrganizationProfileByEmail(
-  email: string,
-): Promise<OrganizationProfile> {
-
-  const response = await apiFetch(
-    `/api/profile/organization?email=${encodeURIComponent(email)}`,
-  )
-
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to fetch organization profile")
-  }
-
-  const data = await response.json()
-  return Array.isArray(data) ? data[0] : data
-}
-
-// Update individual profile
-export async function updateIndividualProfile(
-  userId: string,
-  profileData: Partial<IndividualProfile>,
-): Promise<IndividualProfile> {
-
-  const response = await apiFetch(`/api/profile/individual/update`, {
-    method: "PATCH",
+export async function getIndividualProfile(): Promise<IndividualProfile> {
+  const response = await apiFetch("/api/profile/individual", {
     headers: {
-      "Content-Type": "application/json",
+      Accept: "application/json",
     },
-    body: JSON.stringify({
-      userId,
-      ...profileData,
-    }),
   })
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to update individual profile")
-  }
-
-  return response.json()
+  return readProfileResponse<IndividualProfile>(response, "Failed to fetch individual profile")
 }
 
-// Update organization profile
-export async function updateOrganizationProfile(
-  userId: string,
-  profileData: Partial<OrganizationProfile>,
-): Promise<OrganizationProfile> {
-
-  const response = await apiFetch(`/api/profile/organization/update`, {
-    method: "PATCH",
+export async function getOrganizationProfile(): Promise<OrganizationProfile> {
+  const response = await apiFetch("/api/profile/organization", {
     headers: {
-      "Content-Type": "application/json",
+      Accept: "application/json",
     },
-    body: JSON.stringify({
-      userId,
-      ...profileData,
-    }),
   })
 
-  if (!response.ok) {
-    const error = await response.json()
-    throw new Error(error.message || "Failed to update organization profile")
-  }
-
-  return response.json()
+  return readProfileResponse<OrganizationProfile>(response, "Failed to fetch organization profile")
 }
 
 export async function updateIndividualInformation(
@@ -155,7 +87,7 @@ export async function updateOrganizationInformation(
   const payload = {
     userId,
     registrationNumber: formData.registrationNumber || null,
-    taxId: formData.taxID || null,
+    taxID: formData.taxID || null,
     industry: formData.industry || null,
     phone: formData.phone || null,
     websiteUrl: formData.website || null,
@@ -182,6 +114,25 @@ export async function updateOrganizationInformation(
   }
 
   return data as OrganizationProfile
+}
+
+export async function updateProfileTaxID(taxID: string): Promise<IndividualProfile | OrganizationProfile> {
+  const response = await apiFetch("/api/profile/tax-id", {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ taxID }),
+  })
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to update GST registration number")
+  }
+
+  return data as IndividualProfile | OrganizationProfile
 }
 
 // Change password

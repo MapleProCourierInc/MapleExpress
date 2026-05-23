@@ -17,6 +17,17 @@ export interface BillingAccount {
   billingAccountId: string
 }
 
+export interface PayLaterConfiguration {
+  paymentTerms?: string
+  activationStatus?: string
+  billingAccountId?: string
+  enabledByAdminUserId?: string
+  enabledAt?: string
+  reason?: string
+  notes?: string
+  lastUpdatedAt?: string
+}
+
 export interface IndividualProfile {
   id: string
   userId: string
@@ -28,6 +39,7 @@ export interface IndividualProfile {
   type: string
   address?: Address[]
   phone: string
+  taxID?: string
   phoneNumberVerified?: boolean
   createdAt?: string
   updatedAt?: string
@@ -35,6 +47,7 @@ export interface IndividualProfile {
   billingAccount?: BillingAccount
   discounts?: Discount[]
   extensions?: Record<string, string>
+  payLaterConfiguration?: PayLaterConfiguration | null
 }
 
 export interface PointOfContact {
@@ -62,5 +75,6 @@ export interface OrganizationProfile {
   billingAccount?: BillingAccount
   discounts?: Discount[]
   extensions?: Record<string, string>
+  payLaterConfiguration?: PayLaterConfiguration | null
 }
 

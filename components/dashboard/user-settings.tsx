@@ -6,6 +6,7 @@ import { IndividualSettings } from "@/components/individual-settings"
 import { OrganizationSettings } from "@/components/organization-settings"
 import { ChangePassword } from "@/components/change-password"
 import { getIndividualProfile, getOrganizationProfile } from "@/lib/profile-service"
+import { isIndividualAccount } from "@/lib/profile-account-type"
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
 import { Settings, Key, User, Building, Loader2 } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
@@ -14,14 +15,16 @@ import { AlertCircle } from "lucide-react"
 interface UserSettingsProps {
   userId: string
   userType: string
+  groups?: string[]
 }
 
-export function UserSettings({ userId, userType }: UserSettingsProps) {
+export function UserSettings({ groups, userId, userType }: UserSettingsProps) {
   const [activeTab, setActiveTab] = useState("profile")
   const [individualProfile, setIndividualProfile] = useState<IndividualProfile | null>(null)
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const isIndividualProfile = isIndividualAccount(groups, userType)
 
   // Fetch profile data
   useEffect(() => {
@@ -30,11 +33,11 @@ export function UserSettings({ userId, userType }: UserSettingsProps) {
       setError(null)
 
       try {
-        if (userType === "individualUser") {
-          const profile = await getIndividualProfile(userId)
+        if (isIndividualAccount(groups, userType)) {
+          const profile = await getIndividualProfile()
           setIndividualProfile(profile)
-        } else if (userType === "businessUser") {
-          const profile = await getOrganizationProfile(userId)
+        } else {
+          const profile = await getOrganizationProfile()
           setOrganizationProfile(profile)
         }
       } catch (err) {
@@ -46,16 +49,16 @@ export function UserSettings({ userId, userType }: UserSettingsProps) {
     }
 
     fetchProfileData()
-  }, [userId, userType])
+  }, [groups, userId, userType])
 
   const handleProfileUpdate = async () => {
     setIsLoading(true)
     try {
-      if (userType === "individualUser") {
-        const profile = await getIndividualProfile(userId)
+      if (isIndividualAccount(groups, userType)) {
+        const profile = await getIndividualProfile()
         setIndividualProfile(profile)
-      } else if (userType === "businessUser") {
-        const profile = await getOrganizationProfile(userId)
+      } else {
+        const profile = await getOrganizationProfile()
         setOrganizationProfile(profile)
       }
     } catch (err) {
@@ -88,12 +91,12 @@ export function UserSettings({ userId, userType }: UserSettingsProps) {
           <Tabs orientation="vertical" value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsList className="flex flex-col h-auto bg-transparent space-y-1 p-0">
               <TabsTrigger value="profile" className="justify-start px-3 py-2 data-[state=active]:bg-muted">
-                {userType === "individualUser" ? (
+                {isIndividualProfile ? (
                   <User className="mr-2 h-4 w-4" />
                 ) : (
                   <Building className="mr-2 h-4 w-4" />
                 )}
-                {userType === "individualUser" ? "Personal Information" : "Organization Information"}
+                {isIndividualProfile ? "Personal Information" : "Organization Information"}
               </TabsTrigger>
               <TabsTrigger value="security" className="justify-start px-3 py-2 data-[state=active]:bg-muted">
                 <Key className="mr-2 h-4 w-4" />
@@ -113,9 +116,9 @@ export function UserSettings({ userId, userType }: UserSettingsProps) {
 
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <TabsContent value="profile" className="mt-0">
-              {userType === "individualUser" && individualProfile ? (
+              {isIndividualProfile && individualProfile ? (
                 <IndividualSettings profile={individualProfile} onProfileUpdate={handleProfileUpdate} />
-              ) : userType === "businessUser" && organizationProfile ? (
+              ) : !isIndividualProfile && organizationProfile ? (
                 <OrganizationSettings profile={organizationProfile} onProfileUpdate={handleProfileUpdate} />
               ) : (
                 <div className="flex items-center justify-center h-64">
@@ -133,4 +136,3 @@ export function UserSettings({ userId, userType }: UserSettingsProps) {
     </div>
   )
 }
-

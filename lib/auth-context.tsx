@@ -4,6 +4,7 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
 import { apiFetch, AUTH_INVALID_EVENT, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
+import { getUserTypeFromGroups, isIndividualAccount } from "@/lib/profile-account-type"
 
 // Update the User type to match your API response
 type User = {
@@ -25,6 +26,7 @@ type IndividualProfile = {
   dateOfBirth: string
   type: string
   phone: string
+  taxID?: string
   phoneNumberVerified?: boolean
   address?: Array<{
     fullName: string
@@ -54,6 +56,12 @@ type OrganizationProfile = {
   userId: string
   status: string
   name: string
+  registrationNumber?: string
+  taxID?: string
+  industry?: string
+  phone?: string
+  email?: string
+  website?: string
   pointOfContact: {
     name: string
     position: string
@@ -103,7 +111,7 @@ type AuthContextType = {
   ) => Promise<{ success: boolean; message: string; profile?: OrganizationProfile }>
   confirmEmail: (email: string, code: string) => Promise<{ success: boolean; message: string }>
   resendVerificationEmail: (email: string) => Promise<{ success: boolean; message: string }>
-  fetchUserProfile: (user?: User) => Promise<void>
+  fetchUserProfile: (user?: User, groups?: string[]) => Promise<void>
   completeOnboarding: (payload: OnboardingPayload) => Promise<{ success: boolean; message: string; statusCode?: number }>
 }
 
@@ -122,7 +130,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const setClientGroupCookie = (groups?: string[]) => {
     if (typeof document === "undefined") return
 
-    const group = groups?.[0]
+    const group = groups?.find((candidate) => candidate === "client_organization" || candidate === "client_individual") || groups?.[0]
 
     if (group) {
       document.cookie = `${GROUP_COOKIE_NAME}=${encodeURIComponent(group)}; path=/; max-age=${GROUP_COOKIE_MAX_AGE}; samesite=lax`
@@ -152,15 +160,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setClientGroupCookie(meData.groups)
 
     const isSuperAdmin = meData.authenticated && meData.groups?.includes("admin_super")
+    const syncedUser = {
+      ...activeUser,
+      userType: getUserTypeFromGroups(meData.groups, activeUser.userType),
+    }
 
     if (meData.status === "ONBOARDING_REQUIRED") {
+      localStorage.setItem("maplexpress_user_data", JSON.stringify(syncedUser))
+      setUser(syncedUser)
+
       if (window.location.pathname !== "/onboarding") {
         window.location.href = "/onboarding"
       }
       return meData
     }
 
-    const updatedUser = { ...activeUser, userStatus: "active" }
+    const updatedUser = {
+      ...syncedUser,
+      userStatus: "active",
+    }
     localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
     setUser(updatedUser)
 
@@ -206,7 +224,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const meData = await syncMe(seedUser)
 
         if (meData.status === "ACTIVE" && parsedUser?.userStatus === "active") {
-          fetchUserProfile(parsedUser)
+          fetchUserProfile(parsedUser, meData.groups)
         }
       } catch (error) {
         console.error("Authentication check failed:", error)
@@ -291,7 +309,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Fetch profile based on user type
         if (meData.status === "ACTIVE") {
-          await fetchUserProfile(user)
+          await fetchUserProfile(user, meData.groups)
         }
 
         return { success: true, message: "Login successful", userStatus: user.userStatus }
@@ -475,10 +493,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setClientGroupCookie(meData.groups)
 
       if (user) {
-        const updatedUser = { ...user, userStatus: "active" }
+        const updatedUser = {
+          ...user,
+          userStatus: "active",
+          userType: getUserTypeFromGroups(meData.groups, user.userType),
+        }
         setUser(updatedUser)
         localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
-        await fetchUserProfile(updatedUser)
+        await fetchUserProfile(updatedUser, meData.groups)
       }
 
       return { success: true, message: "Onboarding completed" }
@@ -491,40 +513,45 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // Add function to fetch user profile based on userType
   const fetchUserProfile = async (
     targetUser?: User,
+    groups?: string[],
   ) => {
     const currentUser = targetUser || user
     if (!currentUser) return
 
     try {
-      if (currentUser.userType === "individualUser") {
+      if (isIndividualAccount(groups || me?.groups, currentUser.userType)) {
         const response = await apiFetch(
-          `/api/profile/individual?email=${encodeURIComponent(currentUser.email)}`,
+          "/api/profile/individual",
           {},
         )
 
         if (response.ok) {
           const data = await response.json()
-          const profile = Array.isArray(data) ? data[0] : data
+          const profile = Array.isArray(data?.items) ? data.items[0] : Array.isArray(data) ? data[0] : data
           setIndividualProfile(profile)
+          setOrganizationProfile(null)
           localStorage.setItem(
             "maplexpress_individual_profile",
             JSON.stringify(profile),
           )
+          localStorage.removeItem("maplexpress_organization_profile")
         }
-      } else if (currentUser.userType === "businessUser") {
+      } else {
         const response = await apiFetch(
-          `/api/profile/organization?email=${encodeURIComponent(currentUser.email)}`,
+          "/api/profile/organization",
           {},
         )
 
         if (response.ok) {
           const data = await response.json()
-          const profile = Array.isArray(data) ? data[0] : data
+          const profile = Array.isArray(data?.items) ? data.items[0] : Array.isArray(data) ? data[0] : data
           setOrganizationProfile(profile)
+          setIndividualProfile(null)
           localStorage.setItem(
             "maplexpress_organization_profile",
             JSON.stringify(profile),
           )
+          localStorage.removeItem("maplexpress_individual_profile")
         }
       }
     } catch (error) {

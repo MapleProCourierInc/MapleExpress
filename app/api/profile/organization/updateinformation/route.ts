@@ -5,7 +5,7 @@ import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
-    const { userId, registrationNumber, taxId, industry, phone, websiteUrl, pointOfContact } = body
+    const { userId, registrationNumber, taxID, industry, phone, websiteUrl, pointOfContact } = body
 
     if (!userId) {
       return NextResponse.json({ message: "userId is required" }, { status: 400 })
@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
       url: getEndpointUrl(PROFILE_SERVICE_URL, `/profile/organization/user/${userId}`),
       body: JSON.stringify({
         registrationNumber,
-        taxId,
+        taxID,
         industry,
         phone,
         websiteUrl,

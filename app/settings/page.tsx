@@ -4,6 +4,7 @@ import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { getIndividualProfile, getOrganizationProfile } from "@/lib/profile-service"
+import { isIndividualAccount } from "@/lib/profile-account-type"
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { IndividualSettings } from "@/components/individual-settings"
@@ -13,13 +14,14 @@ import { Truck, ArrowLeft, Settings, Key, User, Building } from "lucide-react"
 import Link from "next/link"
 
 export default function SettingsPage() {
-  const { user, isLoading: authLoading } = useAuth()
+  const { user, isLoading: authLoading, me } = useAuth()
   const router = useRouter()
   const [activeTab, setActiveTab] = useState("profile")
   const [individualProfile, setIndividualProfile] = useState<IndividualProfile | null>(null)
   const [organizationProfile, setOrganizationProfile] = useState<OrganizationProfile | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+  const isIndividualProfile = isIndividualAccount(me?.groups, user?.userType)
 
   // Redirect if not authenticated
   useEffect(() => {
@@ -37,12 +39,12 @@ export default function SettingsPage() {
       setError(null)
 
       try {
-        if (user.userType === "individualUser") {
-          const profile = await getIndividualProfile(user.userId)
+        if (isIndividualAccount(me?.groups, user.userType)) {
+          const profile = await getIndividualProfile()
           console.log("Fetched individual profile:", profile)
           setIndividualProfile(profile)
-        } else if (user.userType === "businessUser") {
-          const profile = await getOrganizationProfile(user.userId)
+        } else {
+          const profile = await getOrganizationProfile()
           console.log("Fetched organization profile:", profile)
           setOrganizationProfile(profile)
         }
@@ -57,18 +59,18 @@ export default function SettingsPage() {
     if (user && user.userStatus === "active") {
       fetchProfileData()
     }
-  }, [user])
+  }, [me?.groups, user])
 
   const handleProfileUpdate = async () => {
     if (!user) return
 
     setIsLoading(true)
     try {
-      if (user.userType === "individualUser") {
-        const profile = await getIndividualProfile(user.userId)
+      if (isIndividualAccount(me?.groups, user.userType)) {
+        const profile = await getIndividualProfile()
         setIndividualProfile(profile)
-      } else if (user.userType === "businessUser") {
-        const profile = await getOrganizationProfile(user.userId)
+      } else {
+        const profile = await getOrganizationProfile()
         setOrganizationProfile(profile)
       }
     } catch (err) {
@@ -126,12 +128,12 @@ export default function SettingsPage() {
             <Tabs orientation="vertical" value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsList className="flex flex-col h-auto bg-transparent space-y-1 p-0">
                 <TabsTrigger value="profile" className="justify-start px-3 py-2 data-[state=active]:bg-muted">
-                  {user.userType === "individualUser" ? (
+                  {isIndividualProfile ? (
                     <User className="mr-2 h-4 w-4" />
                   ) : (
                     <Building className="mr-2 h-4 w-4" />
                   )}
-                  {user.userType === "individualUser" ? "Personal Information" : "Organization Information"}
+                  {isIndividualProfile ? "Personal Information" : "Organization Information"}
                 </TabsTrigger>
                 <TabsTrigger value="security" className="justify-start px-3 py-2 data-[state=active]:bg-muted">
                   <Key className="mr-2 h-4 w-4" />
@@ -146,9 +148,9 @@ export default function SettingsPage() {
 
             <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
               <TabsContent value="profile" className="mt-0">
-                {user.userType === "individualUser" && individualProfile ? (
+                {isIndividualProfile && individualProfile ? (
                   <IndividualSettings profile={individualProfile} onProfileUpdate={handleProfileUpdate} />
-                ) : user.userType === "businessUser" && organizationProfile ? (
+                ) : !isIndividualProfile && organizationProfile ? (
                   <OrganizationSettings profile={organizationProfile} onProfileUpdate={handleProfileUpdate} />
                 ) : (
                   <div className="flex items-center justify-center h-64">
@@ -167,4 +169,3 @@ export default function SettingsPage() {
     </div>
   )
 }
-

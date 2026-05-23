@@ -163,7 +163,7 @@ export default function Dashboard() {
           ) : activeSection === "billing" ? (
             <Billing />
           ) : (
-            <ProfileSection userId={user.userId} userType={user.userType} displayName={displayName} email={user.email} />
+            <ProfileSection groups={me?.groups} userId={user.userId} userType={user.userType} />
           )}
         </main>
       </div>
