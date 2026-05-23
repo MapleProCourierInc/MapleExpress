@@ -15,9 +15,10 @@ import {
 } from "@/components/ui/dropdown-menu"
 import { ProfileSection } from "@/components/dashboard/profile-section"
 import { Shipments } from "@/components/dashboard/shipments"
-import { ChevronRight, LogOut, Package, Truck, UserRound } from "lucide-react"
+import { Billing } from "@/components/dashboard/billing"
+import { ChevronRight, CreditCard, LogOut, Package, Truck, UserRound } from "lucide-react"
 
-type SectionType = "shipments" | "profile"
+type SectionType = "shipments" | "billing" | "profile"
 
 const getInitials = (name?: string | null) => {
   const trimmed = name?.trim()
@@ -39,7 +40,8 @@ export default function Dashboard() {
   const searchParams = useSearchParams()
 
   const requestedSection = searchParams.get("section")
-  const activeSection: SectionType = requestedSection === "profile" ? "profile" : "shipments"
+  const activeSection: SectionType =
+    requestedSection === "profile" || requestedSection === "billing" ? requestedSection : "shipments"
 
   useEffect(() => {
     if (!isLoading) {
@@ -53,7 +55,10 @@ export default function Dashboard() {
         return
       }
 
-      if (!requestedSection || (requestedSection !== "shipments" && requestedSection !== "profile")) {
+      if (
+        !requestedSection ||
+        (requestedSection !== "shipments" && requestedSection !== "billing" && requestedSection !== "profile")
+      ) {
         router.replace("/dashboard?section=shipments")
       }
     }
@@ -105,6 +110,13 @@ export default function Dashboard() {
                 Shipments
               </button>
               <button
+                className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${activeSection === "billing" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                onClick={() => navigateSection("billing")}
+              >
+                <CreditCard className="h-5 w-5" />
+                Billing
+              </button>
+              <button
                 className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${activeSection === "profile" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
                 onClick={() => navigateSection("profile")}
               >
@@ -148,6 +160,8 @@ export default function Dashboard() {
         <main className="flex-1 overflow-auto p-6">
           {activeSection === "shipments" ? (
             <Shipments />
+          ) : activeSection === "billing" ? (
+            <Billing />
           ) : (
             <ProfileSection userId={user.userId} userType={user.userType} displayName={displayName} email={user.email} />
           )}
