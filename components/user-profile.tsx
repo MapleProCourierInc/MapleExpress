@@ -44,33 +44,48 @@ export function UserProfile() {
           </Avatar>
         </Button>
       </DropdownMenuTrigger>
-      <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="font-normal">
+      <DropdownMenuContent
+        align="end"
+        className="w-56 border-brand-maple/25 bg-gradient-to-b from-brand-maple-soft to-white shadow-lg"
+      >
+        <DropdownMenuLabel className="font-normal text-foreground">
           <div className="flex flex-col space-y-1">
             <p className="text-sm font-medium leading-none">{displayName}</p>
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
         <DropdownMenuItem asChild>
-          <Link href="/dashboard?section=shipments" className="cursor-pointer flex w-full items-center">
+          <Link
+            href="/dashboard?section=shipments"
+            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+          >
             <Package className="mr-2 h-4 w-4" />
             <span>Shipments</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/dashboard?section=billing" className="cursor-pointer flex w-full items-center">
+          <Link
+            href="/dashboard?section=billing"
+            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+          >
             <CreditCard className="mr-2 h-4 w-4" />
             <span>Billing</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuItem asChild>
-          <Link href="/dashboard?section=profile" className="cursor-pointer flex w-full items-center">
+          <Link
+            href="/dashboard?section=profile"
+            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+          >
             <User className="mr-2 h-4 w-4" />
             <span>Profile</span>
           </Link>
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onClick={() => logout()} className="cursor-pointer text-destructive">
+        <DropdownMenuItem
+          onClick={() => logout()}
+          className="cursor-pointer rounded-md text-destructive focus:bg-destructive/10 focus:text-destructive"
+        >
           <LogOut className="mr-2 h-4 w-4" />
           <span>Log out</span>
         </DropdownMenuItem>

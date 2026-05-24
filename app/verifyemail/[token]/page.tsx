@@ -65,11 +65,11 @@ export default function VerifyEmailPage({ params }: { params: { token: string } 
   }
 
   return (
-      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:to-gray-800">
+      <div className="min-h-screen flex items-center justify-center p-4 bg-gradient-to-br from-brand-forest-soft to-brand-maple-soft dark:from-background dark:to-muted">
         <Card className="w-full max-w-md mx-auto shadow-lg">
           <CardHeader className="text-center pb-4">
-            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-              <Mail className="w-8 h-8 text-blue-600 dark:text-blue-400" />
+            <div className="mx-auto mb-4 w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
+              <Mail className="w-8 h-8 text-primary" />
             </div>
             <CardTitle className="text-2xl font-bold">Email Verification</CardTitle>
             <CardDescription>
@@ -82,7 +82,7 @@ export default function VerifyEmailPage({ params }: { params: { token: string } 
           <CardContent className="text-center space-y-6">
             {state === "loading" && (
                 <div className="flex flex-col items-center space-y-4">
-                  <Loader2 className="w-12 h-12 animate-spin text-blue-600" />
+                  <Loader2 className="w-12 h-12 animate-spin text-primary" />
                   <p className="text-sm text-muted-foreground">Please wait while we verify your email...</p>
                 </div>
             )}

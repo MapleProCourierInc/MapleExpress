@@ -198,7 +198,7 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
                 </Button>
                 <Button
                     type="button"
-                    className="bg-orange-400 hover:bg-orange-500 text-white rounded-md"
+                    className="bg-secondary hover:bg-secondary/90 text-secondary-foreground rounded-md"
                     onClick={(e) => {
                       e.preventDefault()
                       onClose()

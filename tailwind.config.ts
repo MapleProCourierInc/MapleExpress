@@ -53,6 +53,22 @@ const config = {
           DEFAULT: "hsl(var(--card))",
           foreground: "hsl(var(--card-foreground))",
         },
+        brand: {
+          forest: "hsl(var(--brand-forest))",
+          "forest-soft": "hsl(var(--brand-forest-soft))",
+          wine: "hsl(var(--brand-wine))",
+          "wine-soft": "hsl(var(--brand-wine-soft))",
+          maple: "hsl(var(--brand-maple))",
+          "maple-soft": "hsl(var(--brand-maple-soft))",
+          rust: "hsl(var(--brand-rust))",
+        },
+        chart: {
+          1: "hsl(var(--chart-1))",
+          2: "hsl(var(--chart-2))",
+          3: "hsl(var(--chart-3))",
+          4: "hsl(var(--chart-4))",
+          5: "hsl(var(--chart-5))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -49,7 +49,7 @@ const statusStyles: Record<StatusTone, string> = {
   success: "border-emerald-200 bg-emerald-50 text-emerald-800",
   warning: "border-amber-200 bg-amber-50 text-amber-900",
   danger: "border-red-200 bg-red-50 text-red-800",
-  progress: "border-blue-200 bg-blue-50 text-blue-800",
+  progress: "border-brand-maple/30 bg-brand-maple-soft text-brand-rust",
   neutral: "border-slate-200 bg-slate-50 text-slate-700",
 }
 
@@ -1183,7 +1183,7 @@ export function Billing() {
 
   return (
     <div className="space-y-6">
-      <div className="border-b border-slate-200 bg-white px-1 pt-1">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white px-5 pt-5 shadow-sm">
         <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-3">

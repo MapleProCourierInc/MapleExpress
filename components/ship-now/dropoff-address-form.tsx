@@ -132,7 +132,7 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                       <div className="w-full border-t border-gray-300"></div>
                     </div>
                     <div className="relative flex justify-center">
-                      <span className="bg-white px-4 text-sm text-gray-500">or select a saved address</span>
+                      <span className="bg-[hsl(var(--dashboard-card))] px-4 text-sm text-muted-foreground">or select a saved address</span>
                     </div>
                   </div>
               )}
@@ -148,7 +148,7 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                           />
                           <div className="flex-1">
                             <Label htmlFor={`address-${address.addressId}`} className="flex items-start cursor-pointer">
-                              <Card className="w-full">
+                              <Card className="ship-now-address-card w-full">
                                 <CardContent className="p-4">
                                   <div className="flex justify-between">
                                     <div>

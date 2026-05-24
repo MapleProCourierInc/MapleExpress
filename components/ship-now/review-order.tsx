@@ -49,7 +49,7 @@ export function ReviewOrder({
                         </Button>
                     </div>
                     {order.pickupAddress && (
-                        <Card>
+                        <Card className="ship-now-review-card">
                             <CardContent className="p-4">
                                 <p className="font-medium">{order.pickupAddress.fullName}</p>
                                 {order.pickupAddress.company && (
@@ -79,8 +79,8 @@ export function ReviewOrder({
                     </h2>
                     <div className="space-y-6">
                         {order.packages.map((pkg, index) => (
-                            <Card key={pkg.id} className="overflow-hidden">
-                                <div className="bg-muted p-3 border-b flex justify-between items-center">
+                            <Card key={pkg.id} className="ship-now-review-card overflow-hidden">
+                                <div className="ship-now-review-card-header flex items-center justify-between border-b p-3">
                                     <h3 className="font-medium">Package {index + 1}</h3>
                                     <div className="flex gap-2">
                                         <Button

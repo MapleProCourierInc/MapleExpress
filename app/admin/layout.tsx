@@ -11,12 +11,12 @@ export default async function AdminLayout({ children }: { children: React.ReactN
   }
 
   return (
-    <div className="min-h-screen bg-muted/20">
+    <div className="admin-shell min-h-screen">
       <AdminHeader displayName={me?.displayName} />
       <div className="container mx-auto px-4 py-6 md:py-8">
         <div className="flex gap-6">
           <AdminSidebar />
-          <main className="min-w-0 flex-1 rounded-lg border bg-background p-6">{children}</main>
+          <main className="admin-main min-w-0 flex-1 rounded-lg border p-6">{children}</main>
         </div>
       </div>
     </div>

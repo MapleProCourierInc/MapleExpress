@@ -27,7 +27,7 @@ export function ShippingSuccess({ orderNumber }: ShippingSuccessProps) {
         <p className="text-xl mb-2">Thank you for choosing MapleXpress</p>
         <p className="text-muted-foreground mb-8">Your order has been received and is being processed.</p>
 
-        <div className="bg-muted p-4 rounded-lg mb-8">
+        <div className="ship-now-summary-detail-cell p-4 rounded-lg mb-8">
           <p className="text-sm text-muted-foreground">Order Number</p>
           <p className="text-xl font-bold">{displayOrderNumber}</p>
         </div>

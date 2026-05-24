@@ -20,9 +20,9 @@ export default function ShipNowPage() {
   }, [user, isLoading, router])
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div className="ship-now-page flex min-h-screen flex-col">
       <Header />
-      <main className="flex-1">
+      <main className="ship-now-main flex-1">
         {isLoading ? (
           <div className="container py-20 flex items-center justify-center">
             <div className="w-full max-w-3xl p-8 rounded-lg bg-background shadow-md">
