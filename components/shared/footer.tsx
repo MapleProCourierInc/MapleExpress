@@ -1,5 +1,5 @@
 import Link from "next/link"
-import { Truck, Facebook, Twitter, Instagram, Linkedin } from "lucide-react"
+import { Facebook, Twitter, Instagram, Linkedin } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 
@@ -10,7 +10,7 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div>
             <div className="flex items-center gap-2 mb-4">
-              <Truck className="h-6 w-6 text-primary" />
+              <img src="/leaf.svg" alt="MapleXpress leaf" className="h-9 w-9" />
               <span className="text-xl font-bold">MapleXpress</span>
             </div>
             <p className="text-muted-foreground mb-4">

@@ -11,7 +11,12 @@ const inter = Inter({ subsets: ["latin"] })
 export const metadata: Metadata = {
   title: "MapleXpress - Fast, Reliable Courier Services",
   description: "Your trusted partner for all your courier and logistics needs.",
-    generator: 'v0.dev'
+  icons: {
+    icon: "/leaf.svg",
+    shortcut: "/leaf.svg",
+    apple: "/leaf.svg",
+  },
+  generator: "v0.dev",
 }
 
 export default function RootLayout({
