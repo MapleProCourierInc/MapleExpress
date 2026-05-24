@@ -41,6 +41,7 @@ export type PackageItem = {
 // Define the address type
 export type Address = {
   id?: string
+  addressId?: string
   fullName: string
   company?: string
   streetAddress: string
@@ -264,7 +265,7 @@ export function ShipNowForm() {
       const queryParams = new URLSearchParams({
         orderId: completedOrderId,
         total: draftOrder.aggregatedPricing.totalAmount.toString(),
-        pickup: pickupAddress?.fullName || (draftOrder.pickupAddress?.fullName || "N/A"),
+        pickup: pickupAddress?.fullName || order.pickupAddress?.fullName || "N/A",
         dropoff: dropoffAddress?.fullName || "Multiple Destinations", // Fallback for multi-package different destinations
         items: draftOrder.orderItems.length.toString()
       }).toString();
@@ -435,7 +436,7 @@ export function ShipNowForm() {
 
           {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">{error}</div>}
 
-          <div className="mt-10 bg-white rounded-lg shadow-lg p-8 transition-all duration-300">
+          <div className="ship-now-card mt-10 rounded-lg p-8 shadow-lg transition-all duration-300">
             {currentStep === "PACKAGE_DETAILS" && (
                 <>
                   {order.packages.length > 1 && (

@@ -272,8 +272,8 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2">
-          <Card className="border-0 shadow-md">
-            <CardHeader className="bg-muted/30 pb-3">
+          <Card className="ship-now-summary-card">
+            <CardHeader className="ship-now-summary-card-header pb-3">
               <CardTitle className="text-lg">Payment Summary</CardTitle>
             </CardHeader>
             <CardContent className="p-6 space-y-4">
@@ -316,8 +316,8 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
         </div>
 
         <div className="space-y-6">
-          <Card className="border-0 shadow-md">
-            <CardHeader className="bg-muted/30 pb-3">
+          <Card className="ship-now-summary-card">
+            <CardHeader className="ship-now-summary-card-header pb-3">
               <CardTitle className="text-lg">Order Summary</CardTitle>
             </CardHeader>
             <CardContent className="p-5">
@@ -335,14 +335,14 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
                   <span>Total</span>
                   <span className="text-primary">{formatCurrency(orderData.aggregatedPricing.totalAmount)}</span>
                 </div>
-                <div className="pt-4 text-sm text-muted-foreground flex items-center bg-muted/10 p-3 rounded-md mt-6">
+                <div className="ship-now-summary-detail-cell pt-4 text-sm text-muted-foreground flex items-center p-3 rounded-md mt-6">
                   <ShieldCheck className="h-4 w-4 mr-2 text-primary" />
                   <span>Your payment information is secure.</span>
                 </div>
               </div>
             </CardContent>
           </Card>
-          <div className="bg-muted/10 p-4 rounded-md space-y-3">
+          <div className="ship-now-flow-note p-4 rounded-md space-y-3">
             <div className="flex items-center text-sm">
               <Lock className="h-4 w-4 mr-2 text-primary" />
               <span className="font-medium">Secure Payment Processing by Moneris</span>

@@ -163,8 +163,8 @@ export function ProfileSection({
           {profileError ? <p className="rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">{profileError}</p> : null}
 
           <div className="grid gap-5 xl:grid-cols-[minmax(0,2fr)_minmax(280px,0.95fr)]">
-            <Card className="overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm">
-              <div className="h-1 bg-red-700" />
+            <Card className="dashboard-card-surface overflow-hidden rounded-xl border-slate-200 shadow-sm">
+              <div className="h-1 bg-secondary" />
               <CardHeader className="flex flex-row items-start justify-between gap-4 px-7 pb-2 pt-7">
                 <div className="flex items-center gap-3">
                   <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-900">
@@ -172,7 +172,7 @@ export function ProfileSection({
                   </div>
                   <CardTitle className="text-base font-semibold text-slate-950">Account Details</CardTitle>
                 </div>
-                <Badge className="rounded-full border-emerald-200 bg-emerald-50 px-3 py-1 text-[11px] font-semibold uppercase text-emerald-700 hover:bg-emerald-50">
+                <Badge className="rounded-full border-primary/20 bg-primary/10 px-3 py-1 text-[11px] font-semibold uppercase text-primary hover:bg-primary/10">
                   {profile?.status || (isLoadingProfile ? "Loading" : "Unknown")}
                 </Badge>
               </CardHeader>
@@ -181,7 +181,7 @@ export function ProfileSection({
                 <DetailItem label="Phone Number">{profile?.phone || "Not available"}</DetailItem>
                 <DetailItem label="Email Address">{profile?.email || "Not available"}</DetailItem>
                 <DetailItem label="Account Type">
-                  <Badge variant="secondary" className="rounded-md bg-indigo-100 px-2.5 py-1 text-xs font-medium text-indigo-700 hover:bg-indigo-100">
+                  <Badge variant="secondary" className="rounded-md bg-brand-maple-soft px-2.5 py-1 text-xs font-medium text-brand-rust hover:bg-brand-maple-soft">
                     {profileAccountTypeLabel(groups, userType)}
                   </Badge>
                 </DetailItem>
@@ -199,11 +199,11 @@ export function ProfileSection({
             </Card>
 
             <div className="space-y-5">
-              <Card className="overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm">
-                <div className="h-1 bg-blue-600" />
+              <Card className="dashboard-card-surface overflow-hidden rounded-xl border-slate-200 shadow-sm">
+                <div className="h-1 bg-brand-maple" />
                 <CardHeader className="px-4 pb-2 pt-4">
                   <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+                    <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-maple-soft text-brand-rust">
                       <FileText className="h-4 w-4" />
                     </span>
                     Tax Information
@@ -238,7 +238,7 @@ export function ProfileSection({
                         {isLoadingProfile ? "Loading..." : currentTaxID || "Not provided"}
                       </div>
                       <Button
-                        className="h-auto gap-1.5 px-0 py-0 text-blue-700 hover:text-blue-800"
+                        className="h-auto gap-1.5 px-0 py-0 text-secondary hover:text-secondary/80"
                         onClick={startTaxIDEdit}
                         size="sm"
                         type="button"
@@ -254,11 +254,11 @@ export function ProfileSection({
               </Card>
 
               {payLaterConfiguration ? (
-                <Card className="overflow-hidden rounded-xl border-slate-200 bg-white shadow-sm">
-                  <div className="h-1 bg-emerald-600" />
+                <Card className="dashboard-card-surface overflow-hidden rounded-xl border-slate-200 shadow-sm">
+                  <div className="h-1 bg-primary" />
                   <CardHeader className="px-4 pb-2 pt-4">
                     <CardTitle className="flex items-center gap-2 text-base font-semibold text-slate-950">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary/10 text-primary">
                         <CreditCard className="h-4 w-4" />
                       </span>
                       Pay Later
@@ -274,7 +274,7 @@ export function ProfileSection({
                           {formatEnumLabel(payLaterConfiguration.activationStatus)}
                         </div>
                       </div>
-                      <Badge className="rounded-full border-emerald-200 bg-emerald-50 text-emerald-700 hover:bg-emerald-50">
+                      <Badge className="rounded-full border-primary/20 bg-primary/10 text-primary hover:bg-primary/10">
                         {formatEnumLabel(payLaterConfiguration.paymentTerms)}
                       </Badge>
                     </div>

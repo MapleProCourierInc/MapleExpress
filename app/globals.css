@@ -4,70 +4,100 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222 47% 11%;
+    /*
+     * MapleXpress brand palette, derived from public/1.svg.
+     * Keep page colors wired to these semantic tokens so future palette changes
+     * can happen here instead of in every component.
+     */
+    --brand-forest: 133 31% 24%;
+    --brand-forest-soft: 132 28% 94%;
+    --brand-wine: 348 69% 38%;
+    --brand-wine-soft: 350 58% 96%;
+    --brand-maple: 32 86% 64%;
+    --brand-maple-soft: 36 88% 95%;
+    --brand-rust: 15 57% 43%;
 
-    /* Vibrant teal as primary color */
-    --primary: 175 70% 41%;
+    --background: 38 72% 98%;
+    --foreground: 24 28% 16%;
+
+    --primary: var(--brand-wine);
     --primary-foreground: 0 0% 100%;
 
-    /* Warm orange as secondary color */
-    --secondary: 32 95% 60%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: var(--brand-maple);
+    --secondary-foreground: 24 28% 16%;
 
-    /* Soft purple as accent color */
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
+    --accent: var(--brand-forest-soft);
+    --accent-foreground: var(--brand-forest);
 
-    --muted: 210 40% 96%;
-    --muted-foreground: 215 16% 47%;
+    --muted: 38 48% 95%;
+    --muted-foreground: 25 15% 42%;
 
     --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
+    --card-foreground: 24 28% 16%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
+    --popover-foreground: 24 28% 16%;
 
-    --border: 214 32% 91%;
-    --input: 214 32% 91%;
+    --border: 33 34% 86%;
+    --input: 33 34% 86%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 68% 44%;
     --destructive-foreground: 0 0% 100%;
 
-    --ring: 175 70% 41%;
+    --ring: var(--brand-wine);
+
+    --chart-1: var(--brand-wine);
+    --chart-2: var(--brand-maple);
+    --chart-3: var(--brand-forest);
+    --chart-4: var(--brand-rust);
+    --chart-5: 30 12% 46%;
+
+    --dashboard-card: 38 65% 98%;
+    --dashboard-panel: 38 66% 96%;
+    --dashboard-panel-strong: 35 78% 94%;
 
     --radius: 0.5rem;
   }
 
   .dark {
-    --background: 222 47% 11%;
-    --foreground: 210 40% 98%;
+    --background: 24 22% 10%;
+    --foreground: 38 72% 96%;
 
-    --primary: 175 70% 41%;
-    --primary-foreground: 0 0% 100%;
+    --primary: 350 62% 62%;
+    --primary-foreground: 24 22% 10%;
 
-    --secondary: 32 95% 60%;
-    --secondary-foreground: 222 47% 11%;
+    --secondary: 34 82% 66%;
+    --secondary-foreground: 24 22% 10%;
 
-    --accent: 262 83% 58%;
-    --accent-foreground: 0 0% 100%;
+    --accent: 133 20% 22%;
+    --accent-foreground: 38 72% 96%;
 
-    --muted: 217 33% 17%;
-    --muted-foreground: 215 20% 65%;
+    --muted: 24 17% 16%;
+    --muted-foreground: 38 22% 72%;
 
-    --card: 222 47% 11%;
-    --card-foreground: 210 40% 98%;
+    --card: 24 20% 12%;
+    --card-foreground: 38 72% 96%;
 
-    --popover: 222 47% 11%;
-    --popover-foreground: 210 40% 98%;
+    --popover: 24 20% 12%;
+    --popover-foreground: 38 72% 96%;
 
-    --border: 217 33% 17%;
-    --input: 217 33% 17%;
+    --border: 24 13% 24%;
+    --input: 24 13% 24%;
 
-    --destructive: 0 84% 60%;
+    --destructive: 0 64% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --ring: 175 70% 41%;
+    --ring: 350 56% 63%;
+
+    --chart-1: 350 62% 62%;
+    --chart-2: 34 82% 66%;
+    --chart-3: 132 24% 70%;
+    --chart-4: 15 45% 58%;
+    --chart-5: 40 13% 70%;
+
+    --dashboard-card: 24 20% 12%;
+    --dashboard-panel: 24 17% 16%;
+    --dashboard-panel-strong: 24 16% 20%;
   }
 }
 
@@ -123,6 +153,198 @@
 /* Ensure the dialog doesn't block the dropdown */
 .dialog-content {
   z-index: 50;
+}
+
+/* Client dashboard surface treatment */
+.client-dashboard-shell {
+  background:
+    radial-gradient(circle at 5% 0%, hsl(var(--brand-maple) / 0.2), transparent 32%),
+    radial-gradient(circle at 98% 12%, hsl(var(--primary) / 0.13), transparent 34%),
+    linear-gradient(135deg, hsl(var(--background)), hsl(var(--brand-maple-soft)));
+}
+
+.client-dashboard-shell .dashboard-sidebar {
+  background:
+    linear-gradient(180deg, hsl(var(--dashboard-card) / 0.96), hsl(var(--dashboard-panel) / 0.96)),
+    hsl(var(--dashboard-card));
+  border-color: hsl(var(--border));
+}
+
+.client-dashboard-shell .dashboard-main {
+  background:
+    radial-gradient(circle at 12% 8%, hsl(var(--secondary) / 0.12), transparent 32%),
+    linear-gradient(180deg, hsl(var(--background) / 0.55), hsl(var(--brand-maple-soft) / 0.5));
+}
+
+.client-dashboard-shell .dashboard-card-surface {
+  background:
+    linear-gradient(180deg, hsl(var(--dashboard-card) / 0.98), hsl(var(--dashboard-panel) / 0.84)),
+    hsl(var(--dashboard-card));
+}
+
+.client-dashboard-shell .bg-white,
+.client-dashboard-shell .bg-white\/90 {
+  background-color: hsl(var(--dashboard-card) / 0.94);
+}
+
+.client-dashboard-shell .bg-slate-50,
+.client-dashboard-shell .bg-slate-50\/80,
+.client-dashboard-shell .bg-muted\/30 {
+  background-color: hsl(var(--dashboard-panel) / 0.9);
+}
+
+.client-dashboard-shell .bg-slate-100 {
+  background-color: hsl(var(--dashboard-panel-strong) / 0.92);
+}
+
+.client-dashboard-shell .hover\:bg-white:hover,
+.client-dashboard-shell .hover\:bg-white\/70:hover,
+.client-dashboard-shell .focus\:bg-white:focus {
+  background-color: hsl(var(--brand-maple-soft));
+}
+
+.client-dashboard-shell .border-slate-200,
+.client-dashboard-shell .border-slate-100 {
+  border-color: hsl(var(--border));
+}
+
+/* Admin dashboard surface treatment */
+.admin-shell {
+  background:
+    radial-gradient(circle at 4% 0%, hsl(var(--brand-maple) / 0.17), transparent 30%),
+    radial-gradient(circle at 98% 10%, hsl(var(--primary) / 0.11), transparent 34%),
+    linear-gradient(135deg, hsl(var(--background)), hsl(var(--brand-maple-soft)));
+}
+
+.admin-shell .admin-main,
+.admin-shell aside.rounded-lg.border,
+.admin-shell .rounded-lg.border.bg-background,
+.admin-shell .space-y-3.rounded-lg.border.bg-background {
+  background:
+    linear-gradient(180deg, hsl(var(--dashboard-card) / 0.96), hsl(var(--dashboard-panel) / 0.86)),
+    hsl(var(--dashboard-card));
+  border-color: hsl(var(--border));
+  box-shadow: 0 10px 26px hsl(var(--brand-rust) / 0.06);
+}
+
+.admin-shell .bg-card {
+  background:
+    linear-gradient(180deg, hsl(var(--dashboard-card) / 0.98), hsl(var(--dashboard-panel) / 0.84)),
+    hsl(var(--dashboard-card));
+}
+
+.admin-shell .border,
+.admin-shell .border-border {
+  border-color: hsl(var(--border));
+}
+
+.admin-shell .bg-muted\/20,
+.admin-shell .bg-muted\/30 {
+  background-color: hsl(var(--dashboard-panel) / 0.78);
+}
+
+.admin-shell .bg-muted\/10,
+.admin-shell .bg-muted\/5 {
+  background-color: hsl(var(--dashboard-panel) / 0.58);
+}
+
+.admin-shell .bg-primary\/5 {
+  background:
+    linear-gradient(180deg, hsl(var(--brand-wine-soft) / 0.82), hsl(var(--dashboard-card) / 0.88)),
+    hsl(var(--dashboard-card));
+}
+
+/* Homepage card surfaces */
+.home-surface-card {
+  background:
+    linear-gradient(180deg, hsl(var(--brand-maple-soft) / 0.58), hsl(var(--dashboard-card) / 0.9)),
+    hsl(var(--dashboard-card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 10px 26px hsl(var(--brand-rust) / 0.08);
+}
+
+/* Ship Now form surfaces */
+.ship-now-page {
+  background:
+    radial-gradient(circle at 12% 2%, hsl(var(--brand-maple) / 0.18), transparent 32%),
+    radial-gradient(circle at 90% 12%, hsl(var(--primary) / 0.1), transparent 30%),
+    linear-gradient(180deg, hsl(var(--background)), hsl(var(--brand-maple-soft)));
+}
+
+.ship-now-main {
+  background: transparent;
+}
+
+.ship-now-card {
+  background:
+    linear-gradient(180deg, hsl(var(--dashboard-card) / 0.98), hsl(var(--dashboard-panel) / 0.84)),
+    hsl(var(--dashboard-card));
+  border: 1px solid hsl(var(--border));
+}
+
+.ship-now-address-card {
+  background:
+    linear-gradient(180deg, hsl(var(--brand-maple-soft) / 0.62), hsl(var(--dashboard-card) / 0.88)),
+    hsl(var(--dashboard-card));
+  border-color: hsl(var(--border));
+  box-shadow: 0 8px 20px hsl(var(--brand-rust) / 0.07);
+  transition: border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+
+.ship-now-address-card:hover {
+  border-color: hsl(var(--secondary) / 0.55);
+  box-shadow: 0 10px 24px hsl(var(--brand-rust) / 0.1);
+  transform: translateY(-1px);
+}
+
+.ship-now-review-card {
+  background:
+    linear-gradient(180deg, hsl(var(--brand-maple-soft) / 0.58), hsl(var(--dashboard-card) / 0.9)),
+    hsl(var(--dashboard-card));
+  border-color: hsl(var(--border));
+  box-shadow: 0 8px 20px hsl(var(--brand-rust) / 0.07);
+}
+
+.ship-now-review-card-header {
+  background:
+    linear-gradient(90deg, hsl(var(--brand-maple-soft) / 0.86), hsl(var(--dashboard-panel) / 0.74)),
+    hsl(var(--dashboard-panel));
+  border-color: hsl(var(--border));
+}
+
+.ship-now-summary-card {
+  background:
+    linear-gradient(180deg, hsl(var(--brand-maple-soft) / 0.54), hsl(var(--dashboard-card) / 0.92)),
+    hsl(var(--dashboard-card));
+  border: 1px solid hsl(var(--border));
+  box-shadow: 0 10px 26px hsl(var(--brand-rust) / 0.08);
+}
+
+.ship-now-summary-card-header {
+  background:
+    linear-gradient(90deg, hsl(var(--brand-maple-soft) / 0.9), hsl(var(--dashboard-panel) / 0.76)),
+    hsl(var(--dashboard-panel));
+  border-color: hsl(var(--border));
+}
+
+.ship-now-summary-detail-cell,
+.ship-now-flow-note {
+  background:
+    linear-gradient(180deg, hsl(var(--dashboard-panel) / 0.76), hsl(var(--dashboard-card) / 0.72)),
+    hsl(var(--dashboard-panel));
+  border: 1px solid hsl(var(--border) / 0.72);
+}
+
+.ship-now-page input,
+.ship-now-page textarea,
+.ship-now-page button[role="combobox"] {
+  background-color: hsl(var(--card));
+}
+
+.ship-now-page input:focus,
+.ship-now-page textarea:focus,
+.ship-now-page button[role="combobox"]:focus {
+  background-color: hsl(var(--card));
 }
 
 /* Styles for Moneris Checkout Container */

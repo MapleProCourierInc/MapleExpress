@@ -31,7 +31,7 @@ export function AddressCard({ address, onEdit, onDelete }: AddressCardProps) {
   }
 
   return (
-    <Card className="h-full">
+    <Card className="dashboard-card-surface h-full overflow-hidden border-slate-200">
       <CardContent className="pt-6">
         <div className="flex justify-between items-start mb-4">
           <div className="flex items-center gap-2">

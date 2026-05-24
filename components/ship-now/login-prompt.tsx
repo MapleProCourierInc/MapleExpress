@@ -46,7 +46,7 @@ export function LoginPrompt() {
 
   return (
     <div className="container py-20 flex items-center justify-center">
-      <Card className="w-full max-w-3xl shadow-lg border-none">
+      <Card className="ship-now-summary-card w-full max-w-3xl">
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30">
             <Package className="h-8 w-8 text-primary" />

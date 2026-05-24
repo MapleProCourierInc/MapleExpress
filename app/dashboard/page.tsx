@@ -16,7 +16,7 @@ import {
 import { ProfileSection } from "@/components/dashboard/profile-section"
 import { Shipments } from "@/components/dashboard/shipments"
 import { Billing } from "@/components/dashboard/billing"
-import { ChevronRight, CreditCard, LogOut, Package, Truck, UserRound } from "lucide-react"
+import { ChevronRight, CreditCard, LogOut, Package, UserRound } from "lucide-react"
 
 type SectionType = "shipments" | "billing" | "profile"
 
@@ -90,12 +90,12 @@ export default function Dashboard() {
   if (!user) return null
 
   return (
-    <div className="min-h-screen bg-muted/30">
+    <div className="client-dashboard-shell min-h-screen">
       <div className="flex h-screen overflow-hidden">
-        <aside className="hidden md:flex w-64 flex-col bg-white border-r">
+        <aside className="dashboard-sidebar hidden w-64 flex-col border-r md:flex">
           <div className="flex h-16 items-center border-b px-6">
             <div className="flex items-center gap-2 cursor-pointer" onClick={() => router.push("/")}>
-              <Truck className="h-6 w-6 text-primary" />
+              <img src="/leaf.svg" alt="" className="h-[43px] w-[43px]" />
               <span className="text-xl font-bold">MapleXpress</span>
             </div>
           </div>
@@ -157,7 +157,7 @@ export default function Dashboard() {
           </div>
         </aside>
 
-        <main className="flex-1 overflow-auto p-6">
+        <main className="dashboard-main flex-1 overflow-auto p-6">
           {activeSection === "shipments" ? (
             <Shipments />
           ) : activeSection === "billing" ? (

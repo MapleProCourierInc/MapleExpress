@@ -124,11 +124,11 @@ const statusStyles: Record<StatusTone, { badge: string; dot: string; text: strin
     step: "bg-emerald-500 text-white border-emerald-500",
   },
   progress: {
-    badge: "bg-blue-50 text-blue-800 border-blue-200",
-    dot: "bg-blue-500",
-    text: "text-blue-700",
-    line: "border-blue-500",
-    step: "bg-emerald-500 text-white border-emerald-500",
+    badge: "bg-brand-maple-soft text-brand-rust border-brand-maple/30",
+    dot: "bg-brand-maple",
+    text: "text-brand-rust",
+    line: "border-brand-maple",
+    step: "bg-primary text-primary-foreground border-primary",
   },
   warning: {
     badge: "bg-amber-50 text-amber-900 border-amber-200",

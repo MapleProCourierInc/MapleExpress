@@ -86,8 +86,8 @@ export function OrderPricing({
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                 <div className="lg:col-span-2 space-y-8">
-                    <Card className="overflow-hidden border-0 shadow-md">
-                        <CardHeader className="bg-muted/30 pb-3">
+                    <Card className="ship-now-summary-card overflow-hidden">
+                        <CardHeader className="ship-now-summary-card-header pb-3">
                             <CardTitle className="text-lg flex items-center">
                                 <Package className="mr-2 h-5 w-5 text-primary" />
                                 Package Details
@@ -96,7 +96,7 @@ export function OrderPricing({
                         <CardContent className="p-0">
                             {orderData.orderItems.map((item, index) => (
                                 <div key={item.trackingId || item.orderItemId || `order-item-${index}`} className="border-b last:border-b-0">
-                                    <div className="p-4 bg-muted/10 flex justify-between items-center">
+                                    <div className="ship-now-summary-card-header flex items-center justify-between p-4">
                                         <h3 className="font-medium flex items-center">
                       <span className="bg-primary/10 text-primary text-xs font-semibold px-2 py-1 rounded-full mr-2">
                         Package {index + 1}
@@ -109,14 +109,14 @@ export function OrderPricing({
 
                                     <div className="p-5">
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-4">
-                                            <div className="bg-muted/5 p-3 rounded-md">
+                                            <div className="ship-now-summary-detail-cell p-3 rounded-md">
                                                 <p className="text-sm text-muted-foreground mb-1">From</p>
                                                 <p className="font-medium">{item.pickup.address.fullName}</p>
                                                 <p className="text-sm">
                                                     {item.pickup.address.city}, {item.pickup.address.province}
                                                 </p>
                                             </div>
-                                            <div className="bg-muted/5 p-3 rounded-md">
+                                            <div className="ship-now-summary-detail-cell p-3 rounded-md">
                                                 <p className="text-sm text-muted-foreground mb-1">To</p>
                                                 <p className="font-medium">{item.dropoff.address.fullName}</p>
                                                 <p className="text-sm">
@@ -126,22 +126,22 @@ export function OrderPricing({
                                         </div>
 
                                         <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm mb-4">
-                                            <div className="bg-muted/5 p-3 rounded-md">
+                                            <div className="ship-now-summary-detail-cell p-3 rounded-md">
                                                 <p className="text-xs text-muted-foreground mb-1">Weight</p>
                                                 <p className="font-medium">{item.packageDetails.weight} kg</p>
                                             </div>
-                                            <div className="bg-muted/5 p-3 rounded-md">
+                                            <div className="ship-now-summary-detail-cell p-3 rounded-md">
                                                 <p className="text-xs text-muted-foreground mb-1">Dimensions</p>
                                                 <p className="font-medium">
                                                     {item.packageDetails.dimensions.length} × {item.packageDetails.dimensions.width} ×{" "}
                                                     {item.packageDetails.dimensions.height} cm
                                                 </p>
                                             </div>
-                                            <div className="bg-muted/5 p-3 rounded-md">
+                                            <div className="ship-now-summary-detail-cell p-3 rounded-md">
                                                 <p className="text-xs text-muted-foreground mb-1">Distance</p>
                                                 <p className="font-medium">{(item.distanceToDelivery / 1000).toFixed(1)} km</p>
                                             </div>
-                                            <div className="bg-muted/5 p-3 rounded-md">
+                                            <div className="ship-now-summary-detail-cell p-3 rounded-md">
                                                 <p className="text-xs text-muted-foreground mb-1">Delivery Type</p>
                                                 <p className="font-medium">{isPriorityDelivery ? "Priority" : "Standard"}</p>
                                             </div>
@@ -173,8 +173,8 @@ export function OrderPricing({
                 </div>
 
                 <div className="space-y-6">
-                    <Card className="border-0 shadow-md">
-                        <CardHeader className="bg-muted/30 pb-3">
+                    <Card className="ship-now-summary-card">
+                        <CardHeader className="ship-now-summary-card-header pb-3">
                             <CardTitle className="text-lg flex items-center">
                                 <DollarSign className="mr-2 h-5 w-5 text-primary" />
                                 Order Total
@@ -277,7 +277,7 @@ export function OrderPricing({
                                 </div>
 
                                 <div className="pt-4">
-                                    <div className="flex items-center space-x-2 mb-6 bg-muted/10 p-3 rounded-md">
+                                    <div className="ship-now-summary-detail-cell flex items-center space-x-2 mb-6 p-3 rounded-md">
                                         <Switch
                                             id="priority-delivery"
                                             checked={isPriorityDelivery}
@@ -321,7 +321,7 @@ export function OrderPricing({
                         </CardContent>
                     </Card>
 
-                    <div className="text-sm text-muted-foreground bg-muted/10 p-4 rounded-md">
+                    <div className="ship-now-flow-note text-sm text-muted-foreground p-4 rounded-md">
                         <p>
                             By proceeding to payment, you agree to our{" "}
                             <a href="/terms" className="text-primary hover:underline">

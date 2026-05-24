@@ -134,14 +134,14 @@ export function ServiceAvailabilitySection() {
             <div
               className={`mt-5 rounded-2xl border px-4 py-4 md:px-6 md:py-5 ${
                 availabilityState.serviceable
-                  ? "border-emerald-200/70 bg-gradient-to-r from-emerald-50/90 to-background/90"
-                  : "border-orange-200/70 bg-gradient-to-r from-orange-50/90 to-background/90"
+                  ? "border-brand-forest/25 bg-gradient-to-r from-brand-forest-soft to-background/90"
+                  : "border-brand-maple/30 bg-gradient-to-r from-brand-maple-soft to-background/90"
               }`}
             >
               <div className="flex items-start gap-3 md:gap-4">
                 <div
                   className={`mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full ${
-                    availabilityState.serviceable ? "bg-emerald-100 text-emerald-700" : "bg-orange-100 text-orange-700"
+                    availabilityState.serviceable ? "bg-brand-forest-soft text-brand-forest" : "bg-brand-maple-soft text-brand-rust"
                   }`}
                 >
                   {availabilityState.serviceable ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
