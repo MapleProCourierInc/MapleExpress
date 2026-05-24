@@ -476,7 +476,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       const result = await submitOnboarding(payload)
 
-      if (!result.success || !result.data) {
+      if (!result.success) {
         if (result.statusCode === 401) {
           clearSession()
           if (window.location.pathname !== "/") {
@@ -487,7 +487,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return { success: false, message: result.message, statusCode: result.statusCode }
       }
 
-      const meData = result.data
+      setIndividualProfile(null)
+      setOrganizationProfile(null)
+      localStorage.removeItem("maplexpress_individual_profile")
+      localStorage.removeItem("maplexpress_organization_profile")
+
+      const meData = await getMe()
       setMe(meData)
       localStorage.setItem("maplexpress_me", JSON.stringify(meData))
       setClientGroupCookie(meData.groups)
@@ -500,7 +505,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setUser(updatedUser)
         localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
-        await fetchUserProfile(updatedUser, meData.groups)
       }
 
       return { success: true, message: "Onboarding completed" }

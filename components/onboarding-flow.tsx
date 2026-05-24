@@ -1,7 +1,6 @@
 "use client"
 
 import { useMemo, useState, type FormEvent } from "react"
-import { useRouter } from "next/navigation"
 import { Building2, UserRound, ArrowLeft, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -14,7 +13,6 @@ import type { OnboardingPayload } from "@/lib/onboarding-service"
 type Mode = "selection" | "personal" | "business"
 
 export function OnboardingFlow() {
-  const router = useRouter()
   const { completeOnboarding } = useAuth()
   const [mode, setMode] = useState<Mode>("selection")
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -72,7 +70,7 @@ export function OnboardingFlow() {
       return
     }
 
-    router.push("/dashboard?section=shipments")
+    window.location.assign("/")
   }
 
   const handleBusinessSubmit = async (e: FormEvent) => {
@@ -113,7 +111,7 @@ export function OnboardingFlow() {
       return
     }
 
-    router.push("/dashboard?section=shipments")
+    window.location.assign("/")
   }
 
   return (
