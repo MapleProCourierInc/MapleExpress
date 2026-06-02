@@ -16,9 +16,10 @@ import {
 import { ProfileSection } from "@/components/dashboard/profile-section"
 import { Shipments } from "@/components/dashboard/shipments"
 import { Billing } from "@/components/dashboard/billing"
-import { ChevronRight, CreditCard, LogOut, Package, UserRound } from "lucide-react"
+import { Quotes } from "@/components/dashboard/quotes"
+import { ChevronRight, CreditCard, FileQuestion, LogOut, Package, UserRound } from "lucide-react"
 
-type SectionType = "shipments" | "billing" | "profile"
+type SectionType = "shipments" | "quotes" | "billing" | "profile"
 
 const getInitials = (name?: string | null) => {
   const trimmed = name?.trim()
@@ -41,7 +42,9 @@ export default function Dashboard() {
 
   const requestedSection = searchParams.get("section")
   const activeSection: SectionType =
-    requestedSection === "profile" || requestedSection === "billing" ? requestedSection : "shipments"
+    requestedSection === "profile" || requestedSection === "billing" || requestedSection === "quotes"
+      ? requestedSection
+      : "shipments"
 
   useEffect(() => {
     if (!isLoading) {
@@ -57,7 +60,10 @@ export default function Dashboard() {
 
       if (
         !requestedSection ||
-        (requestedSection !== "shipments" && requestedSection !== "billing" && requestedSection !== "profile")
+        (requestedSection !== "shipments" &&
+          requestedSection !== "quotes" &&
+          requestedSection !== "billing" &&
+          requestedSection !== "profile")
       ) {
         router.replace("/dashboard?section=shipments")
       }
@@ -110,6 +116,13 @@ export default function Dashboard() {
                 Shipments
               </button>
               <button
+                className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${activeSection === "quotes" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                onClick={() => navigateSection("quotes")}
+              >
+                <FileQuestion className="h-5 w-5" />
+                Quotes
+              </button>
+              <button
                 className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${activeSection === "billing" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
                 onClick={() => navigateSection("billing")}
               >
@@ -160,6 +173,8 @@ export default function Dashboard() {
         <main className="dashboard-main flex-1 overflow-auto p-6">
           {activeSection === "shipments" ? (
             <Shipments />
+          ) : activeSection === "quotes" ? (
+            <Quotes />
           ) : activeSection === "billing" ? (
             <Billing />
           ) : (

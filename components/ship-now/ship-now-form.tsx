@@ -14,7 +14,7 @@ import { ShippingSuccess } from "@/components/ship-now/shipping-success"
 import { Button } from "@/components/ui/button"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
-import { createDraftOrder, type OrderResponse } from "@/lib/order-service"
+import { createDraftOrder, removeOrderItems, type OrderResponse } from "@/lib/order-service"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -66,6 +66,17 @@ export type ShippingOrder = {
   pickupAddress: Address | null
 }
 
+const createEmptyPackage = (): PackageItem => ({
+  id: "pkg-" + Date.now(),
+  length: 0,
+  width: 0,
+  height: 0,
+  weight: 0,
+  contents: "",
+  fragile: false,
+  dropoffAddress: null,
+})
+
 // Define the steps for the shipping process
 type ShippingStep =
     | "PACKAGE_DETAILS"
@@ -82,18 +93,7 @@ export function ShipNowForm() {
   const [currentStep, setCurrentStep] = useState<ShippingStep>("PACKAGE_DETAILS")
   const [currentPackageIndex, setCurrentPackageIndex] = useState(0)
   const [order, setOrder] = useState<ShippingOrder>({
-    packages: [
-      {
-        id: "pkg-" + Date.now(),
-        length: 0,
-        width: 0,
-        height: 0,
-        weight: 0,
-        contents: "",
-        fragile: false,
-        dropoffAddress: null,
-      },
-    ],
+    packages: [createEmptyPackage()],
     pickupAddress: null,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
@@ -102,6 +102,7 @@ export function ShipNowForm() {
   const [packageToDelete, setPackageToDelete] = useState<number | null>(null)
   const [isPriorityDelivery, setIsPriorityDelivery] = useState(false)
   const [draftOrder, setDraftOrder] = useState<OrderResponse | null>(null)
+  const [hasDraftChanges, setHasDraftChanges] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
   const router = useRouter();
@@ -119,18 +120,10 @@ export function ShipNowForm() {
       ...prev,
       packages: [
         ...prev.packages,
-        {
-          id: "pkg-" + Date.now(),
-          length: 0,
-          width: 0,
-          height: 0,
-          weight: 0,
-          contents: "",
-          fragile: false,
-          dropoffAddress: null,
-        },
+        createEmptyPackage(),
       ],
     }))
+    setHasDraftChanges(true)
     setCurrentPackageIndex(order.packages.length)
     setCurrentStep("PACKAGE_DETAILS")
   }
@@ -149,6 +142,7 @@ export function ShipNowForm() {
         packages: updatedPackages,
       }
     })
+    setHasDraftChanges(true)
   }
 
   // Handle setting pickup address
@@ -157,6 +151,7 @@ export function ShipNowForm() {
       ...prev,
       pickupAddress: address,
     }))
+    setHasDraftChanges(true)
 
     // Save address to database if requested
     if (saveForFuture && user) {
@@ -228,9 +223,15 @@ export function ShipNowForm() {
         throw new Error("User not authenticated")
       }
 
+      if (draftOrder && !hasDraftChanges) {
+        setCurrentStep("PRICING")
+        return
+      }
+
       // Call the API to create a draft order
       const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery, draftOrder?.shippingOrderId)
       setDraftOrder(draftOrderResponse)
+      setHasDraftChanges(false)
 
       // Move to the pricing step
       setCurrentStep("PRICING")
@@ -245,6 +246,79 @@ export function ShipNowForm() {
   // Handle updating the order (e.g., when priority delivery is toggled)
   const handleOrderUpdate = (updatedOrder: OrderResponse) => {
     setDraftOrder(updatedOrder)
+    setIsPriorityDelivery(updatedOrder.priorityDelivery)
+    setHasDraftChanges(false)
+  }
+
+  const removeLocalPackage = (packageIndex: number, markDraftChanged = true) => {
+    setOrder((prev) => ({
+      ...prev,
+      packages: prev.packages.filter((_, index) => index !== packageIndex),
+    }))
+    setCurrentPackageIndex((currentIndex) => {
+      if (currentIndex === packageIndex) return Math.max(0, packageIndex - 1)
+      if (packageIndex < currentIndex) return currentIndex - 1
+      return currentIndex
+    })
+    setHasDraftChanges(markDraftChanged)
+  }
+
+  const removeDraftPackage = async (packageIndex: number) => {
+    if (!draftOrder) {
+      removeLocalPackage(packageIndex)
+      return
+    }
+
+    const trackingId = draftOrder.orderItems[packageIndex]?.trackingId
+
+    if (!trackingId) {
+      // Packages appended after returning to review do not exist in the draft yet.
+      if (packageIndex >= draftOrder.orderItems.length) {
+        removeLocalPackage(packageIndex)
+        return
+      }
+
+      throw new Error("This package cannot be removed because its tracking ID is missing.")
+    }
+
+    const updatedDraftOrder = await removeOrderItems(draftOrder.shippingOrderId, [trackingId])
+    removeLocalPackage(packageIndex, false)
+    setDraftOrder(updatedDraftOrder)
+    setIsPriorityDelivery(updatedDraftOrder.priorityDelivery)
+  }
+
+  const handleRemovePackageFromPricing = async (packageIndex: number) => {
+    if (!draftOrder) {
+      throw new Error("Unable to update the draft order.")
+    }
+
+    if (order.packages.length <= 1) {
+      throw new Error("An order must contain at least one package.")
+    }
+
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await removeDraftPackage(packageIndex)
+    } catch (err) {
+      setError(err instanceof Error && err.message ? err.message : "Failed to remove package. Please try again.")
+      throw err
+    } finally {
+      setIsSubmitting(false)
+    }
+  }
+
+  const handleCancelOrder = () => {
+    setOrder({
+      packages: [createEmptyPackage()],
+      pickupAddress: null,
+    })
+    setCurrentPackageIndex(0)
+    setIsPriorityDelivery(false)
+    setDraftOrder(null)
+    setHasDraftChanges(false)
+    setError(null)
+    setCurrentStep("PACKAGE_DETAILS")
   }
 
   // Handle proceeding to payment
@@ -306,29 +380,21 @@ export function ShipNowForm() {
   }
 
   // Confirm package deletion
-  const confirmDeletePackage = () => {
+  const confirmDeletePackage = async () => {
     if (packageToDelete === null) return
 
-    setOrder((prev) => {
-      const updatedPackages = [...prev.packages]
-      updatedPackages.splice(packageToDelete, 1)
-
-      return {
-        ...prev,
-        packages: updatedPackages,
-      }
-    })
-
-    // If we're deleting the current package, adjust the current package index
-    if (packageToDelete === currentPackageIndex) {
-      setCurrentPackageIndex(Math.max(0, packageToDelete - 1))
-    } else if (packageToDelete < currentPackageIndex) {
-      // If we're deleting a package before the current one, adjust the index
-      setCurrentPackageIndex(currentPackageIndex - 1)
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      await removeDraftPackage(packageToDelete)
+    } catch (err) {
+      console.error("Error removing package:", err)
+      setError(err instanceof Error && err.message ? err.message : "Failed to remove package. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+      setShowDeleteDialog(false)
+      setPackageToDelete(null)
     }
-
-    setShowDeleteDialog(false)
-    setPackageToDelete(null)
   }
 
   // Handle editing pickup address from review step
@@ -537,10 +603,11 @@ export function ShipNowForm() {
                 <OrderPricing
                     orderData={draftOrder}
                     onBack={handlePrevStep}
+                    onCancelOrder={handleCancelOrder}
                     onProceedToPayment={handleProceedToPayment}
+                    onRemovePackage={handleRemovePackageFromPricing}
                     isLoading={isSubmitting}
                     onOrderUpdate={handleOrderUpdate}
-                    originalOrder={order}
                 />
             )}
 
@@ -567,12 +634,13 @@ export function ShipNowForm() {
               </AlertDialogDescription>
             </AlertDialogHeader>
             <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogCancel disabled={isSubmitting}>Cancel</AlertDialogCancel>
               <AlertDialogAction
                   onClick={confirmDeletePackage}
                   className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  disabled={isSubmitting}
               >
-                Delete
+                {isSubmitting ? "Deleting..." : "Delete"}
               </AlertDialogAction>
             </AlertDialogFooter>
           </AlertDialogContent>

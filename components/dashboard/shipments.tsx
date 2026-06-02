@@ -47,6 +47,17 @@ type ShipmentFilter = "all" | "active" | "exceptions";
 type StatusTone = "success" | "progress" | "warning" | "danger" | "neutral";
 
 const PAGE_SIZE = 10;
+const SHIPMENT_ORDER_STATUSES = [
+  "CONFIRMED",
+  "LABEL_CREATED",
+  "SCHEDULED",
+  "ASSIGNED",
+  "PICKED_UP",
+  "IN_TRANSIT",
+  "DELIVERED",
+  "IN_PROGRESS",
+  "END_OF_DAY",
+];
 
 const TRACKING_STEPS = [
   { label: "Order", icon: CheckCircle },
@@ -172,6 +183,13 @@ function money(value?: number | null) {
     style: "currency",
     currency: "CAD",
   }).format(value);
+}
+
+function itemPrice(item: OrderItem) {
+  if (typeof item.pricing?.totalAmount === "number") return item.pricing.totalAmount;
+
+  const charges = Object.values(item.pricing?.charges ?? {});
+  return charges.length ? charges.reduce((total, charge) => total + charge, 0) : null;
 }
 
 function formatOrderDate(value?: string | null) {
@@ -476,7 +494,7 @@ function PackageCard({ item, index }: { item: OrderItem; index: number }) {
           <div className="mb-4 flex items-start justify-between gap-3">
             <h4 className="text-sm font-bold text-slate-950">Tracking History</h4>
             <span className="whitespace-nowrap text-lg font-bold text-slate-950">
-              {money(item.pricing?.totalAmount)}
+              {money(itemPrice(item))}
             </span>
           </div>
 
@@ -532,6 +550,7 @@ export function Shipments() {
 
       try {
         const response = await getClientOrders({
+          orderStatuses: SHIPMENT_ORDER_STATUSES,
           page,
           size: PAGE_SIZE,
           sortBy: sortParams.sortBy,

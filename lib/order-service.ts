@@ -20,21 +20,34 @@ export interface OrderResponse {
   paymentStatus: string;
   createdAt: string;
   updatedAt: string;
-  aggregatedPricing: {
-    basePrice: number;
-    distanceCharge: number;
-    weightCharge: number;
-    dimensionalWeightCharge: number;
-    prioritySurcharge: number;
-    discount: number;
-    taxes: {
-      amount: number;
-      taxType: string;
-    }[];
-    totalAmount: number;
-    pricingId: string | null;
-  };
+  aggregatedPricing: AggregatedPricing;
   orderItems: OrderItemResponse[];
+}
+
+export type ChargeMap = Record<string, number>;
+
+export interface AggregatedPricing {
+  currency: string;
+  customQuoteRequired: boolean;
+  customQuoteReasons?: string[];
+  customerQuoteReasons?: string[];
+  customerQuoteResons?: string[];
+  charges: ChargeMap;
+  totalAmount: number;
+}
+
+export interface OrderItemPricing {
+  pricingModelId?: string | null;
+  pricingModelVersion?: number | null;
+  pricingTypeApplied?: string | null;
+  ownerIdApplied?: string | null;
+  zoneCode?: string | null;
+  currency: string;
+  customQuoteRequired: boolean;
+  customQuoteReason?: string | null;
+  charges: ChargeMap;
+  calculationContext?: Record<string, unknown> | null;
+  metadata?: Record<string, unknown> | null;
 }
 
 export interface OrderItemResponse {
@@ -76,19 +89,9 @@ export interface OrderItemResponse {
     }[];
   };
   isFragile?: boolean;
-  pricing: {
-    basePrice: number;
-    distanceCharge: number;
-    weightCharge: number;
-    prioritySurcharge: number;
-    taxes: {
-      amount: number;
-      taxType: string;
-    }[];
-    totalAmount: number;
-    pricingId: string;
-  };
+  pricing: OrderItemPricing;
   itemStatus: string;
+  description?: string | null;
   trackingNumber: string | null;
   estimatedDeliveryTime: string | null;
   specialIncidents: any[];
@@ -101,6 +104,13 @@ export interface Tax {
 }
 
 export interface Pricing {
+  currency?: string | null;
+  customQuoteRequired?: boolean | null;
+  customQuoteReasons?: string[];
+  customerQuoteReasons?: string[];
+  customerQuoteResons?: string[];
+  customQuoteReason?: string | null;
+  charges?: ChargeMap;
   basePrice?: number | null;
   distanceCharge?: number | null;
   weightCharge?: number | null;
@@ -165,6 +175,7 @@ export interface OrderItem {
     images?: unknown[];
   } | null;
   pricing?: Pricing | null;
+  description?: string | null;
   itemStatus?: string | null;
   assignedDriverId?: string | null;
   isFragile?: boolean | null;
@@ -235,6 +246,7 @@ export type ClientOrder = CustomerOrderSummaryResponse;
 
 export interface ClientOrdersFilters {
   orderStatus?: string;
+  orderStatuses?: string[];
   paymentStatus?: string;
   createdFrom?: string;
   createdTo?: string;
@@ -263,6 +275,7 @@ interface OrderRequestItem {
       height: number;
     };
   };
+  description: string;
   isFragile?: boolean;
 }
 
@@ -363,6 +376,7 @@ function formatOrderRequest(
           height: pkg.height,
         },
       },
+      description: pkg.contents,
       isFragile: pkg.fragile,
     };
   });
@@ -402,6 +416,111 @@ export async function updateOrder(payload: OrderRequest) {
     },
     body: JSON.stringify(payload),
   });
+}
+
+export async function requestAdminQuote(shippingOrderId: string, message = "Custom Quote Required "): Promise<OrderResponse | null> {
+  const response = await apiFetch(
+    `/api/orders/${encodeURIComponent(shippingOrderId)}/need-admin-attention`,
+    {
+      method: "PATCH",
+      headers: {
+        accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ message }),
+    },
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const backendMessage =
+      data && typeof data === "object" && "message" in data
+        ? (data as { message?: string }).message
+        : null;
+    throw new Error(backendMessage || "Failed to request a custom quote");
+  }
+
+  return getUpdatedOrder(data);
+}
+
+function getUpdatedOrder(data: unknown): OrderResponse | null {
+  if (!data || typeof data !== "object") return null;
+
+  const response = data as { shippingOrder?: unknown; shippingOrderId?: unknown };
+  const order = response.shippingOrder ?? response;
+
+  if (!order || typeof order !== "object" || typeof (order as { shippingOrderId?: unknown }).shippingOrderId !== "string") {
+    return null;
+  }
+
+  return order as OrderResponse;
+}
+
+export async function removeOrderItems(shippingOrderId: string, trackingIds: string[]): Promise<OrderResponse> {
+  if (trackingIds.length === 0) {
+    throw new Error("At least one tracking ID is required to remove an order item");
+  }
+
+  const response = await apiFetch(
+    `/api/orders/${encodeURIComponent(shippingOrderId)}/remove-order-items`,
+    {
+      method: "PATCH",
+      headers: {
+        accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ trackingIds }),
+    },
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const backendMessage =
+      data && typeof data === "object" && "message" in data
+        ? (data as { message?: string }).message
+        : null;
+    throw new Error(backendMessage || "Failed to remove package");
+  }
+
+  const updatedOrder = getUpdatedOrder(data);
+  if (!updatedOrder) {
+    throw new Error("Remove package response did not include the updated order");
+  }
+
+  return updatedOrder;
+}
+
+export async function updateRushPriority(shippingOrderId: string, rushPriorityRequested: boolean): Promise<OrderResponse> {
+  const response = await apiFetch(
+    `/api/orders/${encodeURIComponent(shippingOrderId)}/rush-priority`,
+    {
+      method: "PATCH",
+      headers: {
+        accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ rushPriorityRequested }),
+    },
+  );
+
+  const data = await response.json().catch(() => null);
+
+  if (!response.ok) {
+    const backendMessage =
+      data && typeof data === "object" && "message" in data
+        ? (data as { message?: string }).message
+        : null;
+    throw new Error(backendMessage || "Failed to update priority delivery");
+  }
+
+  const updatedOrder = getUpdatedOrder(data);
+  if (!updatedOrder) {
+    throw new Error("Priority delivery response did not include the updated order");
+  }
+
+  return updatedOrder;
 }
 
 // Helper function to format address
@@ -448,6 +567,7 @@ export async function getClientOrders(
   const params = new URLSearchParams();
 
   if (filters.orderStatus) params.set("orderStatus", filters.orderStatus);
+  filters.orderStatuses?.forEach((orderStatus) => params.append("orderStatus", orderStatus));
   if (filters.paymentStatus) params.set("paymentStatus", filters.paymentStatus);
   if (filters.createdFrom) params.set("createdFrom", filters.createdFrom);
   if (filters.createdTo) params.set("createdTo", filters.createdTo);

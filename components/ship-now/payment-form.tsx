@@ -41,10 +41,12 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
   const [isMonerisCheckoutActive, setIsMonerisCheckoutActive] = useState(false)
   const [pendingTicketId, setPendingTicketId] = useState<string | null>(null)
 
+  const currency = orderData.aggregatedPricing.currency || "CAD"
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-CA", {
       style: "currency",
-      currency: "CAD",
+      currency,
       minimumFractionDigits: 2,
       maximumFractionDigits: 2,
     }).format(amount)
@@ -214,7 +216,7 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
       const checkoutResponse = await checkoutPayment({
         shippingOrderId: orderData.shippingOrderId,
         amount: orderData.aggregatedPricing.totalAmount,
-        currency: "CAD",
+        currency,
         billingAddress: buildCheckoutBillingAddress(orderData),
         description: `Shipping order checkout for ${orderData.shippingOrderId}`,
       })
@@ -242,12 +244,9 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
     }
   }
 
-  const subtotal =
-    orderData.aggregatedPricing.basePrice +
-    orderData.aggregatedPricing.distanceCharge +
-    orderData.aggregatedPricing.weightCharge +
-    orderData.aggregatedPricing.prioritySurcharge
-  const totalTaxes = orderData.aggregatedPricing.taxes?.reduce((sum, tax) => sum + tax.amount, 0) || 0
+  const charges = Object.entries(orderData.aggregatedPricing.charges ?? {}).filter(([, amount]) =>
+    Number.isFinite(amount),
+  )
 
   const isLoading = isInitiatingCheckout || isFinalizingMoneris || isProcessing
 
@@ -322,14 +321,17 @@ export function PaymentForm({ orderData, onBack, onPaymentComplete, isProcessing
             </CardHeader>
             <CardContent className="p-5">
               <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Subtotal</span>
-                  <span className="font-medium">{formatCurrency(subtotal)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-sm">Taxes</span>
-                  <span className="font-medium">{formatCurrency(totalTaxes)}</span>
-                </div>
+                {charges.map(([name, amount]) => (
+                  <div key={name} className="flex justify-between items-center gap-3">
+                    <span className="text-sm">
+                      {name
+                        .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
+                        .replace(/[_-]+/g, " ")
+                        .replace(/\b\w/g, (character) => character.toUpperCase())}
+                    </span>
+                    <span className="font-medium">{formatCurrency(amount)}</span>
+                  </div>
+                ))}
                 <Separator className="my-2" />
                 <div className="flex justify-between items-center font-bold text-lg">
                   <span>Total</span>
