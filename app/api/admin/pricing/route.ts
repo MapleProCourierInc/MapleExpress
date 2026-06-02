@@ -21,7 +21,8 @@ function validatePayload(raw: Record<string, unknown>) {
   if (!String(payload.zoneCode || "").trim()) add("zoneCode", "Zone code is required")
   if (!String(payload.currency || "").trim()) add("currency", "Currency is required")
   if (!payload.dimensionalWeight || (payload.dimensionalWeight.enabled && !(Number(payload.dimensionalWeight.divisor) > 0))) add("dimensionalWeight.divisor", "Enabled dimensional weight requires a divisor greater than zero")
-  if (payload.dimensionalWeight && !nonNegative(payload.dimensionalWeight.roundingScale)) add("dimensionalWeight.roundingScale", "Dimensional rounding scale must be zero or greater")
+  if (payload.dimensionalWeight?.enabled && !["CM", "INCH"].includes(payload.dimensionalWeight.unit)) add("dimensionalWeight.unit", "Select CM or INCH for enabled dimensional weight")
+  if (payload.dimensionalWeight?.roundingScale != null && !nonNegative(payload.dimensionalWeight.roundingScale)) add("dimensionalWeight.roundingScale", "Dimensional rounding scale must be zero or greater")
   if (!payload.chargeableWeight) add("chargeableWeight", "Chargeable weight configuration is required")
   if (!payload.distancePricing) add("distancePricing", "Distance pricing configuration is required")
 
@@ -41,7 +42,7 @@ function validatePayload(raw: Record<string, unknown>) {
     if (slab.minDimensionSumCmExclusive !== previous.maxDimensionSumCm) add("packageSlabs", "Enabled package dimension ranges must be sequential without gaps or overlaps")
   })
 
-  if (payload.distancePricing && !nonNegative(payload.distancePricing.includedDistanceKm)) add("distancePricing.includedDistanceKm", "Included distance must be zero or greater")
+  if (payload.distancePricing?.includedDistanceKm != null && !nonNegative(payload.distancePricing.includedDistanceKm)) add("distancePricing.includedDistanceKm", "Included distance must be zero or greater")
   const distanceSlabs = Array.isArray(payload.distancePricing?.distanceSlabs) ? payload.distancePricing.distanceSlabs : []
   if (duplicates(distanceSlabs.map((slab) => slab.slabCode))) add("distancePricing.distanceSlabs", "Distance slab codes must be unique")
   distanceSlabs.forEach((slab, index) => {
@@ -69,7 +70,7 @@ function validatePayload(raw: Record<string, unknown>) {
     if (tax.enabled && !nonNegative(tax.percentage)) add(`taxes.${index}.percentage`, "Enabled taxes require a percentage")
   })
   if (payload.customQuoteRules?.enabled && !nonNegative(payload.customQuoteRules.maxStandardDistanceKm)) add("customQuoteRules.maxStandardDistanceKm", "Enabled custom-quote distance limits must be zero or greater")
-  if (payload.rounding && (![payload.rounding.moneyScale, payload.rounding.measurementScale].every(nonNegative))) add("rounding", "Rounding scales must be zero or greater")
+  if (payload.rounding && [payload.rounding.moneyScale, payload.rounding.measurementScale].some((scale) => scale != null && !nonNegative(scale))) add("rounding", "Rounding scales must be zero or greater")
   const modes = [payload.dimensionalWeight?.roundingMode, payload.rounding?.moneyRoundingMode, payload.rounding?.measurementRoundingMode]
   if (modes.some((mode) => mode && !["HALF_UP", "CEILING", "FLOOR"].includes(mode))) add("rounding", "Use HALF_UP, CEILING, or FLOOR rounding modes")
   return { payload, errors }
