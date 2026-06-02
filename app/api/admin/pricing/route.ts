@@ -21,6 +21,7 @@ function validatePayload(raw: Record<string, unknown>) {
   if (!String(payload.zoneCode || "").trim()) add("zoneCode", "Zone code is required")
   if (!String(payload.currency || "").trim()) add("currency", "Currency is required")
   if (!payload.dimensionalWeight || (payload.dimensionalWeight.enabled && !(Number(payload.dimensionalWeight.divisor) > 0))) add("dimensionalWeight.divisor", "Enabled dimensional weight requires a divisor greater than zero")
+  if (payload.dimensionalWeight && !nonNegative(payload.dimensionalWeight.roundingScale)) add("dimensionalWeight.roundingScale", "Dimensional rounding scale must be zero or greater")
   if (!payload.chargeableWeight) add("chargeableWeight", "Chargeable weight configuration is required")
   if (!payload.distancePricing) add("distancePricing", "Distance pricing configuration is required")
 
@@ -40,6 +41,7 @@ function validatePayload(raw: Record<string, unknown>) {
     if (slab.minDimensionSumCmExclusive !== previous.maxDimensionSumCm) add("packageSlabs", "Enabled package dimension ranges must be sequential without gaps or overlaps")
   })
 
+  if (payload.distancePricing && !nonNegative(payload.distancePricing.includedDistanceKm)) add("distancePricing.includedDistanceKm", "Included distance must be zero or greater")
   const distanceSlabs = Array.isArray(payload.distancePricing?.distanceSlabs) ? payload.distancePricing.distanceSlabs : []
   if (duplicates(distanceSlabs.map((slab) => slab.slabCode))) add("distancePricing.distanceSlabs", "Distance slab codes must be unique")
   distanceSlabs.forEach((slab, index) => {
@@ -81,7 +83,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => ({}))) as Record<string, unknown>
   const { payload, errors } = validatePayload(body)
-  if (errors.length) return NextResponse.json({ message: "Please review the pricing model JSON.", errors }, { status: 400 })
+  if (errors.length) return NextResponse.json({ message: "Please review the highlighted pricing model values.", errors }, { status: 400 })
   const result = await createAdminPricingModel(payload)
   if (!result.data) return errorResponse(result.error, "Failed to create pricing model")
   revalidatePath("/admin/pricing")
