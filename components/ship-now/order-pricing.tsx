@@ -19,7 +19,7 @@ import { requestAdminQuote, updateRushPriority, type ChargeMap, type OrderRespon
 interface OrderPricingProps {
   orderData: OrderResponse
   onBack: () => void
-  onCancelOrder: () => void
+  onCancelOrder: () => Promise<void> | void
   onProceedToPayment: () => void
   onRemovePackage: (packageIndex: number) => Promise<void>
   isLoading: boolean

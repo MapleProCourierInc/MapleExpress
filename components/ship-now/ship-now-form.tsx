@@ -14,7 +14,7 @@ import { ShippingSuccess } from "@/components/ship-now/shipping-success"
 import { Button } from "@/components/ui/button"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
-import { createDraftOrder, removeOrderItems, type OrderResponse } from "@/lib/order-service"
+import { cancelOrder, createDraftOrder, removeOrderItems, type OrderResponse } from "@/lib/order-service"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -308,7 +308,7 @@ export function ShipNowForm() {
     }
   }
 
-  const handleCancelOrder = () => {
+  const resetDraftOrderFlow = () => {
     setOrder({
       packages: [createEmptyPackage()],
       pickupAddress: null,
@@ -319,6 +319,23 @@ export function ShipNowForm() {
     setHasDraftChanges(false)
     setError(null)
     setCurrentStep("PACKAGE_DETAILS")
+  }
+
+  const handleCancelOrder = async () => {
+    setIsSubmitting(true)
+    setError(null)
+    try {
+      if (draftOrder?.shippingOrderId) {
+        await cancelOrder(draftOrder.shippingOrderId)
+      }
+
+      resetDraftOrderFlow()
+    } catch (err) {
+      console.error("Error cancelling order:", err)
+      setError(err instanceof Error && err.message ? err.message : "Failed to cancel order. Please try again.")
+    } finally {
+      setIsSubmitting(false)
+    }
   }
 
   // Handle proceeding to payment
