@@ -7,6 +7,7 @@ import { cn } from "@/lib/utils"
 import {
   BadgeDollarSign,
   Building2,
+  LifeBuoy,
   Map,
   PanelLeftClose,
   PanelLeftOpen,
@@ -21,6 +22,7 @@ const navItems = [
   { href: "/admin/customers", label: "Users", icon: Users, disabled: false },
   { href: "/admin/pricing", label: "Pricing", icon: BadgeDollarSign, disabled: false },
   { href: "/admin/service-zones", label: "Service Zones", icon: Map, disabled: false },
+  { href: "/admin/support", label: "Support", icon: LifeBuoy, disabled: false },
   { href: "#", label: "Fleet", icon: Route, disabled: true },
   { href: "#", label: "Stations", icon: Building2, disabled: true },
   { href: "#", label: "Settings", icon: Settings, disabled: true },

@@ -17,9 +17,10 @@ import { ProfileSection } from "@/components/dashboard/profile-section"
 import { Shipments } from "@/components/dashboard/shipments"
 import { Billing } from "@/components/dashboard/billing"
 import { Quotes } from "@/components/dashboard/quotes"
-import { ChevronRight, CreditCard, FileQuestion, LogOut, Package, UserRound } from "lucide-react"
+import { Support } from "@/components/dashboard/support"
+import { ChevronRight, CreditCard, FileQuestion, LifeBuoy, LogOut, Package, UserRound } from "lucide-react"
 
-type SectionType = "shipments" | "quotes" | "billing" | "profile"
+type SectionType = "shipments" | "quotes" | "billing" | "support" | "profile"
 
 const getInitials = (name?: string | null) => {
   const trimmed = name?.trim()
@@ -42,7 +43,10 @@ export default function Dashboard() {
 
   const requestedSection = searchParams.get("section")
   const activeSection: SectionType =
-    requestedSection === "profile" || requestedSection === "billing" || requestedSection === "quotes"
+    requestedSection === "profile" ||
+    requestedSection === "billing" ||
+    requestedSection === "quotes" ||
+    requestedSection === "support"
       ? requestedSection
       : "shipments"
 
@@ -63,6 +67,7 @@ export default function Dashboard() {
         (requestedSection !== "shipments" &&
           requestedSection !== "quotes" &&
           requestedSection !== "billing" &&
+          requestedSection !== "support" &&
           requestedSection !== "profile")
       ) {
         router.replace("/dashboard?section=shipments")
@@ -130,6 +135,13 @@ export default function Dashboard() {
                 Billing
               </button>
               <button
+                className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${activeSection === "support" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
+                onClick={() => navigateSection("support")}
+              >
+                <LifeBuoy className="h-5 w-5" />
+                Support
+              </button>
+              <button
                 className={`w-full flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium ${activeSection === "profile" ? "bg-muted text-foreground" : "text-muted-foreground hover:bg-muted"}`}
                 onClick={() => navigateSection("profile")}
               >
@@ -177,6 +189,8 @@ export default function Dashboard() {
             <Quotes />
           ) : activeSection === "billing" ? (
             <Billing />
+          ) : activeSection === "support" ? (
+            <Support />
           ) : (
             <ProfileSection groups={me?.groups} userId={user.userId} userType={user.userType} />
           )}
