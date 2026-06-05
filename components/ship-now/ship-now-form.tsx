@@ -14,7 +14,15 @@ import { ShippingSuccess } from "@/components/ship-now/shipping-success"
 import { Button } from "@/components/ui/button"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
-import { cancelOrder, createDraftOrder, removeOrderItems, type OrderResponse } from "@/lib/order-service"
+import {
+  cancelOrder,
+  createDraftOrder,
+  getClientOrderDetail,
+  removeOrderItems,
+  type OrderItemResponse,
+  type OrderResponse,
+  type ShippingOrder as StoredShippingOrder,
+} from "@/lib/order-service"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -88,7 +96,144 @@ type ShippingStep =
     | "PAYMENT"
     | "SUCCESS"
 
-export function ShipNowForm() {
+function storedAddressToFormAddress(
+  address: NonNullable<NonNullable<NonNullable<StoredShippingOrder["orderItems"]>[number]["pickup"]>["address"]> | null | undefined,
+  addressType: string,
+): Address {
+  return {
+    fullName: address?.fullName || "Shipping Customer",
+    company: address?.company || "",
+    streetAddress: address?.streetAddress || "Address not provided",
+    addressLine2: address?.addressLine2 || "",
+    city: address?.city || "Unknown",
+    province: address?.province || "Unknown",
+    postalCode: address?.postalCode || "Unknown",
+    country: address?.country || "CA",
+    phoneNumber: address?.phoneNumber || "Unknown",
+    deliveryInstructions: address?.deliveryInstructions || "",
+    addressType,
+  }
+}
+
+function storedAddressToResponseAddress(
+  address: NonNullable<NonNullable<NonNullable<StoredShippingOrder["orderItems"]>[number]["pickup"]>["address"]> | null | undefined,
+) {
+  return {
+    fullName: address?.fullName || "Shipping Customer",
+    company: address?.company || "",
+    streetAddress: address?.streetAddress || "Address not provided",
+    addressLine2: address?.addressLine2 || "",
+    city: address?.city || "Unknown",
+    province: address?.province || "Unknown",
+    postalCode: address?.postalCode || "Unknown",
+    country: address?.country || "CA",
+    phoneNumber: address?.phoneNumber || "Unknown",
+    deliveryInstructions: address?.deliveryInstructions || "",
+  }
+}
+
+function storedOrderToDraftOrder(order: StoredShippingOrder): OrderResponse {
+  const currency = order.aggregatedPricing?.currency || "CAD"
+  const orderItems: OrderItemResponse[] = (order.orderItems || []).map((item) => ({
+    orderItemId: item.orderItemId || undefined,
+    trackingId: item.trackingId || undefined,
+    pickup: {
+      address: storedAddressToResponseAddress(item.pickup?.address),
+      coordinates: item.pickup?.coordinates
+        ? {
+            latitude: Number(item.pickup.coordinates.latitude || 0),
+            longitude: Number(item.pickup.coordinates.longitude || 0),
+          }
+        : undefined,
+      time: item.pickup?.time || "",
+      notes: item.pickup?.notes || "",
+      images: Array.isArray(item.pickup?.images) ? item.pickup.images : [],
+    },
+    dropoff: {
+      address: storedAddressToResponseAddress(item.dropoff?.address),
+      coordinates: item.dropoff?.coordinates
+        ? {
+            latitude: Number(item.dropoff.coordinates.latitude || 0),
+            longitude: Number(item.dropoff.coordinates.longitude || 0),
+          }
+        : undefined,
+      time: item.dropoff?.time || "",
+      notes: item.dropoff?.notes || "",
+      images: Array.isArray(item.dropoff?.images) ? item.dropoff.images : [],
+    },
+    distanceToDelivery: Number(item.distanceToDelivery || 0),
+    packageDetails: {
+      weight: Number(item.packageDetails?.weight || 0),
+      dimensions: {
+        length: Number(item.packageDetails?.dimensions?.length || 0),
+        width: Number(item.packageDetails?.dimensions?.width || 0),
+        height: Number(item.packageDetails?.dimensions?.height || 0),
+      },
+      type: item.packageDetails?.type || null,
+      value: item.packageDetails?.value || null,
+      images: [],
+    },
+    isFragile: Boolean(item.isFragile),
+    pricing: {
+      currency: item.pricing?.currency || currency,
+      customQuoteRequired: Boolean(item.pricing?.customQuoteRequired),
+      customQuoteReason: item.pricing?.customQuoteReason || null,
+      charges: item.pricing?.charges || {},
+      calculationContext: null,
+      metadata: null,
+    },
+    itemStatus: item.itemStatus || "",
+    description: item.description || null,
+    trackingNumber: item.trackingId || null,
+    estimatedDeliveryTime: item.estimatedDeliveryTime || null,
+    specialIncidents: Array.isArray(item.specialIncidents) ? item.specialIncidents : [],
+    trackingEvents: item.trackingEvents || [],
+  }))
+
+  return {
+    shippingOrderId: order.shippingOrderId,
+    customerId: order.clientUserId || order.userId || "",
+    customerContact: {
+      name: order.customerContact?.name || "",
+      phone: order.customerContact?.phone || "",
+      email: order.customerContact?.email || "",
+    },
+    priorityDelivery: Boolean(order.priorityDelivery),
+    orderStatus: order.orderStatus || "",
+    paymentStatus: order.paymentStatus || "",
+    createdAt: order.createdAt || "",
+    updatedAt: order.updatedAt || "",
+    aggregatedPricing: {
+      currency,
+      customQuoteRequired: Boolean(order.aggregatedPricing?.customQuoteRequired),
+      customQuoteReasons: order.aggregatedPricing?.customQuoteReasons || [],
+      charges: order.aggregatedPricing?.charges || {},
+      totalAmount: Number(order.aggregatedPricing?.totalAmount || 0),
+    },
+    orderItems,
+  }
+}
+
+function storedOrderToFormOrder(order: StoredShippingOrder): ShippingOrder {
+  const items = order.orderItems || []
+  return {
+    pickupAddress: storedAddressToFormAddress(items[0]?.pickup?.address, "pickup"),
+    packages: items.length
+      ? items.map((item, index) => ({
+          id: item.orderItemId || item.trackingId || `pkg-${index}`,
+          length: Number(item.packageDetails?.dimensions?.length || 0),
+          width: Number(item.packageDetails?.dimensions?.width || 0),
+          height: Number(item.packageDetails?.dimensions?.height || 0),
+          weight: Number(item.packageDetails?.weight || 0),
+          contents: item.description || item.packageDetails?.type || "",
+          fragile: Boolean(item.isFragile),
+          dropoffAddress: storedAddressToFormAddress(item.dropoff?.address, "dropoff"),
+        }))
+      : [createEmptyPackage()],
+  }
+}
+
+export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: string | null } = {}) {
   const { user } = useAuth()
   const [currentStep, setCurrentStep] = useState<ShippingStep>("PACKAGE_DETAILS")
   const [currentPackageIndex, setCurrentPackageIndex] = useState(0)
@@ -104,12 +249,48 @@ export function ShipNowForm() {
   const [draftOrder, setDraftOrder] = useState<OrderResponse | null>(null)
   const [hasDraftChanges, setHasDraftChanges] = useState(false)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
+  const [isResumingPayment, setIsResumingPayment] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
   const router = useRouter();
 
   useEffect(() => {
     setError(null)
   }, [currentStep])
+
+  useEffect(() => {
+    const orderToResume = resumePaymentOrderId?.trim()
+    if (!orderToResume || !user?.userId) return
+
+    let cancelled = false
+    setIsResumingPayment(true)
+    setError(null)
+
+    getClientOrderDetail(orderToResume)
+      .then((detail) => {
+        if (cancelled) return
+        if (!detail.shippingOrder) {
+          throw new Error("We could not load this order for payment.")
+        }
+
+        const resumedDraftOrder = storedOrderToDraftOrder(detail.shippingOrder)
+        setDraftOrder(resumedDraftOrder)
+        setOrder(storedOrderToFormOrder(detail.shippingOrder))
+        setIsPriorityDelivery(Boolean(resumedDraftOrder.priorityDelivery))
+        setHasDraftChanges(false)
+        setCurrentStep("PAYMENT")
+      })
+      .catch((err) => {
+        if (cancelled) return
+        setError(err instanceof Error && err.message ? err.message : "We could not load this order for payment.")
+      })
+      .finally(() => {
+        if (!cancelled) setIsResumingPayment(false)
+      })
+
+    return () => {
+      cancelled = true
+    }
+  }, [resumePaymentOrderId, user?.userId])
 
   // Get current package
   const currentPackage = order.packages[currentPackageIndex]
@@ -520,6 +701,18 @@ export function ShipNowForm() {
           {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">{error}</div>}
 
           <div className="ship-now-card mt-10 rounded-lg p-8 shadow-lg transition-all duration-300">
+            {isResumingPayment && (
+                <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+                  <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+                  <div>
+                    <h2 className="text-xl font-bold">Loading payment</h2>
+                    <p className="mt-2 text-muted-foreground">Fetching your accepted quote order.</p>
+                  </div>
+                </div>
+            )}
+
+            {!isResumingPayment && (
+              <>
             {currentStep === "PACKAGE_DETAILS" && (
                 <>
                   {order.packages.length > 1 && (
@@ -638,6 +831,8 @@ export function ShipNowForm() {
             )}
 
             {currentStep === "SUCCESS" && <ShippingSuccess orderNumber={orderId || draftOrder?.shippingOrderId || ""} />}
+              </>
+            )}
           </div>
         </div>
 

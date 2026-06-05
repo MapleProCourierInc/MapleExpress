@@ -1,6 +1,6 @@
 "use client"
 
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
 import { ShipNowForm } from "@/components/ship-now/ship-now-form"
@@ -11,6 +11,11 @@ import { Footer } from "@/components/shared/footer"
 export default function ShipNowPage() {
   const { user, isLoading } = useAuth()
   const router = useRouter()
+  const [resumePaymentOrderId, setResumePaymentOrderId] = useState<string | null>(null)
+
+  useEffect(() => {
+    setResumePaymentOrderId(new URLSearchParams(window.location.search).get("shippingOrderId"))
+  }, [])
 
   // If user is logged in but not active, redirect to home
   useEffect(() => {
@@ -35,7 +40,7 @@ export default function ShipNowPage() {
         ) : !user ? (
           <LoginPrompt />
         ) : (
-          <ShipNowForm />
+          <ShipNowForm resumePaymentOrderId={resumePaymentOrderId} />
         )}
       </main>
       <Footer />

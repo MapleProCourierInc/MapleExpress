@@ -418,16 +418,14 @@ export async function updateOrder(payload: OrderRequest) {
   });
 }
 
-export async function requestAdminQuote(shippingOrderId: string, message = "Custom Quote Required "): Promise<OrderResponse | null> {
+export async function requestAdminQuote(shippingOrderId: string, _message = "Custom Quote Required "): Promise<OrderResponse | null> {
   const response = await apiFetch(
-    `/api/orders/${encodeURIComponent(shippingOrderId)}/need-admin-attention`,
+    `/api/shipping-orders/${encodeURIComponent(shippingOrderId)}/manual-quote-request`,
     {
-      method: "PATCH",
+      method: "POST",
       headers: {
         accept: "application/json",
-        "Content-Type": "application/json",
       },
-      body: JSON.stringify({ message }),
     },
   );
 
