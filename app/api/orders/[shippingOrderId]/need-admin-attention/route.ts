@@ -17,7 +17,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
       method: "PATCH",
       url: getEndpointUrl(
         ORDER_SERVICE_URL,
-        `/orders/${encodeURIComponent(shippingOrderId)}/need-admin-attention`,
+        `/api/v1/shipping-orders/${encodeURIComponent(shippingOrderId)}/manual-quote-request`,
       ),
       body: JSON.stringify(body),
       contentTypeJson: true,
