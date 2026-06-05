@@ -4,6 +4,8 @@ import { useState } from "react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { cn } from "@/lib/utils"
+import { Badge } from "@/components/ui/badge"
+import { AdminUserMenu } from "@/components/admin/admin-user-menu"
 import {
   BadgeDollarSign,
   Building2,
@@ -28,20 +30,23 @@ const navItems = [
   { href: "#", label: "Settings", icon: Settings, disabled: true },
 ]
 
-export function AdminSidebar() {
+export function AdminSidebar({ displayName }: { displayName?: string | null }) {
   const pathname = usePathname()
   const [collapsed, setCollapsed] = useState(false)
 
   return (
     <aside
       className={cn(
-        "shrink-0 rounded-lg border bg-background p-3 transition-[width] duration-200",
+        "admin-sidebar flex h-screen shrink-0 flex-col border-r p-3 transition-[width] duration-200",
         collapsed ? "w-[72px]" : "w-64",
       )}
     >
-      <div className={cn("mb-4 flex items-center gap-2", collapsed ? "justify-center" : "justify-between")}>
+      <div className={cn("flex h-14 items-center gap-2 border-b pb-3", collapsed ? "justify-center" : "justify-between")}>
         {!collapsed ? (
-          <h2 className="text-sm font-semibold uppercase tracking-wide text-muted-foreground">Navigation</h2>
+          <Link href="/admin" className="flex min-w-0 items-center gap-2">
+            <img src="/leaf.svg" alt="" className="h-10 w-10 shrink-0" />
+            <span className="truncate text-lg font-semibold">MapleXpress Admin</span>
+          </Link>
         ) : null}
         <button
           type="button"
@@ -52,7 +57,17 @@ export function AdminSidebar() {
           {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
         </button>
       </div>
-      <nav className="space-y-1">
+
+      <div className={cn("py-4", collapsed ? "text-center" : "")}>
+        {!collapsed ? (
+          <div className="mb-3 flex items-center justify-between gap-2 px-1">
+            <h2 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Navigation</h2>
+            <Badge variant="secondary" className="shrink-0">Super Admin</Badge>
+          </div>
+        ) : null}
+      </div>
+
+      <nav className="flex-1 space-y-1 overflow-auto">
         {navItems.map((item) => {
           const Icon = item.icon
           const active = !item.disabled && (pathname === item.href || pathname.startsWith(`${item.href}/`))
@@ -95,6 +110,16 @@ export function AdminSidebar() {
           )
         })}
       </nav>
+
+      <div className={cn("border-t pt-3", collapsed ? "flex justify-center" : "")}>
+        {!collapsed ? (
+          <div className="mb-2 px-1">
+            <p className="truncate text-sm font-medium">{displayName || "Admin"}</p>
+            <p className="text-xs text-muted-foreground">Admin console</p>
+          </div>
+        ) : null}
+        <AdminUserMenu displayName={displayName} />
+      </div>
     </aside>
   )
 }

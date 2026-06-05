@@ -1,5 +1,4 @@
 import { redirect } from "next/navigation"
-import { AdminHeader } from "@/components/admin/admin-header"
 import { AdminSidebar } from "@/components/admin/admin-sidebar"
 import { getServerMe, isSuperAdmin } from "@/lib/server-me"
 
@@ -12,12 +11,11 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="admin-shell min-h-screen">
-      <AdminHeader displayName={me?.displayName} />
-      <div className="container mx-auto px-4 py-6 md:py-8">
-        <div className="flex gap-6">
-          <AdminSidebar />
-          <main className="admin-main min-w-0 flex-1 rounded-lg border p-6">{children}</main>
-        </div>
+      <div className="flex h-screen overflow-hidden">
+        <AdminSidebar displayName={me?.displayName} />
+        <main className="admin-main min-w-0 flex-1 overflow-auto p-4 md:p-6">
+          {children}
+        </main>
       </div>
     </div>
   )

@@ -216,7 +216,13 @@
     linear-gradient(135deg, hsl(var(--background)), hsl(var(--brand-maple-soft)));
 }
 
-.admin-shell .admin-main,
+.admin-shell .admin-main {
+  background:
+    radial-gradient(circle at 12% 8%, hsl(var(--secondary) / 0.12), transparent 32%),
+    linear-gradient(180deg, hsl(var(--background) / 0.55), hsl(var(--brand-maple-soft) / 0.5));
+}
+
+.admin-shell .admin-sidebar,
 .admin-shell aside.rounded-lg.border,
 .admin-shell .rounded-lg.border.bg-background,
 .admin-shell .space-y-3.rounded-lg.border.bg-background {
