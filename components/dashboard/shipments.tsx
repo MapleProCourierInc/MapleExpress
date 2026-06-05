@@ -515,6 +515,73 @@ function PackageCard({ item, index }: { item: OrderItem; index: number }) {
   );
 }
 
+function ShipmentListLoading() {
+  return (
+    <div className="space-y-2 p-2">
+      {Array.from({ length: 7 }).map((_, i) => (
+        <div key={i} className="rounded-xl border border-slate-200 p-4">
+          <div className="mb-3 flex items-start justify-between gap-3">
+            <Skeleton className="h-4 w-36" />
+            <Skeleton className="h-4 w-16" />
+          </div>
+          <div className="mb-3 flex items-center gap-2">
+            <Skeleton className="h-2 w-2 rounded-full" />
+            <Skeleton className="h-6 w-24 rounded-md" />
+          </div>
+          <div className="space-y-2">
+            <Skeleton className="h-3 w-32" />
+            <Skeleton className="h-3 w-24" />
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+function ShipmentDetailLoading() {
+  return (
+    <div className="space-y-7 p-6">
+      <div className="rounded-xl border border-slate-200 bg-white p-5">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0 flex-1">
+            <div className="flex flex-wrap items-center gap-3">
+              <Skeleton className="h-8 w-72 max-w-full" />
+              <Skeleton className="h-7 w-28 rounded-md" />
+            </div>
+            <Skeleton className="mt-3 h-4 w-56 max-w-full" />
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <Skeleton className="h-10 w-28 rounded-lg" />
+            <Skeleton className="h-10 w-32 rounded-lg" />
+          </div>
+        </div>
+      </div>
+
+      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="rounded-xl border border-slate-200 bg-white p-5">
+            <Skeleton className="h-3 w-24" />
+            <Skeleton className="mt-3 h-7 w-28" />
+          </div>
+        ))}
+      </div>
+
+      <div className="flex flex-wrap gap-2">
+        {Array.from({ length: 3 }).map((_, i) => (
+          <Skeleton key={i} className="h-7 w-28 rounded-md" />
+        ))}
+      </div>
+
+      <div className="space-y-4">
+        <Skeleton className="h-6 w-44" />
+        {Array.from({ length: 2 }).map((_, i) => (
+          <Skeleton key={i} className="h-64 rounded-2xl" />
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function Shipments() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -703,13 +770,20 @@ export function Shipments() {
   }, [selectedOrder]);
 
   return (
-    <div className="min-h-[calc(100vh-3rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div
+      aria-busy={isLoading || isDetailLoading}
+      className="min-h-[calc(100vh-3rem)] overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+    >
       <div className="flex flex-col gap-4 border-b border-slate-200 bg-white px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
         <div className="flex flex-wrap items-center gap-3">
           <h1 className="text-2xl font-bold text-slate-950">Shipments</h1>
-          <span className="rounded-full bg-slate-100 px-3 py-1 font-mono text-xs font-medium text-slate-700">
-            {totalElements} Orders
-          </span>
+          {isLoading ? (
+            <Skeleton className="h-6 w-20 rounded-full" />
+          ) : (
+            <span className="rounded-full bg-slate-100 px-3 py-1 font-mono text-xs font-medium text-slate-700">
+              {totalElements} Orders
+            </span>
+          )}
         </div>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -778,22 +852,19 @@ export function Shipments() {
                 onClick={() => setShipmentFilter(value)}
                 type="button"
               >
-                {label} <span className="text-slate-400">{count}</span>
+                {label}{" "}
+                {isLoading ? (
+                  <Skeleton className="inline-block h-3 w-5 align-middle" />
+                ) : (
+                  <span className="text-slate-400">{count}</span>
+                )}
               </button>
             ))}
           </div>
 
           <div className="max-h-[620px] overflow-y-auto p-2">
             {isLoading ? (
-              <div className="space-y-2 p-2">
-                {Array.from({ length: 7 }).map((_, i) => (
-                  <div key={i} className="rounded-xl border border-slate-200 p-4">
-                    <Skeleton className="h-4 w-36" />
-                    <Skeleton className="mt-3 h-4 w-24" />
-                    <Skeleton className="mt-4 h-3 w-full" />
-                  </div>
-                ))}
-              </div>
+              <ShipmentListLoading />
             ) : visibleOrders.length === 0 ? (
               <div className="flex min-h-[320px] items-center justify-center px-6 text-center text-sm text-slate-500">
                 No shipments match the current filters.
@@ -872,20 +943,8 @@ export function Shipments() {
         </aside>
 
         <section className="min-w-0 bg-slate-50/80">
-          {isDetailLoading ? (
-            <div className="space-y-5 p-6">
-              <div className="rounded-xl border border-slate-200 bg-white p-5">
-                <Skeleton className="h-7 w-60" />
-                <Skeleton className="mt-3 h-4 w-72" />
-              </div>
-              <div className="grid gap-4 md:grid-cols-4">
-                {Array.from({ length: 4 }).map((_, i) => (
-                  <Skeleton key={i} className="h-24 rounded-xl" />
-                ))}
-              </div>
-              <Skeleton className="h-64 rounded-2xl" />
-              <Skeleton className="h-64 rounded-2xl" />
-            </div>
+          {isLoading || isDetailLoading ? (
+            <ShipmentDetailLoading />
           ) : detailError ? (
             <div className="p-6">
               <Alert variant="destructive" className="py-2">
