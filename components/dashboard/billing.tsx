@@ -178,6 +178,141 @@ function TableLoading() {
   )
 }
 
+function BillingStatCardLoading() {
+  return (
+    <div className="min-h-[172px] rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
+      <div className="flex items-start justify-between gap-4">
+        <Skeleton className="h-4 w-28" />
+        <Skeleton className="h-5 w-5 rounded-full" />
+      </div>
+      <Skeleton className="mt-4 h-8 w-32" />
+      <Skeleton className="mt-14 h-4 w-24" />
+    </div>
+  )
+}
+
+function OverviewPanelLoading({ title }: { title: string }) {
+  return (
+    <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+      <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-4 py-3">
+        <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+        <Skeleton className="h-4 w-20" />
+      </div>
+      <div className="divide-y divide-slate-100">
+        {Array.from({ length: 5 }).map((_, index) => (
+          <div key={index} className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3">
+            <div className="min-w-0">
+              <Skeleton className="h-4 w-36 max-w-full" />
+              <Skeleton className="mt-2 h-3 w-28 max-w-full" />
+            </div>
+            <Skeleton className="h-4 w-20" />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
+function BillingDashboardLoading() {
+  const tabs = ["Overview", "Invoices", "Unbilled", "Payments"]
+
+  return (
+    <div aria-busy="true" className="space-y-6">
+      <div className="overflow-hidden rounded-lg border border-slate-200 bg-white px-5 pt-5 shadow-sm">
+        <div className="flex flex-col gap-5 xl:flex-row xl:items-start xl:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-3">
+              <h1 className="text-2xl font-bold text-slate-950">Billing & Payments</h1>
+              <Skeleton className="h-7 w-28 rounded-md" />
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-6 flex gap-8 overflow-x-auto">
+          {tabs.map((tab, index) => (
+            <div
+              key={tab}
+              className={`whitespace-nowrap pb-3 text-sm ${
+                index === 0
+                  ? "-mb-px border-b-2 border-slate-950 font-semibold text-slate-950"
+                  : "text-slate-500"
+              }`}
+            >
+              {tab}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div className="space-y-6">
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+          {Array.from({ length: 4 }).map((_, index) => (
+            <BillingStatCardLoading key={index} />
+          ))}
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[0.85fr_1.15fr]">
+          <div className="rounded-lg border border-slate-200 bg-white p-5 shadow-sm">
+            <div className="mb-4 flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-base font-semibold text-slate-950">Billing Account</h2>
+                <Skeleton className="mt-2 h-3 w-40" />
+              </div>
+              <Skeleton className="h-7 w-20 rounded-md" />
+            </div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {Array.from({ length: 4 }).map((_, index) => (
+                <div key={index} className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                  <Skeleton className="h-3 w-24" />
+                  <Skeleton className="mt-2 h-4 w-32" />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <div className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="border-b border-slate-200 px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <h2 className="text-base font-semibold text-slate-950">Last Invoice</h2>
+                <Skeleton className="h-7 w-20 rounded-md" />
+              </div>
+            </div>
+            <div className="grid gap-0 md:grid-cols-[minmax(0,1fr)_260px]">
+              <div className="space-y-5 p-5">
+                <div>
+                  <Skeleton className="h-3 w-28" />
+                  <Skeleton className="mt-2 h-4 w-48" />
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <Skeleton className="h-3 w-24" />
+                    <Skeleton className="mt-2 h-4 w-36" />
+                  </div>
+                  <div>
+                    <Skeleton className="h-3 w-20" />
+                    <Skeleton className="mt-2 h-4 w-28" />
+                  </div>
+                </div>
+              </div>
+              <div className="border-t border-slate-200 bg-slate-50 p-5 md:border-l md:border-t-0">
+                <Skeleton className="h-3 w-32" />
+                <Skeleton className="mt-3 h-8 w-36" />
+                <Skeleton className="mt-8 h-10 w-full rounded-lg" />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-3">
+          <OverviewPanelLoading title="Last 5 Invoices" />
+          <OverviewPanelLoading title="Last 5 Unbilled Charges" />
+          <OverviewPanelLoading title="Last 5 Payments" />
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function HistoryError({ message }: { message: string }) {
   return (
     <div className="p-4">
@@ -1111,18 +1246,7 @@ export function Billing() {
   }, [dashboard?.billingAccount])
 
   if (isLoading) {
-    return (
-      <div className="space-y-5">
-        <Skeleton className="h-24 rounded-xl" />
-        <div className="grid gap-4 md:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-32 rounded-xl" />
-          ))}
-        </div>
-        <Skeleton className="h-72 rounded-xl" />
-        <Skeleton className="h-64 rounded-xl" />
-      </div>
-    )
+    return <BillingDashboardLoading />
   }
 
   if (error) {

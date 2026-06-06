@@ -1,0 +1,3189 @@
+openapi: 3.0.3
+info:
+  title: Order Management Order MS API
+  version: 1.0.0
+  description: |
+    OpenAPI contract for APIs exposed by the `ordermanagement-order-ms` service.
+    Base servlet context path is `/ordermanagement`. This service exposes order APIs under `/orders`
+    and support ticket APIs under `/api/v1/support-tickets` and `/api/v1/admin/support-tickets`.
+servers:
+  - url: /ordermanagement
+    description: Service base path
+security:
+  - bearerAuth: []
+paths:
+  /orders:
+    post:
+      tags: [Orders]
+      summary: Create a new draft shipping order
+      description: |
+        Creates a draft shipping order for the authenticated client.
+        `userId` is derived from JWT `sub` and client type is inferred from `cognito:groups` (`client_individual` or `client_organization`).
+        During creation, this service calls profile-ms (individual/organization profile lookup) and pricing-payment-ms (`POST /api/v2/pricing/quote`) using the forwarded bearer token.
+        Before pricing and persistence, every `orderItems[].pickup.coordinates` and `orderItems[].dropoff.coordinates` is validated against ACTIVE MapleX service zones.
+        If any pickup/dropoff location is outside serviceable area, order creation is rejected.
+      operationId: createOrder
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShippingOrder'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+        '400':
+          description: Bad request (validation error, including non-serviceable pickup/dropoff coordinates)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (missing or invalid Cognito client group)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Upstream dependency returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Upstream dependency unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Orders]
+      summary: List shipping orders with optional filters and pagination
+      operationId: getOrders
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: query
+          name: shippingOrderId
+          schema: { type: string }
+        - in: query
+          name: orderStatus
+          description: Filter by one or more root order statuses. Repeat the parameter for multiple values.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: clientUserId
+          schema: { type: string }
+        - in: query
+          name: clientType
+          schema: { type: string }
+        - in: query
+          name: paymentStatus
+          schema: { type: string }
+        - in: query
+          name: trackingId
+          schema: { type: string }
+        - in: query
+          name: priorityDelivery
+          schema: { type: boolean }
+        - in: query
+          name: createdFrom
+          schema: { type: string, format: date-time }
+        - in: query
+          name: createdTo
+          schema: { type: string, format: date-time }
+        - in: query
+          name: updatedFrom
+          schema: { type: string, format: date-time }
+        - in: query
+          name: updatedTo
+          schema: { type: string, format: date-time }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sortBy
+          schema: { type: string, default: createdAt }
+        - in: query
+          name: sortDir
+          schema: { type: string, enum: [asc, desc], default: desc }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedOrdersResponse'
+        '401':
+          description: Unauthorized
+    put:
+      tags: [Orders]
+      summary: Update an existing draft order
+      operationId: updateOrder
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ShippingOrder'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateOrderResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+
+  /orders/admin/needs-admin-attention:
+    get:
+      tags: [Admin Orders]
+      summary: List shipping orders requiring admin attention
+      description: |
+        Admin-only endpoint. Returns all shipping orders where `needsAdminAttention` is `true`.
+        The caller must have the `admin_super` role or Cognito group in the authenticated JWT.
+      operationId: getOrdersNeedingAdminAttention
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+      responses:
+        '200':
+          description: Orders requiring admin attention returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ShippingOrder'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (admin-only endpoint)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+  /orders/my-orders:
+    get:
+      tags: [Orders]
+      summary: List shipping orders for the authenticated user dashboard
+      description: |
+        Returns a paginated lightweight list of orders placed by the authenticated user.
+        By default, DRAFT orders are excluded to preserve the existing dashboard behavior.
+        When one or more orderStatus filters are provided, only those statuses are returned, including DRAFT when explicitly requested.
+        The customer user ID is always resolved from the JWT `sub` claim; this endpoint does not accept a user ID from the frontend.
+      operationId: getMyOrders
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - in: query
+          name: orderStatus
+          description: Filter by one or more root order statuses. Repeat the parameter for multiple values or provide comma-separated values.
+          style: form
+          explode: true
+          schema:
+            type: array
+            items: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sortBy
+          schema: { type: string, default: createdAt }
+        - in: query
+          name: sortDir
+          schema: { type: string, enum: [asc, desc], default: desc }
+      responses:
+        '200':
+          description: Authenticated user's order summaries returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedCustomerOrderSummaryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Missing authenticated JWT subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orders/my-orders/{shippingOrderId}:
+    get:
+      tags: [Orders]
+      summary: Get authenticated user's non-draft shipping order details with document URLs
+      description: |
+        Returns the full shipping order plus a limited document section containing document type/name, S3 key, and presigned view URL.
+        The customer user ID is always resolved from the JWT `sub` claim, and the order must belong to that user.
+        DRAFT orders are excluded from this dashboard detail endpoint.
+      operationId: getMyOrderDetails
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Authenticated user's order detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CustomerOrderDetailResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Missing authenticated JWT subject
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shipping order not found for authenticated user, or order is DRAFT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Document generator or AWS integration returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orders/{shippingOrderId}:
+    get:
+      tags: [Orders]
+      summary: Get a shipping order by ID
+      operationId: getOrderByShippingOrderId
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingOrder'
+        '404':
+          description: Not found
+    delete:
+      tags: [Orders]
+      summary: Delete a shipping order when status is DRAFT
+      operationId: deleteOrder
+      parameters:
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Deleted
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: Shipping Order deleted successfully.
+        '400':
+          description: Not in DRAFT status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Not found
+
+  /orders/{shippingOrderId}/need-admin-attention:
+    patch:
+      tags: [Orders]
+      summary: Mark a shipping order as requiring admin attention
+      description: |
+        Sets `needsAdminAttention` to `true` and appends an audit note.
+        The root `orderStatus` is not changed by this endpoint.
+        Order item statuses are not modified. The request body is optional.
+      operationId: markOrderAsNeedingAdminAttention
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NeedAdminAttentionRequest'
+      responses:
+        '200':
+          description: Admin-attention flag updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingOrder'
+        '404':
+          description: Shipping order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orders/{shippingOrderId}/cancel:
+    patch:
+      tags: [Orders]
+      summary: Cancel a shipping order
+      description: |
+        Marks the root `orderStatus` as `CANCELLED` and appends an audit note containing the cancelling user ID, cancellation timestamp, and previous order status.
+      operationId: cancelOrder
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingOrder'
+        '404':
+          description: Shipping order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orders/{shippingOrderId}/remove-order-items:
+    patch:
+      tags: [Orders]
+      summary: Remove persisted items from an editable shipping order
+      description: |
+        Removes order items matching the requested tracking IDs from a `DRAFT` or `PENDING_CUSTOM_QUOTE` order owned by the authenticated client.
+        Existing persisted item pricing is re-aggregated locally. This endpoint does not call geocoding, serviceability, profile, or pricing dependencies.
+        At least one order item must remain after removal.
+      operationId: removeOrderItems
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RemoveOrderItemsRequest'
+      responses:
+        '200':
+          description: Items removed and updated shipping order returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingOrder'
+        '400':
+          description: Invalid tracking IDs, non-editable status, or removal of every item
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated client does not own this shipping order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shipping order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /orders/{shippingOrderId}/rush-priority:
+    patch:
+      tags: [Orders]
+      summary: Enable or disable rush priority pricing for an editable shipping order
+      description: |
+        Updates the root `priorityDelivery` flag and reprices each persisted order item using stored package, distance, zone, and pricing model inputs.
+        The endpoint does not rerun geocoding, Google distance matrix calculations, profile lookup, or the full draft update flow.
+        Every item must be repriced successfully before the shipping order is saved.
+      operationId: toggleRushPriority
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RushPriorityToggleRequest'
+      responses:
+        '200':
+          description: Rush priority selection updated and repriced shipping order returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingOrder'
+        '400':
+          description: Invalid request, non-editable status, or missing stored repricing input
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated client does not own this shipping order
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shipping order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Pricing dependency returned an invalid response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Pricing dependency unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /internal/orders/{shippingOrderId}:
+    get:
+      tags: [Internal Orders]
+      summary: Internal service-to-service lookup for a shipping order by ID
+      description: |
+        Fetches a shipping order for trusted internal consumers.
+        This endpoint is under the `/ordermanagement` servlet context path and uses internal secret header authentication instead of Cognito/JWT bearer authentication.
+      operationId: getInternalOrderByShippingOrderId
+      security:
+        - internalServiceAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ShippingOrder'
+        '401':
+          description: Missing or invalid internal service headers
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Shipping order not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+
+  /orders/items/{trackingId}:
+    get:
+      tags: [Orders]
+      summary: Get a single order item by order item ID
+      operationId: getOrderItemByTrackingId
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: trackingId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderItem'
+        '404':
+          description: Not found
+
+  /orders/order-items:
+    get:
+      tags: [Orders]
+      summary: List order items with optional filters and pagination
+      operationId: getOrderItems
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: query
+          name: shippingOrderId
+          schema: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: orderStatus
+          schema: { type: string }
+        - in: query
+          name: paymentStatus
+          schema: { type: string }
+        - in: query
+          name: itemStatus
+          schema: { type: string }
+        - in: query
+          name: trackingId
+          schema: { type: string }
+        - in: query
+          name: assignedDriverId
+          schema: { type: string }
+        - in: query
+          name: isFragile
+          schema: { type: boolean }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sortBy
+          schema: { type: string, default: updatedAt }
+        - in: query
+          name: sortDir
+          schema: { type: string, enum: [asc, desc], default: desc }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedOrderItemsResponse'
+        '401':
+          description: Unauthorized
+
+
+
+  /service-zones:
+    get:
+      tags: [Service Zones]
+      summary: List service zones with optional filters
+      description: Authenticated endpoint available to any authenticated caller.
+      operationId: getServiceZones
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: query
+          name: active
+          schema: { type: boolean }
+        - in: query
+          name: city
+          schema: { type: string }
+        - in: query
+          name: station
+          schema: { type: string }
+      responses:
+        '200':
+          description: Service zones returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListServiceZonesResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      tags: [Service Zones]
+      summary: Create a new MapleX service zone polygon
+      description: Admin-only endpoint. Requires authentication and admin group/role in JWT claims.
+      operationId: createServiceZone
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateServiceZoneRequest'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateServiceZoneResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (admin-only endpoint)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /service-zones/{id}:
+    get:
+      tags: [Service Zones]
+      summary: Get service zone by ID
+      description: Authenticated endpoint available to any authenticated caller.
+      operationId: getServiceZoneById
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Service zone returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceZone'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Service zone not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /service-zones/{id}/active:
+    patch:
+      tags: [Service Zones]
+      summary: Activate or deactivate a service zone
+      description: |
+        Admin-only endpoint to explicitly set `active` state for a service zone.
+        Requires authentication and admin group/role in JWT claims.
+      operationId: toggleServiceZoneActive
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ToggleServiceZoneActiveRequest'
+            examples:
+              deactivate:
+                value: { active: false }
+      responses:
+        '200':
+          description: Service zone updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateServiceZoneResponse'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden (admin-only endpoint)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Service zone not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /service-zones/check-serviceability:
+    post:
+      tags: [Service Zones]
+      summary: Check whether coordinates are inside any active MapleX service zone
+      description: |
+        Authenticated serviceability check endpoint available to any authenticated caller.
+        Evaluates point-in-polygon against ACTIVE service zones using input coordinates.
+      operationId: checkServiceability
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceabilityCheckRequest'
+            examples:
+              monctonPoint:
+                value:
+                  latitude: 46.0878
+                  longitude: -64.7782
+      responses:
+        '200':
+          description: Serviceability evaluated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceabilityCheckResponse'
+              examples:
+                insideZone:
+                  value:
+                    serviceable: true
+                    matchedZoneId: SZ_001
+                    matchedZoneName: Moncton Core Service Area
+                    city: Moncton
+                    station: Moncton
+                    reasonCode: INSIDE_SERVICE_ZONE
+                    message: Location is within MapleX serviceable area.
+                outsideZone:
+                  value:
+                    serviceable: false
+                    matchedZoneId: null
+                    matchedZoneName: null
+                    city: null
+                    station: null
+                    reasonCode: OUTSIDE_SERVICE_ZONE
+                    message: Location is outside MapleX serviceable area.
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /public/service-zones/check-serviceability:
+    post:
+      tags: [Public Service Zones]
+      summary: Public check whether coordinates are inside any active MapleX service zone
+      description: |
+        Public unauthenticated serviceability check endpoint for website/homepage visitors.
+        Reuses the same service-zone point-in-polygon evaluation logic as the authenticated endpoint.
+      operationId: checkServiceabilityPublic
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ServiceabilityCheckRequest'
+            examples:
+              monctonPoint:
+                value:
+                  latitude: 46.0878
+                  longitude: -64.7782
+      responses:
+        '200':
+          description: Serviceability evaluated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ServiceabilityCheckResponse'
+              examples:
+                insideZone:
+                  value:
+                    serviceable: true
+                    matchedZoneId: SZ_001
+                    matchedZoneName: Moncton Core Service Area
+                    city: Moncton
+                    station: Moncton
+                    reasonCode: INSIDE_SERVICE_ZONE
+                    message: Location is within MapleX serviceable area.
+                outsideZone:
+                  value:
+                    serviceable: false
+                    matchedZoneId: null
+                    matchedZoneName: null
+                    city: null
+                    station: null
+                    reasonCode: OUTSIDE_SERVICE_ZONE
+                    message: Location is outside MapleX serviceable area.
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/support-tickets:
+    post:
+      tags: [Support Tickets]
+      summary: Create a customer support ticket
+      description: |
+        Authenticated client endpoint. The customer user ID and client type are derived from the JWT.
+        The service stores only attachment metadata/S3 keys; file upload and presigned URL generation are handled by aws-integration-ms.
+      operationId: createSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSupportTicketRequest'
+            examples:
+              deliveryIssue:
+                summary: Delivery issue ticket
+                value:
+                  category: DELIVERY_ISSUE
+                  priority: NORMAL
+                  subject: Package was delivered late
+                  message: My package was delivered much later than expected. Please check.
+                  relatedResource:
+                    type: SHIPPING_ORDER
+                    shippingOrderId: ORD_123
+                    orderItemId: ITEM_123
+                    fulfilmentId: FUL_123
+                    driverUserId: driver-sub
+                    billingAccountId: null
+                    invoiceId: null
+                    paymentId: null
+                    displayLabel: "Order #ORD_123"
+                  attachments:
+                    - fileName: damaged-package.jpg
+                      contentType: image/jpeg
+                      sizeBytes: 245881
+                      storageKey: support-tickets/TKT_ABC/ATT_001-damaged-package.jpg
+      responses:
+        '201':
+          description: Support ticket created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketDetailResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden, authenticated user is not a client account holder
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    get:
+      tags: [Support Tickets]
+      summary: List support tickets owned by the authenticated customer
+      operationId: getMySupportTickets
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/SupportTicketStatus'
+        - in: query
+          name: category
+          schema:
+            $ref: '#/components/schemas/SupportTicketCategory'
+        - in: query
+          name: relatedResourceType
+          schema:
+            $ref: '#/components/schemas/RelatedResourceType'
+        - in: query
+          name: shippingOrderId
+          schema: { type: string }
+        - in: query
+          name: orderItemId
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sort
+          description: Sort as `field,direction` or `-field`. Default is `updatedAt,desc`.
+          schema: { type: string, example: "updatedAt,desc" }
+      responses:
+        '200':
+          description: Customer ticket summaries returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedSupportTicketSummaryResponse'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Forbidden
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/support-tickets/{ticketId}:
+    get:
+      tags: [Support Tickets]
+      summary: Get a customer-visible support ticket conversation
+      description: Returns only tickets owned by the JWT user and filters internal admin notes.
+      operationId: getMySupportTicketDetail
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Customer-visible ticket detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketDetailResponse'
+        '403':
+          description: Ticket is not owned by or visible to this customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Support ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/support-tickets/{ticketId}/messages:
+    post:
+      tags: [Support Tickets]
+      summary: Add a customer reply to a support ticket
+      description: |
+        Adds a customer-visible message with optional attachment metadata/S3 keys.
+        The ticket status becomes `WAITING_FOR_ADMIN`.
+      operationId: addCustomerSupportTicketMessage
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSupportTicketMessageRequest'
+            examples:
+              replyWithAttachment:
+                summary: Customer reply with attachment metadata
+                value:
+                  message: Here is a picture of the damaged package.
+                  attachments:
+                    - fileName: damaged-package.jpg
+                      contentType: image/jpeg
+                      sizeBytes: 245881
+                      storageKey: support-tickets/TKT_ABC/ATT_001-damaged-package.jpg
+      responses:
+        '200':
+          description: Updated customer-visible ticket detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketDetailResponse'
+        '400':
+          description: Ticket is closed, cancelled, archived, or request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Ticket is not owned by this customer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Support ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/support-tickets/{ticketId}/mark-read:
+    patch:
+      tags: [Support Tickets]
+      summary: Mark a support ticket as read by the customer
+      operationId: markSupportTicketReadByCustomer
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Read flag updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+
+  /api/v1/support-tickets/{ticketId}/cancel:
+    patch:
+      tags: [Support Tickets]
+      summary: Cancel a customer-owned support ticket
+      operationId: cancelMySupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelSupportTicketRequest'
+      responses:
+        '200':
+          description: Ticket cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+        '400':
+          description: Ticket is already resolved, closed, cancelled, archived, or request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/admin/support-tickets:
+    get:
+      tags: [Admin Support Tickets]
+      summary: Admin search/list support tickets
+      description: |
+        Admin-only endpoint. Archived tickets are excluded by default unless `archived=true` is explicitly requested.
+      operationId: adminSearchSupportTickets
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/SupportTicketStatus'
+        - in: query
+          name: category
+          schema:
+            $ref: '#/components/schemas/SupportTicketCategory'
+        - in: query
+          name: priority
+          schema:
+            $ref: '#/components/schemas/SupportTicketPriority'
+        - in: query
+          name: clientUserId
+          schema: { type: string }
+        - in: query
+          name: organizationId
+          schema: { type: string }
+        - in: query
+          name: assignedAdminUserId
+          schema: { type: string }
+        - in: query
+          name: shippingOrderId
+          schema: { type: string }
+        - in: query
+          name: orderItemId
+          schema: { type: string }
+        - in: query
+          name: fulfilmentId
+          schema: { type: string }
+        - in: query
+          name: driverUserId
+          schema: { type: string }
+        - in: query
+          name: billingAccountId
+          schema: { type: string }
+        - in: query
+          name: invoiceId
+          schema: { type: string }
+        - in: query
+          name: paymentId
+          schema: { type: string }
+        - in: query
+          name: fromDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: toDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: archived
+          schema: { type: boolean }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sort
+          schema: { type: string, example: "updatedAt,desc" }
+      responses:
+        '200':
+          description: Admin ticket summaries returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedSupportTicketSummaryResponse'
+        '403':
+          description: Forbidden, admin role required
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}:
+    get:
+      tags: [Admin Support Tickets]
+      summary: Admin get support ticket detail
+      description: Returns full ticket details including internal notes.
+      operationId: adminGetSupportTicketDetail
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Full ticket detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketDetailResponse'
+        '404':
+          description: Support ticket not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    patch:
+      tags: [Admin Support Tickets]
+      summary: Admin partial update support ticket metadata
+      operationId: adminUpdateSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdateSupportTicketRequest'
+      responses:
+        '200':
+          description: Ticket metadata updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}/messages:
+    post:
+      tags: [Admin Support Tickets]
+      summary: Admin reply to customer on a support ticket
+      description: Adds a customer-visible admin reply and sets status to `WAITING_FOR_CUSTOMER`.
+      operationId: adminReplyToSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSupportTicketMessageRequest'
+            examples:
+              adminReply:
+                summary: Admin customer-visible reply
+                value:
+                  message: We reviewed your order timeline and are checking with the delivery team.
+                  attachments: []
+      responses:
+        '200':
+          description: Full ticket detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketDetailResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}/internal-notes:
+    post:
+      tags: [Admin Support Tickets]
+      summary: Admin add internal note to support ticket
+      description: Internal notes are never returned by customer-facing APIs.
+      operationId: adminAddSupportTicketInternalNote
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddSupportTicketMessageRequest'
+      responses:
+        '200':
+          description: Full ticket detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicketDetailResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}/assign:
+    patch:
+      tags: [Admin Support Tickets]
+      summary: Assign a support ticket to an admin user
+      operationId: adminAssignSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignSupportTicketRequest'
+      responses:
+        '200':
+          description: Assignment updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}/resolve:
+    patch:
+      tags: [Admin Support Tickets]
+      summary: Resolve a support ticket
+      operationId: adminResolveSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResolveSupportTicketRequest'
+            examples:
+              resolveWithCustomerMessage:
+                summary: Resolve and notify customer
+                value:
+                  resolutionSummary: Reviewed fulfilment timeline and responded to customer.
+                  messageToCustomer: We reviewed this issue and have shared feedback with the delivery team.
+      responses:
+        '200':
+          description: Ticket resolved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}/close:
+    patch:
+      tags: [Admin Support Tickets]
+      summary: Close a support ticket
+      operationId: adminCloseSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseSupportTicketRequest'
+      responses:
+        '200':
+          description: Ticket closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+
+  /api/v1/admin/support-tickets/{ticketId}/archive:
+    patch:
+      tags: [Admin Support Tickets]
+      summary: Archive a support ticket
+      operationId: adminArchiveSupportTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArchiveSupportTicketRequest'
+      responses:
+        '200':
+          description: Ticket archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenericSupportTicketActionResponse'
+
+  /api/v1/shipping-orders/{shippingOrderId}/manual-quote-request:
+    post:
+      tags: [Manual Quotes]
+      summary: Create or fetch a manual quote request for a shipping order
+      description: |
+        Customer endpoint for orders that could not be automatically priced.
+        This operation is idempotent: if a `MANUAL_QUOTE_REQUEST` ticket already exists for the shipping order, the existing ticket is returned.
+        The shipping order must belong to the authenticated customer and be in `PENDING_CUSTOM_QUOTE`.
+      operationId: createOrGetManualQuoteRequest
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: shippingOrderId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Manual quote request created or existing request returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CreateManualQuoteRequestResponse'
+
+  /api/v1/manual-quotes:
+    get:
+      tags: [Manual Quotes]
+      summary: List my manual quote tickets
+      description: Customer Quotes tab endpoint. Returns only customer-owned `MANUAL_QUOTE_REQUEST` tickets.
+      operationId: getMyManualQuotes
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/SupportTicketStatus'
+        - in: query
+          name: quoteStatus
+          schema:
+            $ref: '#/components/schemas/ManualQuoteStatus'
+        - in: query
+          name: shippingOrderId
+          schema: { type: string }
+        - in: query
+          name: archived
+          schema: { type: boolean, default: false }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sort
+          schema: { type: string, example: updatedAt,desc }
+      responses:
+        '200':
+          description: Manual quote ticket summaries returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedManualQuoteTicketSummaryResponse'
+
+  /api/v1/manual-quotes/{ticketId}:
+    get:
+      tags: [Manual Quotes]
+      summary: Get my manual quote detail with shipping order
+      description: Returns customer-visible conversation messages, quote offers, and the related shipping order.
+      operationId: getMyManualQuoteDetail
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Manual quote detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteCombinedDetailResponse'
+
+  /api/v1/manual-quotes/{ticketId}/messages:
+    post:
+      tags: [Manual Quotes]
+      summary: Add customer message to a manual quote ticket
+      description: Adds a customer-visible message and moves the ticket to `WAITING_FOR_ADMIN`.
+      operationId: addManualQuoteCustomerMessage
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualQuoteMessageRequest'
+      responses:
+        '200':
+          description: Message added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/manual-quotes/{ticketId}/quote-offers/{quoteId}/accept:
+    post:
+      tags: [Manual Quotes]
+      summary: Accept a manual quote offer
+      description: |
+        Customer accepts a whole quote offer by `quoteId`.
+        The accepted pricing snapshot is patched into the shipping order and the order is moved to the next payment-ready state.
+        This API does not initiate Moneris payment.
+      operationId: acceptManualQuoteOffer
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: quoteId
+          required: true
+          schema: { type: string, example: MQO_MDR7F8G }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcceptManualQuoteOfferRequest'
+      responses:
+        '200':
+          description: Quote accepted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteAcceptResponse'
+
+  /api/v1/manual-quotes/{ticketId}/quote-offers/{quoteId}/reject:
+    post:
+      tags: [Manual Quotes]
+      summary: Reject a manual quote offer
+      description: Customer rejects one quote offer. The ticket remains open for admin to provide another offer.
+      operationId: rejectManualQuoteOffer
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: quoteId
+          required: true
+          schema: { type: string, example: MQO_MDR7F8G }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RejectManualQuoteOfferRequest'
+      responses:
+        '200':
+          description: Quote rejected
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/manual-quotes/{ticketId}/mark-read:
+    patch:
+      tags: [Manual Quotes]
+      summary: Mark manual quote as read by customer
+      operationId: markManualQuoteReadByCustomer
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Manual quote marked read
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes:
+    get:
+      tags: [Manual Quotes]
+      summary: Admin list/search manual quote tickets
+      description: Admin-only endpoint for all `MANUAL_QUOTE_REQUEST` tickets. Archived tickets are excluded by default.
+      operationId: adminSearchManualQuotes
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/SupportTicketStatus'
+        - in: query
+          name: quoteStatus
+          schema:
+            $ref: '#/components/schemas/ManualQuoteStatus'
+        - in: query
+          name: priority
+          schema:
+            $ref: '#/components/schemas/SupportTicketPriority'
+        - in: query
+          name: clientUserId
+          schema: { type: string }
+        - in: query
+          name: organizationId
+          schema: { type: string }
+        - in: query
+          name: assignedAdminUserId
+          schema: { type: string }
+        - in: query
+          name: shippingOrderId
+          schema: { type: string }
+        - in: query
+          name: fromDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: toDate
+          schema: { type: string, format: date-time }
+        - in: query
+          name: archived
+          schema: { type: boolean, default: false }
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 0, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, minimum: 1, maximum: 200, default: 20 }
+        - in: query
+          name: sort
+          schema: { type: string, example: updatedAt,desc }
+      responses:
+        '200':
+          description: Manual quote tickets returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedManualQuoteTicketSummaryResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}:
+    get:
+      tags: [Manual Quotes]
+      summary: Admin get manual quote detail with shipping order
+      description: Returns full manual quote ticket detail including internal notes.
+      operationId: adminGetManualQuoteDetail
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Manual quote detail returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteCombinedDetailResponse'
+    patch:
+      tags: [Manual Quotes]
+      summary: Admin update manual quote ticket metadata
+      description: Updates status, priority, or assignment. Category cannot be changed through this API.
+      operationId: adminUpdateManualQuoteTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateManualQuoteTicketRequest'
+      responses:
+        '200':
+          description: Manual quote ticket updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/messages:
+    post:
+      tags: [Manual Quotes]
+      summary: Admin send customer-visible manual quote message
+      operationId: adminAddManualQuoteCustomerMessage
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualQuoteMessageRequest'
+      responses:
+        '200':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/internal-notes:
+    post:
+      tags: [Manual Quotes]
+      summary: Admin add manual quote internal note
+      description: Internal notes are included for admin detail and hidden from customer detail.
+      operationId: adminAddManualQuoteInternalNote
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualQuoteMessageRequest'
+      responses:
+        '200':
+          description: Internal note added
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/quote-offers:
+    post:
+      tags: [Manual Quotes]
+      summary: Admin create manual quote offer
+      description: Creates a structured offer for one or more order items and supersedes previous active offers for MVP.
+      operationId: adminCreateManualQuoteOffer
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateManualQuoteOfferRequest'
+      responses:
+        '200':
+          description: Manual quote offer created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/quote-offers/{quoteId}:
+    patch:
+      tags: [Manual Quotes]
+      summary: Admin update, withdraw, or expire manual quote offer
+      description: Allows safe offer updates before acceptance. Accepted offers cannot be changed.
+      operationId: adminUpdateManualQuoteOffer
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+        - in: path
+          name: quoteId
+          required: true
+          schema: { type: string, example: MQO_MDR7F8G }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateManualQuoteOfferRequest'
+      responses:
+        '200':
+          description: Manual quote offer updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/assign:
+    patch:
+      tags: [Manual Quotes]
+      summary: Admin assign manual quote ticket
+      operationId: adminAssignManualQuoteTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignManualQuoteTicketRequest'
+      responses:
+        '200':
+          description: Manual quote ticket assigned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/close:
+    patch:
+      tags: [Manual Quotes]
+      summary: Admin close manual quote ticket
+      description: Closes the manual quote ticket without patching order pricing.
+      operationId: adminCloseManualQuoteTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CloseManualQuoteTicketRequest'
+      responses:
+        '200':
+          description: Manual quote ticket closed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+  /api/v1/admin/manual-quotes/{ticketId}/archive:
+    patch:
+      tags: [Manual Quotes]
+      summary: Admin archive manual quote ticket
+      operationId: adminArchiveManualQuoteTicket
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ArchiveManualQuoteTicketRequest'
+      responses:
+        '200':
+          description: Manual quote ticket archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ManualQuoteActionResponse'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalServiceAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+      description: Shared secret header for trusted service-to-service calls.
+
+  parameters:
+    AuthorizationHeader:
+      in: header
+      name: Authorization
+      required: true
+      schema:
+        type: string
+        example: Bearer eyJhbGciOi...
+    AcceptHeader:
+      in: header
+      name: Accept
+      required: true
+      schema:
+        type: string
+        default: application/json
+    ContentTypeHeader:
+      in: header
+      name: Content-Type
+      required: true
+      schema:
+        type: string
+        default: application/json
+    InternalServiceSecretHeader:
+      in: header
+      name: X-Internal-Service-Secret
+      required: true
+      schema:
+        type: string
+        format: password
+        example: <secret>
+
+  schemas:
+    CreateOrderResponse:
+      type: object
+      properties:
+        shippingOrder:
+          $ref: '#/components/schemas/ShippingOrder'
+
+    NeedAdminAttentionRequest:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Optional message explaining why admin attention is required.
+
+    RemoveOrderItemsRequest:
+      type: object
+      required: [trackingIds]
+      properties:
+        trackingIds:
+          type: array
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+
+    RushPriorityToggleRequest:
+      type: object
+      required: [rushPriorityRequested]
+      properties:
+        rushPriorityRequested:
+          type: boolean
+          description: Whether pricing-payment-ms should apply rush priority pricing.
+
+
+    CreateServiceZoneRequest:
+      type: object
+      required: [zoneName, city, station, active, priority, polygon]
+      properties:
+        zoneName: { type: string, example: Moncton Core Service Area }
+        city: { type: string, example: Moncton }
+        station: { type: string, example: Moncton }
+        active: { type: boolean, example: true }
+        priority: { type: integer, example: 1 }
+        polygon:
+          $ref: '#/components/schemas/ServiceZonePolygon'
+
+    CreateServiceZoneResponse:
+      type: object
+      properties:
+        serviceZone:
+          $ref: '#/components/schemas/ServiceZone'
+
+    ServiceZone:
+      type: object
+      properties:
+        id: { type: string, example: SZ_001 }
+        zoneName: { type: string }
+        city: { type: string }
+        station: { type: string }
+        active: { type: boolean }
+        priority: { type: integer }
+        polygon:
+          $ref: '#/components/schemas/ServiceZonePolygon'
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedBy: { type: string }
+
+    ServiceZonePolygon:
+      type: object
+      required: [type, coordinates]
+      properties:
+        type:
+          type: string
+          enum: [Polygon]
+        coordinates:
+          type: array
+          description: GeoJSON Polygon coordinates in [longitude, latitude] order.
+          items:
+            type: array
+            items:
+              type: array
+              minItems: 2
+              maxItems: 2
+              items:
+                type: number
+      example:
+        type: Polygon
+        coordinates:
+          -
+            - [-64.8151, 46.1201]
+            - [-64.7602, 46.1450]
+            - [-64.7010, 46.1098]
+            - [-64.7305, 46.0604]
+            - [-64.8008, 46.0720]
+            - [-64.8151, 46.1201]
+
+
+    ListServiceZonesResponse:
+      type: object
+      properties:
+        serviceZones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ServiceZone'
+
+    ToggleServiceZoneActiveRequest:
+      type: object
+      required: [active]
+      properties:
+        active:
+          type: boolean
+          example: false
+
+
+    PagedCustomerOrderSummaryResponse:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerOrderSummaryResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    CustomerOrderSummaryResponse:
+      type: object
+      properties:
+        shippingOrderId: { type: string }
+        createdAt: { type: string, format: date-time }
+        orderStatus: { type: string }
+        needsAdminAttention:
+          type: boolean
+          description: Indicates whether this shipping order requires admin review.
+        amount: { type: number }
+        numberOfOrderItems: { type: integer }
+
+    CustomerOrderDetailResponse:
+      type: object
+      properties:
+        shippingOrder:
+          $ref: '#/components/schemas/ShippingOrder'
+        documents:
+          type: array
+          items:
+            $ref: '#/components/schemas/CustomerOrderDocumentResponse'
+
+    CustomerOrderDocumentResponse:
+      type: object
+      properties:
+        documentType:
+          type: string
+          example: SHIPPING_LABEL
+        documentName:
+          type: string
+          example: shipping-label.pdf
+        s3Key:
+          type: string
+          example: shipping-orders/SO_123/documents/shipping-label.pdf
+        presignedUrl:
+          type: string
+          format: uri
+
+    PagedOrdersResponse:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/ShippingOrder'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    PagedOrderItemsResponse:
+      type: object
+      properties:
+        orderItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    PaginationMetadata:
+      type: object
+      properties:
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+        sortBy: { type: string }
+        sortDir: { type: string }
+
+    ShippingOrder:
+      type: object
+      required: [shippingOrderId, customerContact, orderItems]
+      properties:
+        shippingOrderId: { type: string }
+        userId:
+          type: string
+          description: Deprecated in request for POST /orders. Server derives this from JWT sub.
+          readOnly: true
+        clientUserId:
+          type: string
+          description: Authenticated client user ID derived from JWT sub.
+          readOnly: true
+        clientType:
+          type: string
+          description: Derived from Cognito group (`client_individual` or `client_organization`).
+          readOnly: true
+        customerContact:
+          $ref: '#/components/schemas/ShippingOrderCustomerContact'
+        priorityDelivery: { type: boolean }
+        needsAdminAttention:
+          type: boolean
+          description: Indicates whether this shipping order requires admin review.
+        orderStatus: { type: string }
+        assignedDriverId: { type: string }
+        isFragile: { type: boolean }
+        paymentStatus: { type: string }
+        paymentId: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        aggregatedPricing:
+          $ref: '#/components/schemas/ShippingOrderAggregatedPricing'
+        notes:
+          type: array
+          description: Audit notes associated with root-level order changes.
+          readOnly: true
+          items:
+            $ref: '#/components/schemas/ShippingOrderNote'
+        orderItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+
+    ShippingOrderCustomerContact:
+      type: object
+      properties:
+        name: { type: string }
+        phone: { type: string }
+        email: { type: string }
+        taxId: { type: string }
+
+    ShippingOrderNote:
+      type: object
+      properties:
+        changedAt: { type: string, format: date-time }
+        changedByUserId: { type: string }
+        changedByRoles:
+          type: array
+          items: { type: string }
+        previousStatus: { type: string }
+        newStatus: { type: string }
+        source: { type: string, example: ORDERS_API }
+        message: { type: string }
+
+    ShippingOrderAggregatedPricing:
+      type: object
+      properties:
+        currency: { type: string, example: CAD }
+        customQuoteRequired: { type: boolean }
+        customQuoteReasons:
+          type: array
+          items:
+            type: string
+        charges:
+          type: object
+          additionalProperties:
+            type: number
+        totalAmount: { type: number }
+
+    OrderItem:
+      type: object
+      required: [trackingId, pickup, dropoff]
+      properties:
+        trackingId: { type: string }
+        pickup:
+          $ref: '#/components/schemas/OrderItemPickup'
+        dropoff:
+          $ref: '#/components/schemas/OrderItemDropoff'
+        distanceToDelivery: { type: number }
+        packageDetails:
+          $ref: '#/components/schemas/OrderItemPackageDetails'
+        pricing:
+          $ref: '#/components/schemas/OrderItemPricing'
+        itemStatus: { type: string }
+        description: { type: string, description: Customer-provided description of this order item. }
+        assignedDriverId: { type: string }
+        isFragile: { type: boolean }
+        estimatedDeliveryTime: { type: string, format: date-time }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        specialIncidents:
+          type: array
+          items:
+            $ref: '#/components/schemas/Incident'
+
+    OrderItemPickup:
+      type: object
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        coordinates:
+          $ref: '#/components/schemas/Location'
+        time: { type: string, format: date-time }
+        notes: { type: string }
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+
+    OrderItemDropoff:
+      type: object
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        coordinates:
+          $ref: '#/components/schemas/Location'
+        time: { type: string, format: date-time }
+        notes: { type: string }
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+
+    OrderItemPackageDetails:
+      type: object
+      properties:
+        weight: { type: number }
+        dimensions:
+          $ref: '#/components/schemas/OrderItemPackageDetailsDimensions'
+        type: { type: string }
+        value: { type: number }
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+
+    OrderItemPackageDetailsDimensions:
+      type: object
+      properties:
+        length: { type: number }
+        width: { type: number }
+        height: { type: number }
+
+    OrderItemPricing:
+      type: object
+      properties:
+        pricingModelId: { type: string }
+        pricingModelVersion: { type: integer }
+        pricingTypeApplied: { type: string, enum: [GLOBAL, CUSTOMER_SPECIFIC] }
+        ownerIdApplied: { type: string, nullable: true }
+        zoneCode: { type: string, example: GLOBAL }
+        currency: { type: string, example: CAD }
+        customQuoteRequired: { type: boolean }
+        customQuoteReason: { type: string, nullable: true }
+        charges:
+          type: object
+          additionalProperties:
+            type: number
+        calculationContext:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    Incident:
+      type: object
+      properties:
+        incidentType: { type: string }
+        description: { type: string }
+        time: { type: string, format: date-time }
+        location: { type: string }
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/IncidentImagesInner'
+
+    IncidentImagesInner:
+      type: object
+      properties:
+        description: { type: string }
+        imageUrl: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    Image:
+      type: object
+      properties:
+        imageUrl: { type: string }
+        timestamp: { type: string, format: date-time }
+
+    Address:
+      type: object
+      properties:
+        fullName: { type: string }
+        company: { type: string }
+        streetAddress: { type: string }
+        addressLine2: { type: string }
+        city: { type: string }
+        province: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+        phoneNumber: { type: string }
+        deliveryInstructions: { type: string }
+
+    Location:
+      type: object
+      properties:
+        latitude: { type: number }
+        longitude: { type: number }
+
+
+    ServiceabilityCheckRequest:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude:
+          type: number
+          minimum: -90
+          maximum: 90
+          example: 46.0878
+        longitude:
+          type: number
+          minimum: -180
+          maximum: 180
+          example: -64.7782
+
+    ServiceabilityCheckResponse:
+      type: object
+      properties:
+        serviceable: { type: boolean }
+        matchedZoneId:
+          type: string
+          nullable: true
+        matchedZoneName:
+          type: string
+          nullable: true
+        city:
+          type: string
+          nullable: true
+        station:
+          type: string
+          nullable: true
+        reasonCode:
+          type: string
+          enum: [INSIDE_SERVICE_ZONE, OUTSIDE_SERVICE_ZONE]
+        message: { type: string }
+
+    SupportTicketCategory:
+      type: string
+      enum:
+        - GENERAL_QUERY
+        - ORDER_QUERY
+        - DELIVERY_ISSUE
+        - DRIVER_COMPLAINT
+        - DAMAGED_PACKAGE
+        - MISSED_PICKUP
+        - LATE_DELIVERY
+        - BILLING_QUERY
+        - PAYMENT_QUERY
+        - INVOICE_DISPUTE
+        - ACCOUNT_QUERY
+        - TECHNICAL_ISSUE
+        - MANUAL_QUOTE_REQUEST
+        - OTHER
+
+    SupportTicketStatus:
+      type: string
+      enum: [OPEN, WAITING_FOR_ADMIN, WAITING_FOR_CUSTOMER, IN_PROGRESS, RESOLVED, CLOSED, CANCELLED]
+
+    SupportTicketPriority:
+      type: string
+      enum: [LOW, NORMAL, HIGH, URGENT]
+
+    SupportTicketVisibility:
+      type: string
+      enum: [PUBLIC, INTERNAL]
+
+    SupportMessageSenderType:
+      type: string
+      enum: [CUSTOMER, ADMIN, SYSTEM]
+
+    RelatedResourceType:
+      type: string
+      enum: [NONE, SHIPPING_ORDER, ORDER_ITEM, FULFILMENT, DRIVER, BILLING_ACCOUNT, INVOICE, PAYMENT]
+
+    ManualQuoteStatus:
+      type: string
+      enum: [OFFERED, ACCEPTED, REJECTED, EXPIRED, WITHDRAWN, SUPERSEDED]
+
+    CreateSupportTicketRequest:
+      type: object
+      required: [category, subject, message]
+      properties:
+        category:
+          $ref: '#/components/schemas/SupportTicketCategory'
+        priority:
+          $ref: '#/components/schemas/SupportTicketPriority'
+        subject:
+          type: string
+          maxLength: 200
+        message:
+          type: string
+          maxLength: 5000
+        relatedResource:
+          $ref: '#/components/schemas/RelatedResourceRefDto'
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicketAttachmentRequest'
+
+    AddSupportTicketMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 5000
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicketAttachmentRequest'
+
+    SupportTicketAttachmentRequest:
+      type: object
+      required: [fileName, contentType, storageKey]
+      properties:
+        fileName: { type: string, example: damaged-package.jpg }
+        contentType: { type: string, example: image/jpeg }
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          example: 245881
+        storageKey:
+          type: string
+          description: S3 key or storage path returned after frontend uploads through aws-integration-ms.
+          example: support-tickets/TKT_ABC/ATT_001-damaged-package.jpg
+
+    SupportTicketAttachmentResponse:
+      type: object
+      properties:
+        attachmentId: { type: string, example: ATT_MDR7F8G1 }
+        fileName: { type: string }
+        contentType: { type: string }
+        sizeBytes: { type: integer, format: int64 }
+        storageKey: { type: string }
+        downloadUrl:
+          type: string
+          nullable: true
+          description: Usually null; frontend should request download URLs from aws-integration-ms.
+        uploadedByUserId: { type: string }
+        uploadedAt: { type: string, format: date-time }
+
+    RelatedResourceRefDto:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/RelatedResourceType'
+        shippingOrderId: { type: string, nullable: true }
+        orderItemId: { type: string, nullable: true }
+        fulfilmentId: { type: string, nullable: true }
+        driverUserId: { type: string, nullable: true }
+        billingAccountId: { type: string, nullable: true }
+        invoiceId: { type: string, nullable: true }
+        paymentId: { type: string, nullable: true }
+        displayLabel: { type: string, nullable: true }
+
+    SupportTicketClientSnapshotResponse:
+      type: object
+      properties:
+        fullName: { type: string, nullable: true }
+        email: { type: string, nullable: true }
+        phoneNumber: { type: string, nullable: true }
+        organizationName: { type: string, nullable: true }
+
+    SupportTicketMessageResponse:
+      type: object
+      properties:
+        messageId: { type: string, example: MSG_MDR7F8G1 }
+        senderType:
+          $ref: '#/components/schemas/SupportMessageSenderType'
+        senderUserId: { type: string }
+        senderDisplayName: { type: string }
+        message: { type: string }
+        internalNote:
+          type: boolean
+          description: Admin-only notes are omitted from customer-facing detail APIs.
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicketAttachmentResponse'
+        createdAt: { type: string, format: date-time }
+
+    ManualQuoteItemLineResponse:
+      type: object
+      properties:
+        orderItemId: { type: string, example: ITEM_123 }
+        itemDisplayName:
+          type: string
+          nullable: true
+          example: Large box - 35kg
+        customQuoteReason:
+          type: string
+          nullable: true
+          example: WEIGHT_EXCEEDS_LIMIT
+        quoteReasonDescription:
+          type: string
+          nullable: true
+          example: Item exceeds standard package weight limits and requires manual pricing.
+        charges:
+          type: object
+          nullable: true
+          additionalProperties:
+            type: number
+          example:
+            subtotal: 55.00
+            manualBaseCharge: 45.00
+            oversizeSurcharge: 10.00
+            HST: 8.25
+            total: 63.25
+        subtotal:
+          type: number
+          nullable: true
+          example: 55.00
+        taxAmount:
+          type: number
+          nullable: true
+          example: 8.25
+        totalAmount:
+          type: number
+          nullable: true
+          example: 63.25
+        calculationContext:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example:
+            weightKg: 35
+            distanceKm: 12.4
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+
+    OrderPricingPreview:
+      type: object
+      description: Display-only full-order pricing preview for a manual quote offer. Final payable pricing is owned by ShippingOrder after quote acceptance.
+      properties:
+        subtotal:
+          type: number
+          example: 90.00
+        taxes:
+          type: object
+          additionalProperties:
+            type: number
+          example:
+            HST: 13.50
+        total:
+          type: number
+          example: 103.50
+        currency:
+          type: string
+          example: CAD
+
+    ManualQuoteOfferResponse:
+      type: object
+      properties:
+        quoteId:
+          type: string
+          example: MQO_MDR7F8G
+        shippingOrderId:
+          type: string
+          example: ORD_123
+        status:
+          $ref: '#/components/schemas/ManualQuoteStatus'
+        title:
+          type: string
+          nullable: true
+          example: Manual quote for oversized packages
+        description:
+          type: string
+          nullable: true
+          example: Two items exceed our standard package limits and require manual pricing.
+        itemLines:
+          type: array
+          description: Quote lines for individual order items. For MVP, the full offer is accepted or rejected together.
+          items:
+            $ref: '#/components/schemas/ManualQuoteItemLineResponse'
+        orderPricingPreview:
+          $ref: '#/components/schemas/OrderPricingPreview'
+        currency:
+          type: string
+          nullable: true
+          example: CAD
+        pricingModelId:
+          type: string
+          nullable: true
+        pricingModelVersion:
+          type: integer
+          nullable: true
+        pricingTypeApplied:
+          type: string
+          nullable: true
+          example: MANUAL_ADMIN_QUOTE
+        ownerIdApplied:
+          type: string
+          nullable: true
+        zoneCode:
+          type: string
+          nullable: true
+        calculationContext:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example:
+            distanceKm: 12.4
+            serviceType: SAME_DAY
+            taxProvince: NB
+        metadata:
+          type: object
+          nullable: true
+          additionalProperties: true
+          example:
+            source: ADMIN_MANUAL_ENTRY
+            manualQuoteTicketId: TKT_MDR7F8G
+        quotedByAdminUserId:
+          type: string
+          nullable: true
+        quotedAt:
+          type: string
+          format: date-time
+          nullable: true
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        customerDecisionByUserId:
+          type: string
+          nullable: true
+        customerDecisionAt:
+          type: string
+          format: date-time
+          nullable: true
+        customerRejectionReason:
+          type: string
+          nullable: true
+        relatedMessageId:
+          type: string
+          nullable: true
+          description: Message id that announced this offer in the ticket conversation, when available.
+
+    SupportTicketSummaryResponse:
+      type: object
+      properties:
+        ticketId: { type: string, example: TKT_MDR7F8G1 }
+        ticketNumber: { type: string, example: MX-TKT-2026-000001 }
+        clientUserId: { type: string }
+        organizationId: { type: string, nullable: true }
+        clientSnapshot:
+          $ref: '#/components/schemas/SupportTicketClientSnapshotResponse'
+        category:
+          $ref: '#/components/schemas/SupportTicketCategory'
+        status:
+          $ref: '#/components/schemas/SupportTicketStatus'
+        priority:
+          $ref: '#/components/schemas/SupportTicketPriority'
+        visibility:
+          $ref: '#/components/schemas/SupportTicketVisibility'
+        subject: { type: string }
+        latestMessagePreview: { type: string }
+        relatedResource:
+          $ref: '#/components/schemas/RelatedResourceRefDto'
+        assignedAdminUserId: { type: string, nullable: true }
+        customerUnread: { type: boolean }
+        adminUnread: { type: boolean }
+        lastCustomerMessageAt: { type: string, format: date-time, nullable: true }
+        lastAdminMessageAt: { type: string, format: date-time, nullable: true }
+        lastSystemMessageAt: { type: string, format: date-time, nullable: true }
+        resolvedAt: { type: string, format: date-time, nullable: true }
+        closedAt: { type: string, format: date-time, nullable: true }
+        archived: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    SupportTicketDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/SupportTicketSummaryResponse'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/SupportTicketMessageResponse'
+            manualQuoteOffers:
+              type: array
+              description: Manual quote offers attached to this support ticket.
+              items:
+                $ref: '#/components/schemas/ManualQuoteOfferResponse'
+            resolvedByAdminUserId: { type: string, nullable: true }
+            resolutionSummary: { type: string, nullable: true }
+            closedByUserId: { type: string, nullable: true }
+            archivedAt: { type: string, format: date-time, nullable: true }
+            archivedByUserId: { type: string, nullable: true }
+            createdByUserId: { type: string }
+            updatedByUserId: { type: string }
+
+    ManualQuoteAttachmentRequest:
+      type: object
+      required: [fileName, contentType, storageKey]
+      properties:
+        fileName: { type: string, example: package-photo.jpg }
+        contentType: { type: string, example: image/jpeg }
+        sizeBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          example: 245881
+        storageKey:
+          type: string
+          description: S3 key or storage path. File upload is handled outside this service.
+          example: support-tickets/TKT_123/package-photo.jpg
+
+    ManualQuoteMessageRequest:
+      type: object
+      required: [message]
+      properties:
+        message:
+          type: string
+          maxLength: 5000
+          example: Can you do this for a lower price?
+        attachments:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualQuoteAttachmentRequest'
+
+    ManualQuoteItemLineRequest:
+      type: object
+      required: [orderItemId, subtotal, totalAmount]
+      properties:
+        orderItemId: { type: string, example: ITEM_001 }
+        itemDisplayName: { type: string, example: Large box - 35kg }
+        customQuoteReason: { type: string, example: WEIGHT_EXCEEDS_LIMIT }
+        quoteReasonDescription:
+          type: string
+          example: This item exceeds the standard package weight limit.
+        charges:
+          type: object
+          additionalProperties:
+            type: number
+          example:
+            subtotal: 55.00
+            manualBaseCharge: 45.00
+            oversizeSurcharge: 10.00
+            HST: 8.25
+            total: 63.25
+        subtotal: { type: number, minimum: 0, example: 55.00 }
+        taxAmount: { type: number, minimum: 0, nullable: true, example: 0 }
+        totalAmount: { type: number, minimum: 0, example: 55.00 }
+        calculationContext:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+
+    CreateManualQuoteOfferRequest:
+      type: object
+      required: [itemLines]
+      properties:
+        title:
+          type: string
+          example: Manual quote for oversized items
+        description:
+          type: string
+          example: Two items exceed our standard limits and require manual pricing.
+        shippingOrderId:
+          type: string
+          nullable: true
+          example: ORD_123
+        itemLines:
+          type: array
+          minItems: 1
+          items:
+            $ref: '#/components/schemas/ManualQuoteItemLineRequest'
+        currency: { type: string, example: CAD }
+        pricingModelId: { type: string, nullable: true }
+        pricingModelVersion: { type: integer, nullable: true }
+        pricingTypeApplied:
+          type: string
+          example: MANUAL_ADMIN_QUOTE
+        ownerIdApplied:
+          type: string
+          nullable: true
+          example: customer-or-org-id
+        zoneCode:
+          type: string
+          nullable: true
+          example: NB-DIEPPE
+        calculationContext:
+          type: object
+          additionalProperties: true
+        metadata:
+          type: object
+          additionalProperties: true
+          example:
+            source: ADMIN_MANUAL_ENTRY
+            paymentMode: PREPAID
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: 2026-06-10T23:59:59
+        messageToCustomer:
+          type: string
+          nullable: true
+          example: We can complete this delivery for $63.25 including tax.
+
+    UpdateManualQuoteOfferRequest:
+      type: object
+      properties:
+        title: { type: string, example: Updated manual quote }
+        description: { type: string, example: Updated price after review. }
+        status:
+          type: string
+          enum: [WITHDRAWN, EXPIRED]
+          example: WITHDRAWN
+        expiresAt:
+          type: string
+          format: date-time
+          nullable: true
+        metadata:
+          type: object
+          additionalProperties: true
+        messageToCustomer:
+          type: string
+          nullable: true
+          example: The previous quote has been withdrawn. We are preparing a new one.
+
+    AcceptManualQuoteOfferRequest:
+      type: object
+      properties:
+        acceptanceNote:
+          type: string
+          maxLength: 1000
+          example: I accept this quote.
+
+    RejectManualQuoteOfferRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+          example: This is too expensive for me.
+
+    AssignManualQuoteTicketRequest:
+      type: object
+      properties:
+        assignedAdminUserId:
+          type: string
+          nullable: true
+          example: admin-user-sub-123
+
+    UpdateManualQuoteTicketRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/SupportTicketStatus'
+        priority:
+          $ref: '#/components/schemas/SupportTicketPriority'
+        assignedAdminUserId:
+          type: string
+          nullable: true
+          example: admin-user-sub-123
+
+    CloseManualQuoteTicketRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+          example: Customer does not want to proceed.
+
+    ArchiveManualQuoteTicketRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+          example: Old quote request archived.
+
+    ManualQuoteTicketSummaryResponse:
+      allOf:
+        - $ref: '#/components/schemas/SupportTicketSummaryResponse'
+        - type: object
+          properties:
+            manualQuoteOffers:
+              type: array
+              description: Manual quote offers attached to this ticket for list cards/tables.
+              items:
+                $ref: '#/components/schemas/ManualQuoteOfferResponse'
+
+    ManualQuoteTicketDetailResponse:
+      allOf:
+        - $ref: '#/components/schemas/ManualQuoteTicketSummaryResponse'
+        - type: object
+          properties:
+            messages:
+              type: array
+              items:
+                $ref: '#/components/schemas/SupportTicketMessageResponse'
+            lastCustomerMessageAt: { type: string, format: date-time, nullable: true }
+            lastAdminMessageAt: { type: string, format: date-time, nullable: true }
+            lastSystemMessageAt: { type: string, format: date-time, nullable: true }
+            resolvedAt: { type: string, format: date-time, nullable: true }
+            resolvedByAdminUserId: { type: string, nullable: true }
+            resolutionSummary: { type: string, nullable: true }
+            closedAt: { type: string, format: date-time, nullable: true }
+            closedByUserId: { type: string, nullable: true }
+            archivedAt: { type: string, format: date-time, nullable: true }
+            archivedByUserId: { type: string, nullable: true }
+            createdByUserId: { type: string, nullable: true }
+            updatedByUserId: { type: string, nullable: true }
+
+    PagedManualQuoteTicketSummaryResponse:
+      type: object
+      properties:
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/ManualQuoteTicketSummaryResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    ManualQuoteCombinedDetailResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: '#/components/schemas/ManualQuoteTicketDetailResponse'
+        shippingOrder:
+          $ref: '#/components/schemas/ShippingOrder'
+        message:
+          type: string
+          example: Manual quote detail returned.
+
+    CreateManualQuoteRequestResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: '#/components/schemas/ManualQuoteTicketDetailResponse'
+        shippingOrder:
+          $ref: '#/components/schemas/ShippingOrder'
+        message:
+          type: string
+          example: Manual quote request created successfully.
+
+    ManualQuoteAcceptResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: '#/components/schemas/ManualQuoteTicketDetailResponse'
+        shippingOrder:
+          $ref: '#/components/schemas/ShippingOrder'
+        acceptedQuoteId:
+          type: string
+          example: MQO_123
+        paymentRequired:
+          type: boolean
+          example: true
+        paymentMode:
+          type: string
+          enum: [PREPAID, POSTPAID]
+          example: PREPAID
+        nextAction:
+          type: string
+          enum: [CONTINUE_TO_PAYMENT, ORDER_SUBMITTED]
+          example: CONTINUE_TO_PAYMENT
+        message:
+          type: string
+          example: Quote accepted. Please continue to payment.
+
+    ManualQuoteActionResponse:
+      type: object
+      properties:
+        ticket:
+          $ref: '#/components/schemas/ManualQuoteTicketDetailResponse'
+        shippingOrder:
+          $ref: '#/components/schemas/ShippingOrder'
+        message:
+          type: string
+          example: Manual quote ticket updated.
+
+    PagedSupportTicketSummaryResponse:
+      type: object
+      properties:
+        tickets:
+          type: array
+          items:
+            $ref: '#/components/schemas/SupportTicketSummaryResponse'
+        pagination:
+          $ref: '#/components/schemas/PaginationMetadata'
+
+    AssignSupportTicketRequest:
+      type: object
+      properties:
+        assignedAdminUserId:
+          type: string
+          nullable: true
+          example: admin-user-sub-123
+
+    AdminUpdateSupportTicketRequest:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/SupportTicketStatus'
+        priority:
+          $ref: '#/components/schemas/SupportTicketPriority'
+        category:
+          $ref: '#/components/schemas/SupportTicketCategory'
+        assignedAdminUserId:
+          type: string
+          nullable: true
+          example: admin-user-sub-123
+
+    ResolveSupportTicketRequest:
+      type: object
+      properties:
+        resolutionSummary:
+          type: string
+          maxLength: 5000
+        messageToCustomer:
+          type: string
+          maxLength: 5000
+
+    CloseSupportTicketRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+
+    ArchiveSupportTicketRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+
+    CancelSupportTicketRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          maxLength: 1000
+
+    GenericSupportTicketActionResponse:
+      type: object
+      properties:
+        ticketId: { type: string }
+        status:
+          $ref: '#/components/schemas/SupportTicketStatus'
+        message: { type: string }
+
+    ErrorResponse:
+      type: object
+      properties:
+        status: { type: string }
+        message: { type: string }
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorResponseErrorsInner'
+        errorDetails:
+          $ref: '#/components/schemas/ErrorResponseErrorDetails'
+
+    ErrorResponseErrorsInner:
+      type: object
+      properties:
+        field: { type: string }
+        message: { type: string }
+
+    ErrorResponseErrorDetails:
+      type: object
+      properties:
+        errorCode: { type: integer }
+        errorType: { type: string }
+        characteristics:
+          type: object
+          additionalProperties:
+            type: string

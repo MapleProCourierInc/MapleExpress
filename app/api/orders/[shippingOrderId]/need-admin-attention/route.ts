@@ -8,22 +8,27 @@ type RouteContext = {
   }>
 }
 
-export async function PATCH(request: NextRequest, context: RouteContext) {
+async function requestManualQuote(request: NextRequest, context: RouteContext) {
   try {
     const { shippingOrderId } = await context.params
-    const body = await request.json()
 
     return await proxyWithAuthRetry(request, {
-      method: "PATCH",
+      method: "POST",
       url: getEndpointUrl(
         ORDER_SERVICE_URL,
-        `/orders/${encodeURIComponent(shippingOrderId)}/need-admin-attention`,
+        `/api/v1/shipping-orders/${encodeURIComponent(shippingOrderId)}/manual-quote-request`,
       ),
-      body: JSON.stringify(body),
-      contentTypeJson: true,
     })
   } catch (error) {
     console.error("Request admin quote error:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
+}
+
+export async function POST(request: NextRequest, context: RouteContext) {
+  return requestManualQuote(request, context)
+}
+
+export async function PATCH(request: NextRequest, context: RouteContext) {
+  return requestManualQuote(request, context)
 }
