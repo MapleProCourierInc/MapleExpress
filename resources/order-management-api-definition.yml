@@ -2613,8 +2613,11 @@ components:
           additionalProperties:
             type: number
           example:
+            subtotal: 55.00
             manualBaseCharge: 45.00
             oversizeSurcharge: 10.00
+            HST: 8.25
+            total: 63.25
         subtotal:
           type: number
           nullable: true
@@ -2638,6 +2641,26 @@ components:
           type: object
           nullable: true
           additionalProperties: true
+
+    OrderPricingPreview:
+      type: object
+      description: Display-only full-order pricing preview for a manual quote offer. Final payable pricing is owned by ShippingOrder after quote acceptance.
+      properties:
+        subtotal:
+          type: number
+          example: 90.00
+        taxes:
+          type: object
+          additionalProperties:
+            type: number
+          example:
+            HST: 13.50
+        total:
+          type: number
+          example: 103.50
+        currency:
+          type: string
+          example: CAD
 
     ManualQuoteOfferResponse:
       type: object
@@ -2663,29 +2686,8 @@ components:
           description: Quote lines for individual order items. For MVP, the full offer is accepted or rejected together.
           items:
             $ref: '#/components/schemas/ManualQuoteItemLineResponse'
-        charges:
-          type: object
-          nullable: true
-          description: Order-level charges for this quote offer.
-          additionalProperties:
-            type: number
-          example:
-            manualQuoteSubtotal: 115.00
-            specialHandlingSurcharge: 10.00
-            tax: 18.75
-            total: 143.75
-        subtotal:
-          type: number
-          nullable: true
-          example: 125.00
-        taxAmount:
-          type: number
-          nullable: true
-          example: 18.75
-        totalAmount:
-          type: number
-          nullable: true
-          example: 143.75
+        orderPricingPreview:
+          $ref: '#/components/schemas/OrderPricingPreview'
         currency:
           type: string
           nullable: true
@@ -2846,8 +2848,11 @@ components:
           additionalProperties:
             type: number
           example:
+            subtotal: 55.00
             manualBaseCharge: 45.00
             oversizeSurcharge: 10.00
+            HST: 8.25
+            total: 63.25
         subtotal: { type: number, minimum: 0, example: 55.00 }
         taxAmount: { type: number, minimum: 0, nullable: true, example: 0 }
         totalAmount: { type: number, minimum: 0, example: 55.00 }
@@ -2860,7 +2865,7 @@ components:
 
     CreateManualQuoteOfferRequest:
       type: object
-      required: [itemLines, subtotal, totalAmount]
+      required: [itemLines]
       properties:
         title:
           type: string
@@ -2877,17 +2882,6 @@ components:
           minItems: 1
           items:
             $ref: '#/components/schemas/ManualQuoteItemLineRequest'
-        charges:
-          type: object
-          additionalProperties:
-            type: number
-          example:
-            manualQuoteSubtotal: 55.00
-            tax: 8.25
-            total: 63.25
-        subtotal: { type: number, minimum: 0, example: 55.00 }
-        taxAmount: { type: number, minimum: 0, nullable: true, example: 8.25 }
-        totalAmount: { type: number, minimum: 0, example: 63.25 }
         currency: { type: string, example: CAD }
         pricingModelId: { type: string, nullable: true }
         pricingModelVersion: { type: integer, nullable: true }

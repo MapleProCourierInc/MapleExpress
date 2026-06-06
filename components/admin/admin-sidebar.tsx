@@ -9,6 +9,7 @@ import { AdminUserMenu } from "@/components/admin/admin-user-menu"
 import {
   BadgeDollarSign,
   Building2,
+  FileText,
   LifeBuoy,
   Map,
   PanelLeftClose,
@@ -23,6 +24,7 @@ const navItems = [
   { href: "/admin/drivers", label: "Drivers", icon: Truck, disabled: false },
   { href: "/admin/customers", label: "Users", icon: Users, disabled: false },
   { href: "/admin/pricing", label: "Pricing", icon: BadgeDollarSign, disabled: false },
+  { href: "/admin/quotes", label: "Quotes", icon: FileText, disabled: false },
   { href: "/admin/service-zones", label: "Service Zones", icon: Map, disabled: false },
   { href: "/admin/support", label: "Support", icon: LifeBuoy, disabled: false },
   { href: "#", label: "Fleet", icon: Route, disabled: true },

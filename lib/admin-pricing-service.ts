@@ -30,6 +30,18 @@ export async function getAdminPricingModels(searchParams = ""): Promise<ServiceR
   })
 }
 
+export async function getApplicablePricingModel(userId: string, zoneCode = "GLOBAL"): Promise<ServiceResult<PricingV2Model>> {
+  const params = new URLSearchParams({
+    userId,
+    zoneCode: zoneCode || "GLOBAL",
+  })
+
+  return pricingFetch<PricingV2Model>(`/api/v2/pricing/applicable?${params.toString()}`, {
+    method: "GET",
+    headers: { Accept: "application/json" },
+  })
+}
+
 export async function createAdminPricingModel(payload: CreatePricingV2Request): Promise<ServiceResult<PricingV2Model>> {
   return pricingFetch<PricingV2Model>("/api/v2/pricing", {
     method: "POST",

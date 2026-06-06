@@ -90,6 +90,13 @@ export interface ManualQuoteItemLine {
   metadata?: Record<string, unknown> | null
 }
 
+export interface ManualQuoteOrderPricingPreview {
+  subtotal?: number | null
+  taxes?: Record<string, number> | null
+  total?: number | null
+  currency?: string | null
+}
+
 export interface ManualQuoteOffer {
   quoteId?: string | null
   shippingOrderId?: string | null
@@ -97,10 +104,7 @@ export interface ManualQuoteOffer {
   title?: string | null
   description?: string | null
   itemLines?: ManualQuoteItemLine[]
-  charges?: Record<string, number> | null
-  subtotal?: number | null
-  taxAmount?: number | null
-  totalAmount?: number | null
+  orderPricingPreview?: ManualQuoteOrderPricingPreview | null
   currency?: string | null
   pricingModelId?: string | null
   pricingModelVersion?: number | null

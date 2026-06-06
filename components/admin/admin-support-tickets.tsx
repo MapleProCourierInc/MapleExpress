@@ -28,6 +28,7 @@ import {
 import { apiFetch } from "@/lib/client-api"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
+import { ConversationChatPanel } from "@/components/shared/conversation-chat-panel"
 import {
   RELATED_RESOURCE_TYPES,
   SUPPORT_TICKET_CATEGORIES,
@@ -70,7 +71,6 @@ import {
   PaginationPrevious,
 } from "@/components/ui/pagination"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
 import {
@@ -482,6 +482,7 @@ export function AdminSupportTickets({
   const [detail, setDetail] = useState<SupportTicketDetail | null>(null)
   const [detailError, setDetailError] = useState("")
   const [detailLoading, setDetailLoading] = useState(false)
+  const [adminNotesOpen, setAdminNotesOpen] = useState(false)
 
   const [replyMessage, setReplyMessage] = useState("")
   const [internalNote, setInternalNote] = useState("")
@@ -641,6 +642,7 @@ export function AdminSupportTickets({
     setInternalNote("")
     setReplyError("")
     setNoteError("")
+    setAdminNotesOpen(false)
     loadDetail(ticket.ticketId)
   }
 
@@ -1084,7 +1086,7 @@ export function AdminSupportTickets({
       </Card>
 
       <Sheet open={detailOpen} onOpenChange={setDetailOpen}>
-        <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-3xl xl:max-w-5xl">
+        <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-5xl xl:max-w-[1500px]">
           <SheetHeader className="border-b p-6 pr-12">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
               <div className="min-w-0">
@@ -1093,6 +1095,10 @@ export function AdminSupportTickets({
               </div>
               {detail ? (
                 <div className="flex flex-wrap gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setAdminNotesOpen(true)}>
+                    <NotebookPen className="h-4 w-4" />
+                    Admin notes
+                  </Button>
                   <StatusBadge status={detail.status} />
                   <PriorityBadge priority={detail.priority} />
                   {detail.archived ? <Badge variant="outline"><Archive className="mr-1 h-3.5 w-3.5" /> Archived</Badge> : null}
@@ -1101,7 +1107,7 @@ export function AdminSupportTickets({
             </div>
           </SheetHeader>
 
-          <ScrollArea className="flex-1">
+          <div className="min-h-0 flex-1 overflow-y-auto xl:overflow-hidden">
             {detailLoading && !detail ? <DetailLoading /> : null}
             {detailError ? (
               <div className="p-6">
@@ -1113,9 +1119,9 @@ export function AdminSupportTickets({
               </div>
             ) : null}
             {detail ? (
-              <div className="space-y-6 p-6">
-                <div className="grid gap-4 lg:grid-cols-[1fr,360px]">
-                  <div className="space-y-4">
+              <div className="grid min-h-0 gap-4 p-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_minmax(340px,30%)]">
+                <div className="min-w-0 space-y-4 xl:h-full xl:overflow-y-auto xl:pr-2">
+                  <div className="grid gap-4 lg:grid-cols-[1fr,360px]">
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-lg">Customer</CardTitle>
@@ -1130,29 +1136,6 @@ export function AdminSupportTickets({
                       </CardContent>
                     </Card>
 
-                    <Card>
-                      <CardHeader>
-                        <CardTitle className="text-lg">Conversation</CardTitle>
-                        <CardDescription>Full admin view, including internal notes.</CardDescription>
-                      </CardHeader>
-                      <CardContent>
-                        {detail.messages?.length ? (
-                          <div className="space-y-4">
-                            {detail.messages.map((message, index) => (
-                              <MessageBubble key={message.messageId || `${message.createdAt}-${index}`} message={message} />
-                            ))}
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border bg-muted/20 p-8 text-center">
-                            <MessageSquare className="mx-auto h-7 w-7 text-muted-foreground" />
-                            <p className="mt-2 text-sm font-medium">No conversation messages yet.</p>
-                          </div>
-                        )}
-                      </CardContent>
-                    </Card>
-                  </div>
-
-                  <div className="space-y-4">
                     <Card>
                       <CardHeader>
                         <CardTitle className="text-lg">Ticket details</CardTitle>
@@ -1236,46 +1219,71 @@ export function AdminSupportTickets({
                   </div>
                 </div>
 
-                <div className="grid gap-4 lg:grid-cols-2">
-                  <Card>
-                    <CardHeader>
-                      <CardTitle className="text-lg">Reply to customer</CardTitle>
-                      <CardDescription>Customer-visible response. Do not include internal notes here.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Textarea value={replyMessage} onChange={(event) => { setReplyMessage(event.target.value); setReplyError("") }} placeholder="Write a customer-visible reply..." className="min-h-[140px]" disabled={!canReplyToCustomer(detail)} />
-                      <p className="text-xs text-muted-foreground">Attachments are not configured here; support APIs accept S3 metadata only.</p>
-                      {replyError ? <p className="text-sm text-destructive">{replyError}</p> : null}
-                      <Button type="button" onClick={sendReply} disabled={!canReplyToCustomer(detail) || replySubmitting}>
-                        {replySubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                        Send reply
-                      </Button>
-                    </CardContent>
-                  </Card>
-
-                  <Card className="border-amber-200 bg-amber-50/40">
-                    <CardHeader>
-                      <CardTitle className="flex items-center gap-2 text-lg">
-                        <NotebookPen className="h-5 w-5" />
-                        Internal note
-                      </CardTitle>
-                      <CardDescription>Only visible to admins. This is never sent as a customer reply.</CardDescription>
-                    </CardHeader>
-                    <CardContent className="space-y-3">
-                      <Textarea value={internalNote} onChange={(event) => { setInternalNote(event.target.value); setNoteError("") }} placeholder="Add internal context for the support team..." className="min-h-[140px]" disabled={Boolean(detail.archived)} />
-                      {noteError ? <p className="text-sm text-destructive">{noteError}</p> : null}
-                      <Button type="button" variant="outline" onClick={addInternalNote} disabled={Boolean(detail.archived) || noteSubmitting}>
-                        {noteSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <NotebookPen className="h-4 w-4" />}
-                        Add internal note
-                      </Button>
-                    </CardContent>
-                  </Card>
-                </div>
+                <aside className="min-h-0 min-w-0 xl:flex xl:h-full xl:flex-col">
+                  <ConversationChatPanel
+                    className="xl:min-h-0 xl:flex-1"
+                    title="Conversation"
+                    description="Customer-visible conversation."
+                    unread={Boolean(detail.adminUnread)}
+                    messages={(detail.messages || []).filter((message) => !message.internalNote)}
+                    emptyTitle="No conversation messages yet."
+                    emptyDescription="Customer messages and admin replies will appear here."
+                    replyValue={replyMessage}
+                    replyPlaceholder="Write a customer-visible reply..."
+                    replyError={replyError}
+                    replyDisabled={!canReplyToCustomer(detail)}
+                    replyDisabledMessage="Customer replies are disabled for this ticket."
+                    isSendingReply={replySubmitting}
+                    composerHelper="Attachments can be added once the upload flow is configured."
+                    onReplyChange={(value) => {
+                      setReplyMessage(value)
+                      setReplyError("")
+                    }}
+                    onSendReply={sendReply}
+                    isOwnMessage={(message) => (message.senderType || "SYSTEM") !== "CUSTOMER"}
+                    senderFallback={(message, isOwn) => message.senderDisplayName || (isOwn ? "Admin" : "Customer")}
+                    formatDateTime={formatDateTime}
+                    renderAttachments={(message) => <TicketAttachments attachments={message.attachments} />}
+                  />
+                </aside>
               </div>
             ) : null}
-          </ScrollArea>
+          </div>
         </SheetContent>
       </Sheet>
+
+      <Dialog open={adminNotesOpen} onOpenChange={setAdminNotesOpen}>
+        <DialogContent className="flex max-h-[86vh] max-w-2xl flex-col overflow-hidden p-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>Admin notes</DialogTitle>
+            <DialogDescription>Internal notes only visible to admins.</DialogDescription>
+          </DialogHeader>
+          <ConversationChatPanel
+            className="min-h-[72vh] border-0 shadow-none"
+            title="Admin notes"
+            description="Internal notes only visible to admins."
+            messages={(detail?.messages || []).filter((message) => message.internalNote)}
+            emptyTitle="No admin notes yet."
+            emptyDescription="Internal notes for this support ticket will appear here."
+            replyValue={internalNote}
+            replyPlaceholder="Add an internal admin note..."
+            replyError={noteError}
+            replyDisabled={!detail || Boolean(detail.archived)}
+            replyDisabledMessage="Admin notes are disabled for archived tickets."
+            isSendingReply={noteSubmitting}
+            composerHelper="Internal note. This is never sent to the customer."
+            onReplyChange={(value) => {
+              setInternalNote(value)
+              setNoteError("")
+            }}
+            onSendReply={addInternalNote}
+            isOwnMessage={() => true}
+            senderFallback={(message) => message.senderDisplayName || "Admin"}
+            formatDateTime={formatDateTime}
+            renderAttachments={(message) => <TicketAttachments attachments={message.attachments} />}
+          />
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={Boolean(actionDialog)} onOpenChange={(open) => !open && setActionDialog(null)}>
         <DialogContent>

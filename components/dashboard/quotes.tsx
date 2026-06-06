@@ -55,6 +55,7 @@ import {
 } from "@/lib/manual-quote-service"
 import type { ShippingOrder } from "@/lib/order-service"
 import { useToast } from "@/hooks/use-toast"
+import { ConversationChatPanel } from "@/components/shared/conversation-chat-panel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -69,9 +70,7 @@ import {
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { ScrollArea } from "@/components/ui/scroll-area"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Textarea } from "@/components/ui/textarea"
@@ -83,8 +82,6 @@ type QuoteFilterTab = "ACTIVE" | "WAITING_SUPPORT" | "WAITING_ME" | "ACCEPTED" |
 type TicketStatusFilter = ManualQuoteTicketStatus | typeof ALL_FILTER
 type QuoteStatusFilter = ManualQuoteOfferStatus | typeof ALL_FILTER
 type QuoteOrderItem = NonNullable<ShippingOrder["orderItems"]>[number]
-type QuoteOrderStop = NonNullable<QuoteOrderItem["pickup"]>
-type QuoteOrderAddress = NonNullable<QuoteOrderStop["address"]>
 
 const filterTabs: Array<{ key: QuoteFilterTab; label: string; description: string }> = [
   { key: "ACTIVE", label: "Active", description: "Open and in-progress quote requests" },
@@ -222,15 +219,15 @@ function PriorityBadge({ priority }: { priority?: string | null }) {
 function SummaryCard({ label, value, helper, icon }: { label: string; value: number; helper: string; icon: ReactNode }) {
   return (
     <Card className="dashboard-card-surface border-slate-200 shadow-sm">
-      <CardContent className="p-5">
-        <div className="flex items-start justify-between gap-4">
+      <CardContent className="p-3">
+        <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-medium text-slate-500">{label}</p>
-            <p className="mt-2 font-mono text-3xl font-bold text-slate-950">{value}</p>
+            <p className="mt-1 font-mono text-xl font-bold text-slate-950">{value}</p>
           </div>
-          <div className="rounded-full bg-primary/10 p-3 text-primary">{icon}</div>
+          <div className="rounded-full bg-primary/10 p-2 text-primary">{icon}</div>
         </div>
-        <p className="mt-3 text-xs text-muted-foreground">{helper}</p>
+        <p className="mt-2 text-xs text-muted-foreground">{helper}</p>
       </CardContent>
     </Card>
   )
@@ -291,6 +288,10 @@ function canActOnOffer(ticket?: ManualQuoteTicketSummary | null, offer?: ManualQ
   )
 }
 
+function shouldExpandQuoteOffer(offer?: ManualQuoteOffer | null) {
+  return offer?.status === "OFFERED" || offer?.status === "ACCEPTED"
+}
+
 function canContinueToPayment(order?: ShippingOrder | null) {
   if (!order?.shippingOrderId) return false
 
@@ -319,12 +320,118 @@ function canContinueToPayment(order?: ShippingOrder | null) {
   )
 }
 
-function chargesTotal(charges?: Record<string, number> | null) {
-  return Object.values(charges || {}).reduce((sum, amount) => (Number.isFinite(amount) ? sum + amount : sum), 0)
-}
-
 function chargeEntries(charges?: Record<string, number> | null) {
   return Object.entries(charges || {}).filter(([, amount]) => typeof amount === "number" && Number.isFinite(amount))
+}
+
+function chargeMapValue(charges: Record<string, number> | null | undefined, label: string) {
+  const match = Object.entries(charges || {}).find(
+    ([name, amount]) => name.trim().toLowerCase() === label.toLowerCase() && typeof amount === "number" && Number.isFinite(amount),
+  )
+  return match?.[1]
+}
+
+type MergedPackagePricingRow = {
+  key: string
+  orderItemId?: string | null
+  description: string
+  pricingType: "AUTO" | "MANUAL"
+  charges?: Record<string, number> | null
+  currency: string
+  reason?: string | null
+  explanation?: string | null
+}
+
+function orderItemPackageId(item?: QuoteOrderItem | null) {
+  return item?.orderItemId || item?.trackingId || ""
+}
+
+function orderItemPackageDescription(item?: QuoteOrderItem | null, index = 0) {
+  return item?.description || item?.packageDetails?.type || item?.orderItemId || item?.trackingId || `Package ${index + 1}`
+}
+
+function orderItemQuoteReason(item?: QuoteOrderItem | null) {
+  return (
+    item?.pricing?.customQuoteReason ||
+    item?.pricing?.customQuoteReasons?.[0] ||
+    item?.pricing?.customerQuoteReasons?.[0] ||
+    item?.pricing?.customerQuoteResons?.[0] ||
+    null
+  )
+}
+
+function buildMergedPackagePricingRows(
+  offer?: ManualQuoteOffer | null,
+  order?: ShippingOrder | null,
+): MergedPackagePricingRow[] {
+  const currency = offer?.currency || orderCurrency(order)
+  const manualLines = offer?.itemLines || []
+  const manualById = new Map<string, ManualQuoteItemLine>()
+  manualLines.forEach((line) => {
+    if (line.orderItemId) manualById.set(line.orderItemId, line)
+  })
+  const rows: MergedPackagePricingRow[] = []
+  const usedManualIds = new Set<string>()
+
+  ;(order?.orderItems || []).forEach((item, index) => {
+    const id = orderItemPackageId(item)
+    const manualLine = id ? manualById.get(id) : undefined
+    if (manualLine) {
+      usedManualIds.add(id)
+      rows.push({
+        key: `manual-${id || index}`,
+        orderItemId: id,
+        description: orderItemPackageDescription(item, index),
+        pricingType: "MANUAL",
+        charges: manualLine.charges,
+        currency: offer?.currency || currency,
+        reason: manualLine.customQuoteReason,
+        explanation: manualLine.quoteReasonDescription,
+      })
+      return
+    }
+
+    const itemCurrency = item.pricing?.currency || currency
+    rows.push({
+      key: `auto-${id || index}`,
+      orderItemId: id,
+      description: orderItemPackageDescription(item, index),
+      pricingType: "AUTO",
+      charges: item.pricing?.charges,
+      currency: itemCurrency,
+      reason: orderItemQuoteReason(item),
+      explanation: item.pricing?.customQuoteRequired ? "This package was previously marked for manual pricing." : null,
+    })
+  })
+
+  manualLines.forEach((line, index) => {
+    const id = line.orderItemId || ""
+    if (id && usedManualIds.has(id)) return
+    rows.push({
+      key: `manual-extra-${id || index}`,
+      orderItemId: id,
+      description: line.itemDisplayName || id || `Package ${rows.length + 1}`,
+      pricingType: "MANUAL",
+      charges: line.charges,
+      currency,
+      reason: line.customQuoteReason,
+      explanation: line.quoteReasonDescription,
+    })
+  })
+
+  return rows
+}
+
+function PackagePricingBadge({ type }: { type: MergedPackagePricingRow["pricingType"] }) {
+  return type === "MANUAL" ? (
+    <Badge variant="outline" className="border-amber-200 bg-amber-50 text-amber-900">
+      Manual quote
+    </Badge>
+  ) : (
+    <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-800">
+      Auto priced
+    </Badge>
+  )
 }
 
 function ChargeBreakdown({ charges, currency }: { charges?: Record<string, number> | null; currency?: string | null }) {
@@ -333,7 +440,7 @@ function ChargeBreakdown({ charges, currency }: { charges?: Record<string, numbe
 
   return (
     <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-3">
-      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Charges</p>
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Package charges</p>
       <div className="mt-2 space-y-1.5">
         {entries.map(([label, amount]) => (
           <div key={label} className="flex items-center justify-between gap-3 text-sm">
@@ -416,103 +523,8 @@ function DetailMetaItem({ label, value }: { label: string; value: ReactNode }) {
   )
 }
 
-function formatAddress(address?: Partial<QuoteOrderAddress> | null) {
-  if (!address) return "Address unavailable"
-  const parts = [address.streetAddress, address.city, address.province, address.postalCode].filter(Boolean)
-  return parts.length ? parts.join(", ") : address.fullName || address.company || "Address unavailable"
-}
-
-function stopSummary(stop?: QuoteOrderStop | null) {
-  return formatAddress(stop?.address)
-}
-
-function orderTotal(order?: ShippingOrder | null) {
-  return order?.aggregatedPricing?.totalAmount ?? chargesTotal(order?.aggregatedPricing?.charges)
-}
-
 function orderCurrency(order?: ShippingOrder | null) {
   return order?.aggregatedPricing?.currency || "CAD"
-}
-
-function OrderSummaryForQuote({
-  order,
-  onContinueToPayment,
-}: {
-  order?: ShippingOrder | null
-  onContinueToPayment: (order: ShippingOrder) => void
-}) {
-  const firstItem = order?.orderItems?.[0]
-  const items = order?.orderItems || []
-  const showPayment = canContinueToPayment(order)
-
-  if (!order) {
-    return (
-      <Card className="border-slate-200 shadow-sm">
-        <CardHeader>
-          <CardTitle className="text-base">Order summary</CardTitle>
-          <CardDescription>The quote detail response did not include an associated shipping order.</CardDescription>
-        </CardHeader>
-      </Card>
-    )
-  }
-
-  return (
-    <Card className="border-slate-200 shadow-sm">
-      <CardHeader className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-        <div>
-          <CardTitle className="text-base">Order summary</CardTitle>
-          <CardDescription className="font-mono">{order.shippingOrderId}</CardDescription>
-        </div>
-        {showPayment ? (
-          <Button type="button" onClick={() => onContinueToPayment(order)}>
-            <CreditCard className="h-4 w-4" />
-            Continue to Payment
-          </Button>
-        ) : null}
-      </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <DetailMetaItem label="Order status" value={humanize(order.orderStatus)} />
-          <DetailMetaItem label="Payment status" value={humanize(order.paymentStatus)} />
-          <DetailMetaItem label="Items" value={items.length || "N/A"} />
-          <DetailMetaItem label="Total" value={formatCurrency(orderTotal(order), orderCurrency(order))} />
-        </div>
-
-        <div className="grid gap-3 md:grid-cols-2">
-          <DetailMetaItem label="Pickup" value={stopSummary(firstItem?.pickup)} />
-          <DetailMetaItem label="Dropoff" value={stopSummary(firstItem?.dropoff)} />
-        </div>
-
-        {items.length ? (
-          <div className="rounded-lg border border-slate-200 bg-white">
-            <div className="border-b border-slate-100 px-4 py-3">
-              <p className="text-sm font-semibold text-slate-950">Order items</p>
-            </div>
-            <div className="divide-y divide-slate-100">
-              {items.slice(0, 4).map((item, index) => (
-                <div key={item.orderItemId || item.trackingId || index} className="grid gap-2 px-4 py-3 text-sm md:grid-cols-[1fr,auto]">
-                  <div className="min-w-0">
-                    <p className="truncate font-medium text-slate-900">
-                      {item.description || item.packageDetails?.type || `Item ${index + 1}`}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      {item.orderItemId || item.trackingId || "Item ID unavailable"} | {humanize(item.itemStatus)}
-                    </p>
-                  </div>
-                  <span className="font-mono text-sm font-semibold text-slate-950">
-                    {formatCurrency(item.pricing?.totalAmount, item.pricing?.currency || orderCurrency(order))}
-                  </span>
-                </div>
-              ))}
-              {items.length > 4 ? (
-                <div className="px-4 py-3 text-xs text-slate-500">+{items.length - 4} more item(s)</div>
-              ) : null}
-            </div>
-          </div>
-        ) : null}
-      </CardContent>
-    </Card>
-  )
 }
 
 function ManualQuoteItemLines({ lines, currency }: { lines?: ManualQuoteItemLine[] | null; currency?: string | null }) {
@@ -520,13 +532,13 @@ function ManualQuoteItemLines({ lines, currency }: { lines?: ManualQuoteItemLine
 
   return (
     <div className="space-y-3">
-      <p className="text-sm font-semibold text-slate-950">Included items</p>
+      <p className="text-sm font-semibold text-slate-950">Quoted packages</p>
       {lines.map((line, index) => (
         <div key={line.orderItemId || index} className="rounded-lg border border-slate-200 bg-white p-3">
           <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
-              <p className="font-medium text-slate-950">{line.itemDisplayName || `Quoted item ${index + 1}`}</p>
-              <p className="mt-1 font-mono text-xs text-slate-500">{line.orderItemId || "Order item ID unavailable"}</p>
+              <p className="font-medium text-slate-950">{line.itemDisplayName || `Quoted package ${index + 1}`}</p>
+              <p className="mt-1 font-mono text-xs text-slate-500">{line.orderItemId || "Package ID unavailable"}</p>
               {line.customQuoteReason || line.quoteReasonDescription ? (
                 <p className="mt-2 text-sm text-slate-600">
                   {line.quoteReasonDescription || humanize(line.customQuoteReason)}
@@ -534,9 +546,15 @@ function ManualQuoteItemLines({ lines, currency }: { lines?: ManualQuoteItemLine
               ) : null}
             </div>
             <div className="text-left md:text-right">
-              <p className="font-mono text-sm font-bold text-slate-950">{formatCurrency(line.totalAmount, currency || "CAD")}</p>
-              {typeof line.subtotal === "number" ? (
-                <p className="mt-1 text-xs text-slate-500">Subtotal {formatCurrency(line.subtotal, currency || "CAD")}</p>
+              {typeof chargeMapValue(line.charges, "Total") === "number" ? (
+                <p className="font-mono text-sm font-bold text-slate-950">
+                  {formatCurrency(chargeMapValue(line.charges, "Total"), currency || "CAD")}
+                </p>
+              ) : null}
+              {typeof chargeMapValue(line.charges, "Subtotal") === "number" ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatCurrency(chargeMapValue(line.charges, "Subtotal"), currency || "CAD")} package subtotal
+                </p>
               ) : null}
             </div>
           </div>
@@ -549,22 +567,134 @@ function ManualQuoteItemLines({ lines, currency }: { lines?: ManualQuoteItemLine
   )
 }
 
+function MergedPackagePricingBreakdown({
+  rows,
+  fallbackCurrency,
+}: {
+  rows: MergedPackagePricingRow[]
+  fallbackCurrency: string
+}) {
+  if (!rows.length) {
+    return (
+      <div className="rounded-xl border border-slate-200 bg-white p-6 text-center">
+        <PackageSearch className="mx-auto h-8 w-8 text-slate-400" />
+        <p className="mt-3 text-sm font-medium">No package pricing was returned with this quote.</p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-3">
+      <p className="text-sm font-semibold text-slate-950">Package pricing breakdown</p>
+      {rows.map((row, index) => (
+        <div key={row.key} className="rounded-lg border border-slate-200 bg-white p-3">
+          {(() => {
+            const rowTotal = chargeMapValue(row.charges, "Total")
+            const rowSubtotal = chargeMapValue(row.charges, "Subtotal")
+            return (
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <p className="font-medium text-slate-950">{row.description || `Package ${index + 1}`}</p>
+                <PackagePricingBadge type={row.pricingType} />
+              </div>
+              <p className="mt-1 font-mono text-xs text-slate-500">{row.orderItemId || "Package ID unavailable"}</p>
+              {row.reason || row.explanation ? (
+                <p className="mt-2 text-sm text-slate-600">
+                  {row.explanation || humanize(row.reason)}
+                </p>
+              ) : null}
+            </div>
+            <div className="text-left md:text-right">
+              {typeof rowTotal === "number" ? (
+                <p className="font-mono text-sm font-bold text-slate-950">
+                  {formatCurrency(rowTotal, row.currency || fallbackCurrency)}
+                </p>
+              ) : null}
+              {typeof rowSubtotal === "number" ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  {formatCurrency(rowSubtotal, row.currency || fallbackCurrency)} package subtotal
+                </p>
+              ) : null}
+            </div>
+          </div>
+            )
+          })()}
+          <div className="mt-3">
+            <ChargeBreakdown charges={row.charges} currency={row.currency || fallbackCurrency} />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
+function OrderPricingPreviewCard({ offer }: { offer: ManualQuoteOffer }) {
+  const preview = offer.orderPricingPreview
+  const currency = preview?.currency || offer.currency || "CAD"
+  const taxEntries = chargeEntries(preview?.taxes)
+
+  if (!preview) {
+    return (
+      <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 p-4 text-sm text-slate-600">
+        Full order pricing preview is not available for this offer.
+      </div>
+    )
+  }
+
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50/80 p-4">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <p className="text-sm font-semibold text-slate-950">Full order pricing preview</p>
+          <p className="mt-1 text-xs text-slate-500">Backend-calculated preview for the complete order.</p>
+        </div>
+        <p className="font-mono text-xl font-bold text-slate-950">{formatCurrency(preview.total, currency)}</p>
+      </div>
+      <div className="mt-4 space-y-2 text-sm">
+        <div className="flex items-center justify-between gap-3">
+          <span className="text-slate-600">Subtotal</span>
+          <span className="font-mono font-semibold">{formatCurrency(preview.subtotal, currency)}</span>
+        </div>
+        {taxEntries.map(([name, amount]) => (
+          <div key={name} className="flex items-center justify-between gap-3">
+            <span className="text-slate-600">{humanize(name)}</span>
+            <span className="font-mono font-semibold">{formatCurrency(amount, currency)}</span>
+          </div>
+        ))}
+        <div className="flex items-center justify-between gap-3 border-t border-slate-200 pt-2">
+          <span className="font-semibold text-slate-950">Total</span>
+          <span className="font-mono font-bold text-slate-950">{formatCurrency(preview.total, currency)}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
 function QuoteOfferCard({
   offer,
   ticket,
   order,
   onAccept,
   onReject,
+  defaultExpanded,
 }: {
   offer: ManualQuoteOffer
   ticket?: ManualQuoteTicketSummary | null
   order?: ShippingOrder | null
   onAccept: (offer: ManualQuoteOffer) => void
   onReject: (offer: ManualQuoteOffer) => void
+  defaultExpanded?: boolean
 }) {
-  const currency = offer.currency || "CAD"
+  const currency = offer.orderPricingPreview?.currency || offer.currency || "CAD"
   const canAct = canActOnOffer(ticket, offer, order)
   const expired = isQuoteExpired(offer)
+  const packageRows = buildMergedPackagePricingRows(offer, order)
+  const [expanded, setExpanded] = useState(defaultExpanded ?? shouldExpandQuoteOffer(offer))
+
+  useEffect(() => {
+    setExpanded(defaultExpanded ?? shouldExpandQuoteOffer(offer))
+  }, [defaultExpanded, offer.quoteId, offer.status])
 
   return (
     <Card className="border-slate-200 shadow-sm">
@@ -574,16 +704,29 @@ function QuoteOfferCard({
             <CardTitle className="text-base">{offer.title || "Manual quote offer"}</CardTitle>
             <CardDescription className="mt-1 font-mono">{offer.quoteId || "Quote ID unavailable"}</CardDescription>
           </div>
-          <OfferStatusBadge status={offer.status} />
+          <div className="flex flex-wrap items-center gap-2">
+            <OfferStatusBadge status={offer.status} />
+            <Button type="button" variant="outline" size="sm" onClick={() => setExpanded((current) => !current)}>
+              {expanded ? "Hide details" : "View details"}
+            </Button>
+          </div>
         </div>
         {offer.description ? <p className="text-sm leading-6 text-slate-600">{offer.description}</p> : null}
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-3">
-          <DetailMetaItem label="Subtotal" value={formatCurrency(offer.subtotal, currency)} />
-          <DetailMetaItem label="Tax" value={formatCurrency(offer.taxAmount, currency)} />
-          <DetailMetaItem label="Total" value={formatCurrency(offer.totalAmount, currency)} />
-        </div>
+      {!expanded ? (
+        <CardContent>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm text-slate-600">
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <span>{offer.status === "REJECTED" ? "Previous rejected quote collapsed." : "Previous quote collapsed."}</span>
+              <span className="font-mono">{offer.customerDecisionAt ? `Decision ${formatDateTime(offer.customerDecisionAt)}` : `Quoted ${formatDateTime(offer.quotedAt)}`}</span>
+            </div>
+            {offer.customerRejectionReason ? <p className="mt-2 text-slate-900">{offer.customerRejectionReason}</p> : null}
+          </div>
+        </CardContent>
+      ) : null}
+      {expanded ? (
+        <CardContent className="space-y-4">
+        <OrderPricingPreviewCard offer={offer} />
 
         <div className="grid gap-3 md:grid-cols-2">
           <DetailMetaItem label="Quoted" value={formatDateTime(offer.quotedAt)} />
@@ -598,8 +741,7 @@ function QuoteOfferCard({
           </Alert>
         ) : null}
 
-        <ChargeBreakdown charges={offer.charges} currency={currency} />
-        <ManualQuoteItemLines lines={offer.itemLines} currency={currency} />
+        <MergedPackagePricingBreakdown rows={packageRows} fallbackCurrency={currency} />
 
         {offer.status === "OFFERED" ? (
           <div className="flex flex-col gap-2 border-t border-slate-100 pt-4 sm:flex-row sm:justify-end">
@@ -618,6 +760,7 @@ function QuoteOfferCard({
           </div>
         ) : null}
       </CardContent>
+      ) : null}
     </Card>
   )
 }
@@ -643,17 +786,21 @@ function MessageBubble({ message }: { message: ManualQuoteMessage }) {
   return (
     <div className={`flex ${isCustomer ? "justify-end" : "justify-start"}`}>
       <div
-        className={`max-w-[92%] rounded-2xl px-4 py-3 shadow-sm md:max-w-[78%] ${
-          isCustomer ? "bg-primary text-primary-foreground" : "border border-slate-200 bg-white text-slate-800"
+        className={`max-w-[92%] rounded-[1.4rem] px-5 py-4 shadow-sm md:max-w-[78%] ${
+          isCustomer
+            ? "bg-[#b0163a] text-white"
+            : "border border-slate-200 bg-white text-slate-800 shadow-[0_1px_4px_rgba(15,23,42,0.08)]"
         }`}
       >
-        <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
+        <div className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
           <span className={isCustomer ? "font-semibold text-white" : "font-semibold text-slate-900"}>
             {message.senderDisplayName || (isCustomer ? "You" : "Support")}
           </span>
-          <span className={isCustomer ? "text-white/75" : "text-slate-500"}>{formatDateTime(message.createdAt)}</span>
+          <span className={isCustomer ? "font-medium text-white/70" : "font-medium text-slate-500"}>
+            {formatDateTime(message.createdAt)}
+          </span>
         </div>
-        <p className="whitespace-pre-wrap text-sm leading-6">{message.message || ""}</p>
+        <p className="whitespace-pre-wrap text-base leading-7">{message.message || ""}</p>
         <div className={isCustomer ? "[&_div]:text-slate-700" : ""}>
           <AttachmentList attachments={message.attachments} />
         </div>
@@ -758,7 +905,7 @@ function QuoteDetailSheet({
 
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
-      <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-3xl lg:max-w-5xl">
+      <SheetContent side="right" className="flex w-full flex-col overflow-hidden p-0 sm:max-w-4xl lg:max-w-6xl 2xl:max-w-[1400px]">
         <SheetHeader className="border-b border-slate-200 p-6 pr-12">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div className="min-w-0">
@@ -776,10 +923,10 @@ function QuoteDetailSheet({
           </div>
         </SheetHeader>
 
-        <ScrollArea className="flex-1">
-          <div className="space-y-6 p-6">
+        <div className="min-h-0 flex-1 overflow-y-auto xl:overflow-hidden">
+          <div className="grid min-h-0 gap-6 p-6 xl:h-full xl:grid-cols-[minmax(0,1fr)_minmax(320px,30%)]">
             {isLoading && !ticket ? (
-              <div className="space-y-4">
+              <div className="space-y-4 xl:col-span-2">
                 <Skeleton className="h-24 rounded-xl" />
                 <Skeleton className="h-44 rounded-xl" />
                 <Skeleton className="h-60 rounded-xl" />
@@ -787,136 +934,114 @@ function QuoteDetailSheet({
             ) : null}
 
             {error ? (
-              <Alert variant="destructive">
-                <AlertCircle className="h-4 w-4" />
-                <AlertTitle>Unable to load quote request</AlertTitle>
-                <AlertDescription>{error}</AlertDescription>
-              </Alert>
+              <div className="xl:col-span-2">
+                <Alert variant="destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <AlertTitle>Unable to load quote request</AlertTitle>
+                  <AlertDescription>{error}</AlertDescription>
+                </Alert>
+              </div>
             ) : null}
 
             {ticket ? (
               <>
-                <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-                  <DetailMetaItem label="Ticket" value={ticket.ticketNumber || ticket.ticketId} />
-                  <DetailMetaItem label="Order" value={quoteOrderLabel(ticket)} />
-                  <DetailMetaItem label="Created" value={formatDateTime(ticket.createdAt)} />
-                  <DetailMetaItem label="Updated" value={formatDateTime(ticket.updatedAt)} />
-                </div>
-
-                {acceptedResponse?.acceptedQuoteId ? (
-                  <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
-                    <CheckCircle2 className="h-4 w-4" />
-                    <AlertTitle>Quote accepted.</AlertTitle>
-                    <AlertDescription>
-                      {acceptedResponse.paymentRequired || acceptedResponse.nextAction === "CONTINUE_TO_PAYMENT"
-                        ? "Quote accepted. You can now continue to payment."
-                        : acceptedResponse.message || "Quote accepted."}
-                    </AlertDescription>
-                  </Alert>
-                ) : null}
-
-                <OrderSummaryForQuote order={shippingOrder} onContinueToPayment={onContinueToPayment} />
-
-                <div>
-                  <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <h3 className="font-semibold">Quote offers</h3>
-                      <p className="text-sm text-muted-foreground">Review manual pricing prepared for this shipment.</p>
-                    </div>
-                    {currentOffer ? <OfferStatusBadge status={currentOffer.status} /> : null}
+                <div className="min-w-0 space-y-6 xl:h-full xl:overflow-y-auto xl:pr-2">
+                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    <DetailMetaItem label="Ticket" value={ticket.ticketNumber || ticket.ticketId} />
+                    <DetailMetaItem label="Quote status" value={<OfferStatusBadge status={currentOffer?.status} />} />
+                    <DetailMetaItem label="Created" value={formatDateTime(ticket.createdAt)} />
+                    <DetailMetaItem label="Updated" value={formatDateTime(ticket.updatedAt)} />
                   </div>
 
-                  {offers.length ? (
-                    <div className="space-y-4">
-                      {offers.map((offer, index) => (
-                        <QuoteOfferCard
-                          key={offer.quoteId || index}
-                          offer={offer}
-                          ticket={ticket}
-                          order={shippingOrder}
-                          onAccept={onAcceptOffer}
-                          onReject={onRejectOffer}
-                        />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-                      <FileQuestion className="mx-auto h-8 w-8 text-slate-400" />
-                      <p className="mt-3 text-sm font-medium">Our team is reviewing your shipment and will send a quote soon.</p>
-                    </div>
-                  )}
-                </div>
+                  {acceptedResponse?.acceptedQuoteId ? (
+                    <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
+                      <CheckCircle2 className="h-4 w-4" />
+                      <AlertTitle>Quote accepted.</AlertTitle>
+                      <AlertDescription>
+                        {acceptedResponse.paymentRequired || acceptedResponse.nextAction === "CONTINUE_TO_PAYMENT"
+                          ? "Quote accepted. You can now continue to payment."
+                          : acceptedResponse.message || "Quote accepted."}
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
 
-                <Separator />
+                  {shippingOrder && canContinueToPayment(shippingOrder) ? (
+                    <Alert className="border-emerald-200 bg-emerald-50 text-emerald-900">
+                      <CreditCard className="h-4 w-4" />
+                      <AlertTitle>Ready for payment</AlertTitle>
+                      <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                        <span>Your manual quote has been applied. Continue to payment to complete this shipment.</span>
+                        <Button type="button" size="sm" onClick={() => onContinueToPayment(shippingOrder)}>
+                          Continue to Payment
+                        </Button>
+                      </AlertDescription>
+                    </Alert>
+                  ) : null}
 
-                <div>
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold">Conversation</h3>
-                      <p className="text-sm text-muted-foreground">Messages visible to you and MapleXpress support.</p>
+                  <div>
+                    <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <div>
+                        <h3 className="font-semibold">Quote offers</h3>
+                        <p className="text-sm text-muted-foreground">Review manual pricing prepared for this shipment.</p>
+                      </div>
+                      {currentOffer ? <OfferStatusBadge status={currentOffer.status} /> : null}
                     </div>
-                    {ticket.customerUnread ? (
-                      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                        Unread
-                      </Badge>
-                    ) : null}
+
+                    {offers.length ? (
+                      <div className="space-y-4">
+                        {offers.map((offer, index) => (
+                          <QuoteOfferCard
+                            key={offer.quoteId || index}
+                            offer={offer}
+                            ticket={ticket}
+                            order={shippingOrder}
+                            defaultExpanded={shouldExpandQuoteOffer(offer)}
+                            onAccept={onAcceptOffer}
+                            onReject={onRejectOffer}
+                          />
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
+                        <FileQuestion className="mx-auto h-8 w-8 text-slate-400" />
+                        <p className="mt-3 text-sm font-medium">Our team is reviewing your shipment and will send a quote soon.</p>
+                      </div>
+                    )}
                   </div>
-
-                  {messages.length ? (
-                    <div className="space-y-4">
-                      {messages.map((message, index) => (
-                        <MessageBubble key={message.messageId || `${message.createdAt}-${index}`} message={message} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-                      <MessageCircle className="mx-auto h-8 w-8 text-slate-400" />
-                      <p className="mt-3 text-sm font-medium">No conversation yet</p>
-                      <p className="mt-1 text-sm text-muted-foreground">Messages about this quote will appear here.</p>
-                    </div>
-                  )}
                 </div>
+
+                <aside className="min-h-0 min-w-0 xl:flex xl:h-full xl:flex-col">
+                  <ConversationChatPanel
+                    className="xl:min-h-0 xl:flex-1"
+                    title="Conversation"
+                    description="Messages visible to you and MapleXpress support."
+                    unread={Boolean(ticket.customerUnread)}
+                    messages={messages}
+                    emptyTitle="No conversation yet"
+                    emptyDescription="Messages about this quote will appear here."
+                    replyValue={replyMessage}
+                    replyPlaceholder="Write your reply to support..."
+                    replyError={replyError}
+                    replyDisabled={!canReply}
+                    replyDisabledMessage={`This quote request is ${formatManualQuoteTicketStatus(ticket.status).toLowerCase()} and cannot receive new replies.`}
+                    isSendingReply={isSendingReply}
+                    composerHelper="Attachments can be added once the upload flow is configured."
+                    onReplyChange={onReplyMessageChange}
+                    onSendReply={onSendReply}
+                    isOwnMessage={(message) => (message.senderType || "SYSTEM") === "CUSTOMER"}
+                    senderFallback={(message, isOwn) => message.senderDisplayName || (isOwn ? "You" : "Support")}
+                    formatDateTime={formatDateTime}
+                    renderAttachments={(message, isOwn) => (
+                      <div className={isOwn ? "[&_div]:text-slate-700" : ""}>
+                        <AttachmentList attachments={message.attachments} />
+                      </div>
+                    )}
+                  />
+                </aside>
               </>
             ) : null}
           </div>
-        </ScrollArea>
-
-        {ticket ? (
-          <div className="border-t border-slate-200 bg-white/95 p-4">
-            {canReply ? (
-              <div className="space-y-3">
-                <Label htmlFor="quote-reply">Reply</Label>
-                <Textarea
-                  id="quote-reply"
-                  value={replyMessage}
-                  maxLength={5000}
-                  onChange={(event) => onReplyMessageChange(event.target.value)}
-                  placeholder="Write your reply to support..."
-                  className="min-h-[110px]"
-                />
-                <AttachmentUploadNotice />
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    {replyError ? <p className="text-sm text-destructive">{replyError}</p> : null}
-                    <p className="text-xs text-muted-foreground">{replyMessage.length}/5000</p>
-                  </div>
-                  <Button type="button" onClick={onSendReply} disabled={isSendingReply}>
-                    {isSendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Send reply
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Alert>
-                <XCircle className="h-4 w-4" />
-                <AlertTitle>Replies are disabled</AlertTitle>
-                <AlertDescription>
-                  This quote request is {formatManualQuoteTicketStatus(ticket.status).toLowerCase()} and cannot receive new replies.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        ) : null}
+        </div>
       </SheetContent>
     </Sheet>
   )
@@ -995,6 +1120,9 @@ function AcceptQuoteDialog({
   onNoteChange: (value: string) => void
   onConfirm: () => void
 }) {
+  const preview = offer?.orderPricingPreview
+  const previewCurrency = preview?.currency || offer?.currency || "CAD"
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
       <DialogContent>
@@ -1008,8 +1136,9 @@ function AcceptQuoteDialog({
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="font-medium text-slate-950">{offer?.title || "Manual quote offer"}</p>
             <p className="mt-1 font-mono text-lg font-bold text-slate-950">
-              {formatCurrency(offer?.totalAmount, offer?.currency || "CAD")}
+              {typeof preview?.total === "number" ? formatCurrency(preview.total, previewCurrency) : "Preview unavailable"}
             </p>
+            <p className="mt-1 text-xs text-slate-500">Full order pricing preview from the quote offer.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="acceptance-note">Acceptance note optional</Label>
@@ -1056,6 +1185,9 @@ function RejectQuoteDialog({
   onReasonChange: (value: string) => void
   onConfirm: () => void
 }) {
+  const preview = offer?.orderPricingPreview
+  const previewCurrency = preview?.currency || offer?.currency || "CAD"
+
   return (
     <Dialog open={open} onOpenChange={(nextOpen) => !isSubmitting && onOpenChange(nextOpen)}>
       <DialogContent>
@@ -1069,8 +1201,9 @@ function RejectQuoteDialog({
           <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
             <p className="font-medium text-slate-950">{offer?.title || "Manual quote offer"}</p>
             <p className="mt-1 font-mono text-lg font-bold text-slate-950">
-              {formatCurrency(offer?.totalAmount, offer?.currency || "CAD")}
+              {typeof preview?.total === "number" ? formatCurrency(preview.total, previewCurrency) : "Preview unavailable"}
             </p>
+            <p className="mt-1 text-xs text-slate-500">Full order pricing preview from the quote offer.</p>
           </div>
           <div className="space-y-2">
             <Label htmlFor="reject-reason">Reason</Label>
@@ -1141,6 +1274,8 @@ export function Quotes() {
   const [quoteStatusFilter, setQuoteStatusFilter] = useState<QuoteStatusFilter>(ALL_FILTER)
   const [shippingOrderId, setShippingOrderId] = useState("")
   const [searchTerm, setSearchTerm] = useState("")
+  const [summaryOpen, setSummaryOpen] = useState(false)
+  const [filtersOpen, setFiltersOpen] = useState(false)
   const [page, setPage] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [loadError, setLoadError] = useState<string | null>(null)
@@ -1292,6 +1427,17 @@ export function Quotes() {
     quoteStatusFilter !== ALL_FILTER ||
     Boolean(shippingOrderId.trim()) ||
     Boolean(searchTerm.trim())
+
+  const activeFilterSummary = useMemo(() => {
+    const parts: string[] = []
+    const tabLabel = filterTabs.find((tab) => tab.key === activeTab)?.label
+    if (activeTab !== "ACTIVE" && tabLabel) parts.push(`View: ${tabLabel}`)
+    if (statusFilter !== ALL_FILTER) parts.push(`Status: ${formatManualQuoteTicketStatus(statusFilter)}`)
+    if (quoteStatusFilter !== ALL_FILTER) parts.push(`Quote: ${formatManualQuoteOfferStatus(quoteStatusFilter)}`)
+    if (shippingOrderId.trim()) parts.push(`Order: ${shippingOrderId.trim()}`)
+    if (searchTerm.trim()) parts.push(`Search: ${searchTerm.trim()}`)
+    return parts
+  }, [activeTab, quoteStatusFilter, searchTerm, shippingOrderId, statusFilter])
 
   const resetPageAndSet = <T,>(setter: (value: T) => void, value: T) => {
     setPage(0)
@@ -1459,44 +1605,74 @@ export function Quotes() {
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-        <SummaryCard
-          label="Pending quotes"
-          value={summary.pending}
-          helper="Calculated from the current result set"
-          icon={<FileQuestion className="h-5 w-5" />}
-        />
-        <SummaryCard
-          label="Waiting for support"
-          value={summary.waitingForSupport}
-          helper="Our team needs to respond"
-          icon={<Clock3 className="h-5 w-5" />}
-        />
-        <SummaryCard
-          label="Waiting for my response"
-          value={summary.waitingForMe}
-          helper="Quotes or messages waiting on you"
-          icon={<MessageSquare className="h-5 w-5" />}
-        />
-        <SummaryCard
-          label="Accepted quotes"
-          value={summary.accepted}
-          helper="Accepted in the current result set"
-          icon={<CheckCircle2 className="h-5 w-5" />}
-        />
-        <SummaryCard
-          label="Rejected/closed quotes"
-          value={summary.rejectedClosed}
-          helper="Rejected or closed in this result set"
-          icon={<XCircle className="h-5 w-5" />}
-        />
-      </div>
+      <Card className="dashboard-card-surface border-slate-200 shadow-sm">
+        <CardContent className="p-3">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-sm font-semibold text-slate-950">Summary</span>
+                <Badge variant="outline">Pending: {summary.pending}</Badge>
+                <Badge variant="outline">Waiting for me: {summary.waitingForMe}</Badge>
+                <Badge variant="outline">Accepted: {summary.accepted}</Badge>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">Counts are calculated from the currently loaded result set.</p>
+            </div>
+            <Button type="button" variant="outline" size="sm" onClick={() => setSummaryOpen((current) => !current)}>
+              {summaryOpen ? "Hide summary" : "Show summary"}
+            </Button>
+          </div>
+          {summaryOpen ? (
+            <div className="mt-3 grid gap-2 md:grid-cols-2 xl:grid-cols-5">
+              <SummaryCard
+                label="Pending quotes"
+                value={summary.pending}
+                helper="Calculated from the current result set"
+                icon={<FileQuestion className="h-5 w-5" />}
+              />
+              <SummaryCard
+                label="Waiting for support"
+                value={summary.waitingForSupport}
+                helper="Our team needs to respond"
+                icon={<Clock3 className="h-5 w-5" />}
+              />
+              <SummaryCard
+                label="Waiting for my response"
+                value={summary.waitingForMe}
+                helper="Quotes or messages waiting on you"
+                icon={<MessageSquare className="h-5 w-5" />}
+              />
+              <SummaryCard
+                label="Accepted quotes"
+                value={summary.accepted}
+                helper="Accepted in the current result set"
+                icon={<CheckCircle2 className="h-5 w-5" />}
+              />
+              <SummaryCard
+                label="Rejected/closed quotes"
+                value={summary.rejectedClosed}
+                helper="Rejected or closed in this result set"
+                icon={<XCircle className="h-5 w-5" />}
+              />
+            </div>
+          ) : null}
+        </CardContent>
+      </Card>
 
       <Card className="dashboard-card-surface border-slate-200 shadow-sm">
-        <CardHeader className="pb-3">
-          <CardTitle className="text-lg">Filters</CardTitle>
-          <CardDescription>{activeTabConfig?.description || "Filter quote requests"}</CardDescription>
+        <CardHeader className="flex flex-col gap-3 pb-3 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <CardTitle className="text-lg">Filters</CardTitle>
+            <CardDescription>
+              {activeFilterSummary.length
+                ? activeFilterSummary.join(" | ")
+                : activeTabConfig?.description || "Filter quote requests"}
+            </CardDescription>
+          </div>
+          <Button type="button" variant="outline" size="sm" onClick={() => setFiltersOpen((current) => !current)}>
+            {filtersOpen ? "Hide filters" : "Show filters"}
+          </Button>
         </CardHeader>
+        {filtersOpen ? (
         <CardContent className="space-y-4">
           <div className="flex gap-2 overflow-x-auto pb-1">
             {filterTabs.map((tab) => (
@@ -1579,6 +1755,7 @@ export function Quotes() {
             </Button>
           </div>
         </CardContent>
+        ) : null}
       </Card>
 
       {loadError ? (

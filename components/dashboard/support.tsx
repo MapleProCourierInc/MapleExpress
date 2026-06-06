@@ -52,6 +52,7 @@ import {
   type SupportTicketSummary,
 } from "@/lib/support-ticket-service"
 import { useToast } from "@/hooks/use-toast"
+import { ConversationChatPanel } from "@/components/shared/conversation-chat-panel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import {
   AlertDialog,
@@ -778,74 +779,36 @@ function TicketDetailSheet({
 
                 <Separator />
 
-                <div>
-                  <div className="mb-4 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="font-semibold">Conversation</h3>
-                      <p className="text-sm text-muted-foreground">Messages visible to you and MapleXpress support.</p>
-                    </div>
-                    {ticket.customerUnread ? (
-                      <Badge variant="outline" className="border-primary/30 bg-primary/10 text-primary">
-                        Unread
-                      </Badge>
-                    ) : null}
-                  </div>
-
-                  {messages.length ? (
-                    <div className="space-y-4">
-                      {messages.map((message, index) => (
-                        <MessageBubble key={message.messageId || `${message.createdAt}-${index}`} message={message} />
-                      ))}
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-slate-200 bg-white p-8 text-center">
-                      <MessageCircle className="mx-auto h-8 w-8 text-slate-400" />
-                      <p className="mt-3 text-sm font-medium">No messages yet</p>
-                      <p className="mt-1 text-sm text-muted-foreground">The conversation will appear here.</p>
+                <ConversationChatPanel
+                  className="min-h-[620px]"
+                  title="Conversation"
+                  description="Messages visible to you and MapleXpress support."
+                  unread={Boolean(ticket.customerUnread)}
+                  messages={messages}
+                  emptyTitle="No messages yet"
+                  emptyDescription="The conversation will appear here."
+                  replyValue={replyMessage}
+                  replyPlaceholder="Write your reply to support..."
+                  replyError={replyError}
+                  replyDisabled={!canReply}
+                  replyDisabledMessage={`This ticket is ${formatTicketStatus(ticket.status).toLowerCase()} and cannot receive new replies.`}
+                  isSendingReply={isSendingReply}
+                  composerHelper="Attachments can be added once the upload flow is configured."
+                  onReplyChange={onReplyMessageChange}
+                  onSendReply={onSendReply}
+                  isOwnMessage={(message) => (message.senderType || "SYSTEM") === "CUSTOMER"}
+                  senderFallback={(message, isOwn) => message.senderDisplayName || (isOwn ? "You" : "Support")}
+                  formatDateTime={formatDateTime}
+                  renderAttachments={(message, isOwn) => (
+                    <div className={isOwn ? "[&_div]:text-slate-700" : ""}>
+                      <TicketAttachments attachments={message.attachments} />
                     </div>
                   )}
-                </div>
+                />
               </>
             ) : null}
           </div>
         </ScrollArea>
-
-        {ticket ? (
-          <div className="border-t border-slate-200 bg-white/95 p-4">
-            {canReply ? (
-              <div className="space-y-3">
-                <Label htmlFor="support-reply">Reply</Label>
-                <Textarea
-                  id="support-reply"
-                  value={replyMessage}
-                  maxLength={5000}
-                  onChange={(event) => onReplyMessageChange(event.target.value)}
-                  placeholder="Write your reply to support..."
-                  className="min-h-[110px]"
-                />
-                <AttachmentUploadNotice />
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div>
-                    {replyError ? <p className="text-sm text-destructive">{replyError}</p> : null}
-                    <p className="text-xs text-muted-foreground">{replyMessage.length}/5000</p>
-                  </div>
-                  <Button type="button" onClick={onSendReply} disabled={isSendingReply}>
-                    {isSendingReply ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}
-                    Send reply
-                  </Button>
-                </div>
-              </div>
-            ) : (
-              <Alert>
-                <XCircle className="h-4 w-4" />
-                <AlertTitle>Replies are disabled</AlertTitle>
-                <AlertDescription>
-                  This ticket is {formatTicketStatus(ticket.status).toLowerCase()} and cannot receive new replies.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
-        ) : null}
       </SheetContent>
     </Sheet>
   )
