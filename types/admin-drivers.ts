@@ -39,7 +39,9 @@ export type WorkEligibilityVerification = {
 }
 
 export type WorkEligibilityDocImage = {
+  imageType?: string | null
   imageUrl?: string | null
+  timestamp?: string | null
 }
 
 export type WorkEligibilityDocument = {

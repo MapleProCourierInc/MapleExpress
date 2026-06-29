@@ -10,7 +10,6 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
-import { presignView } from "@/lib/aws-integration-service"
 import { getAdminDriverDetails } from "@/lib/admin-drivers-service"
 import type { DriverLicense, WorkEligibilityDocument } from "@/types/admin-drivers"
 
@@ -92,16 +91,11 @@ function LicenseCard({
   license,
   index,
   driverId,
-  presignedMap,
 }: {
   license: DriverLicense
   index: number
   driverId: string
-  presignedMap: Record<string, { presignedGetUrl?: string }>
 }) {
-  const frontItem = license.licenseImageFront ? presignedMap[license.licenseImageFront] : undefined
-  const backItem = license.licenseImageBack ? presignedMap[license.licenseImageBack] : undefined
-
   return (
     <div key={`${license.licenseNumber || "license"}-${index}`} className="space-y-3 rounded-md border p-3 text-sm">
       <div className="flex items-start justify-between gap-2">
@@ -137,12 +131,12 @@ function LicenseCard({
           images={[
             {
               key: license.licenseImageFront || "",
-              url: license.licenseImageFront ? frontItem?.presignedGetUrl : undefined,
+              url: license.licenseImageFront,
               title: "Front",
             },
             {
               key: license.licenseImageBack || "",
-              url: license.licenseImageBack ? backItem?.presignedGetUrl : undefined,
+              url: license.licenseImageBack,
               title: "Back",
             },
           ].filter((item) => Boolean(item.key))}
@@ -156,12 +150,10 @@ function WorkDocumentCard({
   doc,
   index,
   driverId,
-  presignedMap,
 }: {
   doc: WorkEligibilityDocument
   index: number
   driverId: string
-  presignedMap: Record<string, { presignedGetUrl?: string }>
 }) {
   const attributes = Object.entries(doc.attributes || {})
   const docImages = (doc.images || [])
@@ -170,11 +162,12 @@ function WorkDocumentCard({
       if (!key) return null
       return {
         key,
-        url: presignedMap[key]?.presignedGetUrl,
-        title: `Document image ${imageIdx + 1}`,
+        url: key,
+        title: image.imageType ? humanize(image.imageType) : `Document image ${imageIdx + 1}`,
+        subtitle: image.timestamp ? `Captured: ${formatDateTime(image.timestamp)}` : undefined,
       }
     })
-    .filter(Boolean) as Array<{ key: string; url?: string; title: string }>
+    .filter(Boolean) as Array<{ key: string; url?: string; title: string; subtitle?: string }>
 
   return (
     <div key={`${doc.documentId || doc.documentNumber || "document"}-${index}`} className="space-y-3 rounded-md border p-3 text-sm">
@@ -279,12 +272,6 @@ export default async function DriverDetailPage({
     )
   }
 
-  const licenseImageKeys = (data.driverLicenses || []).flatMap((license) => [license.licenseImageFront, license.licenseImageBack]).filter(Boolean) as string[]
-  const workDocImageKeys = (data.workEligibilityDocuments || []).flatMap((doc) => (doc.images || []).map((image) => image.imageUrl).filter(Boolean)) as string[]
-  const driverImageKeys = (data.driverImages || []).map((image) => image.imageUrl).filter(Boolean) as string[]
-  const allImageKeys = Array.from(new Set([...licenseImageKeys, ...workDocImageKeys, ...driverImageKeys]))
-
-  const presignedMap = await presignView(allImageKeys)
   const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Unknown Driver"
 
   const groupedLicenses = splitByPriority(data.driverLicenses)
@@ -334,7 +321,8 @@ export default async function DriverDetailPage({
         <Tabs defaultValue="overview" className="w-full">
           <TabsList className="w-full justify-start overflow-auto">
             <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="documents">Documents</TabsTrigger>
+            <TabsTrigger value="driving-license">Driving License</TabsTrigger>
+            <TabsTrigger value="proof-of-work">Proof of Work</TabsTrigger>
             <TabsTrigger value="images">Images</TabsTrigger>
             <TabsTrigger value="availability">Availability</TabsTrigger>
             <TabsTrigger value="performance">Performance</TabsTrigger>
@@ -367,7 +355,7 @@ export default async function DriverDetailPage({
             </Card>
           </TabsContent>
 
-          <TabsContent value="documents" className="space-y-3">
+          <TabsContent value="driving-license">
             <Card>
               <CardHeader>
                 <CardTitle>Driver Licenses</CardTitle>
@@ -376,7 +364,7 @@ export default async function DriverDetailPage({
                 {data.driverLicenses?.length ? (
                   <>
                     {groupedLicenses.visible.length ? groupedLicenses.visible.map((license, idx) => (
-                      <LicenseCard key={`license-visible-${idx}`} license={license} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                      <LicenseCard key={`license-visible-${idx}`} license={license} index={idx} driverId={driverId} />
                     )) : renderEmpty("No active or pending licenses available")}
 
                     {groupedLicenses.hidden.length ? (
@@ -387,7 +375,7 @@ export default async function DriverDetailPage({
                         </CollapsibleTrigger>
                         <CollapsibleContent className="mt-3 space-y-3">
                           {groupedLicenses.hidden.map((license, idx) => (
-                            <LicenseCard key={`license-hidden-${idx}`} license={license} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                            <LicenseCard key={`license-hidden-${idx}`} license={license} index={idx} driverId={driverId} />
                           ))}
                         </CollapsibleContent>
                       </Collapsible>
@@ -398,7 +386,9 @@ export default async function DriverDetailPage({
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
 
+          <TabsContent value="proof-of-work">
             <Card>
               <CardHeader>
                 <CardTitle>Work Eligibility Documents</CardTitle>
@@ -407,7 +397,7 @@ export default async function DriverDetailPage({
                 {data.workEligibilityDocuments?.length ? (
                   <>
                     {groupedWorkDocs.visible.length ? groupedWorkDocs.visible.map((doc, idx) => (
-                      <WorkDocumentCard key={`doc-visible-${idx}`} doc={doc} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                      <WorkDocumentCard key={`doc-visible-${idx}`} doc={doc} index={idx} driverId={driverId} />
                     )) : renderEmpty("No active or pending work eligibility documents available")}
 
                     {groupedWorkDocs.hidden.length ? (
@@ -418,7 +408,7 @@ export default async function DriverDetailPage({
                         </CollapsibleTrigger>
                         <CollapsibleContent className="mt-3 space-y-3">
                           {groupedWorkDocs.hidden.map((doc, idx) => (
-                            <WorkDocumentCard key={`doc-hidden-${idx}`} doc={doc} index={idx} driverId={driverId} presignedMap={presignedMap} />
+                            <WorkDocumentCard key={`doc-hidden-${idx}`} doc={doc} index={idx} driverId={driverId} />
                           ))}
                         </CollapsibleContent>
                       </Collapsible>
@@ -443,7 +433,7 @@ export default async function DriverDetailPage({
                     .filter((item) => Boolean(item.imageUrl))
                     .map((item, idx) => ({
                       key: item.imageUrl as string,
-                      url: presignedMap[item.imageUrl as string]?.presignedGetUrl,
+                      url: item.imageUrl,
                       title: `${humanize(item.imageType)}${item.imageType ? "" : ` #${idx + 1}`}`,
                       subtitle: `Captured: ${formatDateTime(item.timestamp)}`,
                     }))}

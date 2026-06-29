@@ -18,7 +18,7 @@ export const PROFILE_SERVICE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL |
 // AWS Integration Service
 export const AWS_INTEGRATION_SERVICE_URL =
   process.env.NEXT_PUBLIC_AWS_INTEGRATION_SERVICE_URL ||
-  'http://localhost:8086/aws-integration';
+  'http://localhost/aws-integration';
 
 // Order Service
 export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'http://localhost/ordermanagement';
