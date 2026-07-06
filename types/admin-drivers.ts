@@ -16,6 +16,14 @@ export type DriverDocumentImage = {
   imageType?: string | null
 }
 
+export type DocumentVerification = {
+  status?: string | null
+  method?: string | null
+  verifiedBy?: string | null
+  verifiedAt?: string | null
+  notes?: string | null
+}
+
 export type DriverLicense = {
   licenseImageFront?: string | null
   licenseImageBack?: string | null
@@ -26,17 +34,12 @@ export type DriverLicense = {
   licenseClass?: string | null
   restrictions?: string | null
   status?: string | null
+  verification?: DocumentVerification | null
   createdAt?: string | null
   updatedAt?: string | null
 }
 
-export type WorkEligibilityVerification = {
-  status?: string | null
-  method?: string | null
-  verifiedBy?: string | null
-  verifiedAt?: string | null
-  notes?: string | null
-}
+export type WorkEligibilityVerification = DocumentVerification
 
 export type WorkEligibilityDocImage = {
   imageType?: string | null
@@ -147,16 +150,28 @@ export type DriverActionResponseDto = {
   message?: string
 }
 
+export type AdminDocumentReviewAction = "APPROVED" | "REJECTED"
+
 export type DriverLicenseApprovalRequestDto = {
   licenseNumber: string
+  action: AdminDocumentReviewAction
   reason: string
   notes?: string
 }
 
 export type DriverWorkEligibilityApprovalRequestDto = {
   documentId: string
+  action: AdminDocumentReviewAction
   reason: string
   notes?: string
+}
+
+export type AdminDocumentApprovalResponseDto = {
+  driverId?: string
+  identifier?: string
+  status?: string
+  updatedAt?: string
+  message?: string
 }
 
 export type AdminDriversResponse = {

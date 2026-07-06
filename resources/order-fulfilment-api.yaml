@@ -1,0 +1,1392 @@
+openapi: 3.0.3
+info:
+  title: Order Management Fulfilment API
+  version: 1.0.0
+  license:
+    name: Proprietary
+  description: |
+    API definition for the Order Management Fulfilment microservice.
+
+    The service is configured with the servlet context path `/orderfulfilment` and
+    the business API controller is mounted under `/v1`, so business endpoints are
+    available under the base path `/orderfulfilment/v1`.
+
+    Internal service-to-service endpoints are mounted under `/orderfulfilment/internal/v1`
+    and require `X-Internal-Service-Secret`. Public APIs are mounted under
+    `/orderfulfilment/public` and do not require authentication.
+servers:
+  - url: /orderfulfilment
+    description: Service base path configured by server.servlet.context-path. Local profile runs on port 8285; default and Docker profiles run on port 8080.
+security:
+  - bearerAuth: []
+tags:
+  - name: Order Fulfilment
+    description: Order fulfilment assignment, lookup, status, and tracking APIs.
+  - name: Internal Order Fulfilment
+    description: Service-to-service order fulfilment APIs authenticated with the internal service secret.
+  - name: Public Tracking
+    description: Public shipment tracking APIs that do not require authentication.
+  - name: Actuator
+    description: Spring Boot Actuator operational endpoints exposed by this service.
+paths:
+  /v1/assignDriver:
+    post:
+      tags:
+        - Order Fulfilment
+      operationId: assignDriver
+      summary: Assign a driver to an order fulfilment
+      description: Assigns a driver to an existing order fulfilment and returns the updated order fulfilment document.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignDriverDto'
+            example:
+              orderFulfilmentId: OrderFulfilment_12345
+              driverUserId: driver-user-1001
+              driverName: Jane Driver
+      responses:
+        '200':
+          description: Driver was assigned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/orderFulfillments:
+    get:
+      tags:
+        - Order Fulfilment
+      operationId: getOrderFulfillments
+      summary: List order fulfillments
+      description: Retrieves order fulfillments matching any supplied filter query parameters. If no filters are provided, all order fulfillments are returned.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: trackingNumber
+          in: query
+          required: false
+          description: Exact tracking number to filter by.
+          schema:
+            type: string
+          example: MPLX123456789
+        - name: shippingOrderId
+          in: query
+          required: false
+          description: Exact shipping order ID to filter by.
+          schema:
+            type: string
+          example: shipping-order-123
+        - name: status
+          in: query
+          required: false
+          description: Comma-separated fulfilment statuses to filter by.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/FulfillmentStatus'
+          example: ASSIGNED,CREATED
+        - name: assignedDriverUserId
+          in: query
+          required: false
+          description: Exact assigned driver user ID to filter by.
+          schema:
+            type: string
+          example: driver-user-1001
+        - name: assignedDriverName
+          in: query
+          required: false
+          description: Case-insensitive driver name search text.
+          schema:
+            type: string
+          example: Jane
+        - name: page
+          in: query
+          required: false
+          description: Zero-based page number.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+        - name: size
+          in: query
+          required: false
+          description: Page size. Maximum supported value is 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: sortBy
+          in: query
+          required: false
+          description: Field to sort by. Only `createdAt` is currently supported.
+          schema:
+            type: string
+            enum:
+              - createdAt
+            default: createdAt
+          example: createdAt
+        - name: sortDir
+          in: query
+          required: false
+          description: Sort direction. Defaults to oldest to newest.
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          example: asc
+      responses:
+        '200':
+          description: Matching order fulfillments page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedOrderFulfillmentsResponseDto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/orderFulfillments/{orderFulfilmentId}/driverAction:
+    post:
+      tags:
+        - Order Fulfilment
+      operationId: updateDriverFulfillmentAction
+      summary: Update pickup or dropoff details from a driver action
+      description: Uses the authenticated driver JWT user ID to verify the driver is assigned to the fulfilment, then updates pickup or dropoff proof details based on the requested action.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: orderFulfilmentId
+          in: path
+          required: true
+          description: Order fulfilment identifier.
+          schema:
+            type: string
+          example: OrderFulfilment_12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDriverFulfillmentActionDto'
+            examples:
+              pickup:
+                summary: Pickup completed by assigned driver
+                value:
+                  action: PICKUP
+                  time: '2026-07-02T18:35:00Z'
+                  driverNotes: Picked up from front desk.
+                  location:
+                    latitude: 43.6532
+                    longitude: -79.3832
+                  images:
+                    - imageUrl: https://cdn.example.com/proof/pickup-1.jpg
+              dropoff:
+                summary: Dropoff completed by assigned driver
+                value:
+                  action: DROPOFF
+                  time: '2026-07-02T20:10:00Z'
+                  driverNotes: Delivered to reception.
+                  receivedBy: John Customer
+                  signatureRequired: true
+                  signature:
+                    signedByName: John Customer
+                    signedByRelationship: CUSTOMER
+                    signatureImageUrl: https://cdn.example.com/signatures/signature-1.png
+                  images:
+                    - imageUrl: https://cdn.example.com/proof/dropoff-1.jpg
+      responses:
+        '200':
+          description: Driver action was applied successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/updateOrderFulfilmentStatus/{orderFulfilmentId}:
+    post:
+      tags:
+        - Order Fulfilment
+      operationId: updateOrderFulfillmentStatus
+      summary: Update an order fulfilment status
+      description: Updates the fulfilment status, tracking event data, optional proof images, and delivery recipient details for an order fulfilment. The `deduplicationKey` makes repeated requests idempotent.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: orderFulfilmentId
+          in: path
+          required: true
+          description: Order fulfilment identifier.
+          schema:
+            type: string
+          example: OrderFulfilment_12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderFulfillmentStatusDto'
+            examples:
+              pickedUp:
+                summary: Pickup completed
+                value:
+                  deduplicationKey: driver-session-123:OrderFulfilment_12345:PICKED_UP
+                  driverUserId: driver-user-1001
+                  newStatus: PICKED_UP
+                  imageUrls:
+                    - https://cdn.example.com/proof/pickup-1.jpg
+                  trackingEvent:
+                    statusMessage: Package picked up from shipper.
+                    location:
+                      latitude: 43.6532
+                      longitude: -79.3832
+              delivered:
+                summary: Delivery completed
+                value:
+                  deduplicationKey: driver-session-123:OrderFulfilment_12345:DELIVERED
+                  driverUserId: driver-user-1001
+                  receivedBy: John Customer
+                  newStatus: DELIVERED
+                  imageUrls:
+                    - https://cdn.example.com/proof/dropoff-1.jpg
+                  trackingEvent:
+                    statusMessage: Delivered to reception.
+                    location:
+                      latitude: 43.6511
+                      longitude: -79.3470
+      responses:
+        '200':
+          description: Status was updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/track/{trackingNumber}:
+    get:
+      tags:
+        - Order Fulfilment
+      operationId: trackByTrackingNumber
+      summary: Get tracking events by tracking number
+      description: Retrieves the tracking event history for a single order fulfilment tracking number.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: trackingNumber
+          in: path
+          required: true
+          description: Tracking number assigned to the fulfilment.
+          schema:
+            type: string
+          example: MPLX123456789
+      responses:
+        '200':
+          description: Tracking events for the requested tracking number.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrackingEvent'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /v1/track/shippingOrder/{shippingOrderId}:
+    get:
+      tags:
+        - Order Fulfilment
+      operationId: trackByShippingOrderId
+      summary: Get tracking events by shipping order ID
+      description: Retrieves tracking information for all order fulfillments belonging to a shipping order.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: shippingOrderId
+          in: path
+          required: true
+          description: Shipping order identifier.
+          schema:
+            type: string
+          example: shipping-order-123
+      responses:
+        '200':
+          description: Tracking details grouped by tracking number.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrackingInfoDto'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /public/track/{trackingNumber}:
+    get:
+      tags:
+        - Public Tracking
+      operationId: publicTrackByTrackingNumber
+      summary: Public shipment tracking by tracking number
+      description: Retrieves the tracking event history for a shipment tracking number. This endpoint is intended for landing page tracking and does not require authentication.
+      security: []
+      parameters:
+        - name: trackingNumber
+          in: path
+          required: true
+          description: Tracking number assigned to the fulfilment.
+          schema:
+            type: string
+          example: MPLX123456789
+      responses:
+        '200':
+          description: Tracking events for the requested tracking number.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrackingEvent'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/assignDriver:
+    post:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalAssignDriver
+      summary: Assign a driver to an order fulfilment using internal service authentication
+      description: Service-to-service variant of `/v1/assignDriver`. Business behavior and response body match the regular API.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignDriverDto'
+            example:
+              orderFulfilmentId: OrderFulfilment_12345
+              driverUserId: driver-user-1001
+              driverName: Jane Driver
+      responses:
+        '200':
+          description: Driver was assigned successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/orderFulfillments:
+    get:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalGetOrderFulfillments
+      summary: List order fulfillments using internal service authentication
+      description: Service-to-service variant of `/v1/orderFulfillments`. Business behavior and response body match the regular API.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: trackingNumber
+          in: query
+          required: false
+          description: Exact tracking number to filter by.
+          schema:
+            type: string
+          example: MPLX123456789
+        - name: shippingOrderId
+          in: query
+          required: false
+          description: Exact shipping order ID to filter by.
+          schema:
+            type: string
+          example: shipping-order-123
+        - name: status
+          in: query
+          required: false
+          description: Comma-separated fulfilment statuses to filter by.
+          style: form
+          explode: false
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/FulfillmentStatus'
+          example: ASSIGNED,CREATED
+        - name: assignedDriverUserId
+          in: query
+          required: false
+          description: Exact assigned driver user ID to filter by.
+          schema:
+            type: string
+          example: driver-user-1001
+        - name: assignedDriverName
+          in: query
+          required: false
+          description: Case-insensitive driver name search text.
+          schema:
+            type: string
+          example: Jane
+        - name: page
+          in: query
+          required: false
+          description: Zero-based page number.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          example: 0
+        - name: size
+          in: query
+          required: false
+          description: Page size. Maximum supported value is 100.
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          example: 20
+        - name: sortBy
+          in: query
+          required: false
+          description: Field to sort by. Only `createdAt` is currently supported.
+          schema:
+            type: string
+            enum:
+              - createdAt
+            default: createdAt
+          example: createdAt
+        - name: sortDir
+          in: query
+          required: false
+          description: Sort direction. Defaults to oldest to newest.
+          schema:
+            type: string
+            enum:
+              - asc
+              - desc
+            default: asc
+          example: asc
+      responses:
+        '200':
+          description: Matching order fulfillments page.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedOrderFulfillmentsResponseDto'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/updateOrderFulfilmentStatus/{orderFulfilmentId}:
+    post:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalUpdateOrderFulfillmentStatus
+      summary: Update an order fulfilment status using internal service authentication
+      description: Service-to-service variant of `/v1/updateOrderFulfilmentStatus/{orderFulfilmentId}`. Business behavior and response body match the regular API. The `deduplicationKey` makes repeated requests idempotent.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: orderFulfilmentId
+          in: path
+          required: true
+          description: Order fulfilment identifier.
+          schema:
+            type: string
+          example: OrderFulfilment_12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderFulfillmentStatusDto'
+      responses:
+        '200':
+          description: Status was updated successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/orderFulfillments/{orderFulfilmentId}/pickedUp:
+    post:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalUpdateOrderFulfillmentPickedUp
+      summary: Mark an order fulfilment as picked up using internal service authentication
+      description: Dedicated internal endpoint for driver-management-ms to mark a fulfilment as `PICKED_UP`, update pickup proof details, and append a pickup tracking event. The `deduplicationKey` makes repeated requests idempotent.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: orderFulfilmentId
+          in: path
+          required: true
+          description: Order fulfilment identifier.
+          schema:
+            type: string
+          example: OrderFulfilment_12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalUpdateOrderFulfillmentPickedUpDto'
+            example:
+              deduplicationKey: driver-session-123:OrderFulfilment_12345:PICKED_UP
+              pickupTime: '2026-07-05T12:45:00Z'
+              driverNotes: Picked up from reception desk.
+              location:
+                latitude: 43.6532
+                longitude: -79.3832
+              imageUrls:
+                - https://cdn.example.com/proof/pickup-1.jpg
+                - https://cdn.example.com/proof/pickup-2.jpg
+      responses:
+        '200':
+          description: Order fulfilment was marked as picked up.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/orderFulfillments/{orderFulfilmentId}/delivered:
+    post:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalUpdateOrderFulfillmentDelivered
+      summary: Mark an order fulfilment as delivered using internal service authentication
+      description: Dedicated internal endpoint for driver-management-ms to mark a fulfilment as `DELIVERED`, update dropoff proof and signature details, and append a delivery tracking event. The `deduplicationKey` makes repeated requests idempotent.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: orderFulfilmentId
+          in: path
+          required: true
+          description: Order fulfilment identifier.
+          schema:
+            type: string
+          example: OrderFulfilment_12345
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalUpdateOrderFulfillmentDeliveredDto'
+            example:
+              deduplicationKey: driver-session-123:OrderFulfilment_12345:DELIVERED
+              dropoffTime: '2026-07-05T13:25:00Z'
+              driverNotes: Delivered to reception desk.
+              signatureStatus: CAPTURED
+              signature:
+                signedByName: Jane Doe
+                signedByRelationship: RECEPTION
+                signatureImageUrl: https://cdn.example.com/signatures/signature-1.png
+                signatureImageObjectKey: signatures/signature-1.png
+                signedAt: '2026-07-05T13:24:30Z'
+                capturedByDriverId: driver-user-123
+                note: Reception accepted the package.
+              location:
+                latitude: 43.6532
+                longitude: -79.3832
+              imageUrls:
+                - https://cdn.example.com/proof/dropoff-1.jpg
+                - https://cdn.example.com/proof/dropoff-2.jpg
+      responses:
+        '200':
+          description: Order fulfilment was marked as delivered.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/track/{trackingNumber}:
+    get:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalTrackByTrackingNumber
+      summary: Get tracking events by tracking number using internal service authentication
+      description: Service-to-service variant of `/v1/track/{trackingNumber}`. Business behavior and response body match the regular API.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: trackingNumber
+          in: path
+          required: true
+          description: Tracking number assigned to the fulfilment.
+          schema:
+            type: string
+          example: MPLX123456789
+      responses:
+        '200':
+          description: Tracking events for the requested tracking number.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrackingEvent'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/track/shippingOrder/{shippingOrderId}:
+    get:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalTrackByShippingOrderId
+      summary: Get tracking events by shipping order ID using internal service authentication
+      description: Service-to-service variant of `/v1/track/shippingOrder/{shippingOrderId}`. Business behavior and response body match the regular API.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: shippingOrderId
+          in: path
+          required: true
+          description: Shipping order identifier.
+          schema:
+            type: string
+          example: shipping-order-123
+      responses:
+        '200':
+          description: Tracking details grouped by tracking number.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TrackingInfoDto'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /actuator/health:
+    get:
+      tags:
+        - Actuator
+      operationId: getHealth
+      summary: Get service health
+      description: Spring Boot Actuator health endpoint exposed by the service.
+      responses:
+        '200':
+          description: Service health details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActuatorHealthResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /actuator/info:
+    get:
+      tags:
+        - Actuator
+      operationId: getInfo
+      summary: Get service info
+      description: Spring Boot Actuator info endpoint exposed by the service.
+      responses:
+        '200':
+          description: Service info details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+  /actuator/mappings:
+    get:
+      tags:
+        - Actuator
+      operationId: getMappings
+      summary: Get Spring MVC mappings
+      description: Spring Boot Actuator mappings endpoint exposed by the service.
+      responses:
+        '200':
+          description: Runtime handler mapping details.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: "OAuth2 resource-server JWT bearer token. Send as `Authorization: Bearer <token>`."
+    internalServiceSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+      description: Shared internal service secret for service-to-service APIs.
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      description: "Cognito JWT bearer token. Format: `Bearer <token>`."
+      schema:
+        type: string
+      example: Bearer eyJhbGciOi...
+    InternalServiceSecretHeader:
+      name: X-Internal-Service-Secret
+      in: header
+      required: true
+      description: Shared internal service secret. Must match the service `internal-auth.service-secret` value.
+      schema:
+        type: string
+  responses:
+    BadRequest:
+      description: Bad request or invalid status transition.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Unauthorized:
+      description: Missing, invalid, or unauthorized token.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Forbidden:
+      description: Authenticated user is not allowed to access or mutate this fulfilment.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnauthorizedInternal:
+      description: Missing or invalid internal service secret.
+      headers:
+        WWW-Authenticate:
+          description: Internal authentication challenge.
+          schema:
+            type: string
+            example: InternalService
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            message: Unauthorized internal service request.
+            errorDetails:
+              errorCode: 401
+              errorType: Unauthorized
+    NotFound:
+      description: Requested fulfilment resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    InternalServerError:
+      description: Unexpected server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+  schemas:
+    AssignDriverDto:
+      type: object
+      description: Request payload for assigning a driver to an order fulfilment.
+      properties:
+        driverUserId:
+          type: string
+          description: Driver user identifier to assign.
+        orderFulfilmentId:
+          type: string
+          description: Order fulfilment identifier to update.
+        driverName:
+          type: string
+          description: Human-readable driver name.
+    UpdateOrderFulfillmentStatusDto:
+      type: object
+      description: Request payload for updating order fulfilment status and adding tracking information.
+      required:
+        - deduplicationKey
+      properties:
+        deduplicationKey:
+          type: string
+          description: Idempotency key for this generic status update operation. Reusing the same key returns the already-updated fulfilment without appending duplicate status update details.
+        imageUrls:
+          type: array
+          description: Proof image URLs. Pickup statuses append pickup proof images under pickup.images; delivered statuses append dropoff proof images under dropoff.images.
+          items:
+            type: string
+            format: uri
+        driverUserId:
+          type: string
+          description: Driver user identifier performing the update. Must match the assigned driver user when validation is enforced.
+        receivedBy:
+          type: string
+          description: Recipient name for completed delivery.
+        newStatus:
+          $ref: '#/components/schemas/FulfillmentStatus'
+        trackingEvent:
+          $ref: '#/components/schemas/UpdateTrackingEventDto'
+    UpdateTrackingEventDto:
+      type: object
+      description: Tracking event details supplied by a driver during a status update.
+      properties:
+        location:
+          $ref: '#/components/schemas/LocationDouble'
+        statusMessage:
+          type: string
+          description: Driver-entered tracking note or status message.
+    InternalUpdateOrderFulfillmentPickedUpDto:
+      type: object
+      description: Internal request payload for marking an order fulfilment as picked up.
+      required:
+        - deduplicationKey
+        - pickupTime
+        - location
+        - imageUrls
+      properties:
+        deduplicationKey:
+          type: string
+          description: Idempotency key for this pickup update operation. Reusing the same key returns the already-updated fulfilment without appending duplicate pickup details.
+        pickupTime:
+          type: string
+          format: date-time
+          description: Timestamp when the pickup occurred.
+        location:
+          $ref: '#/components/schemas/Location'
+        imageUrls:
+          type: array
+          minItems: 1
+          description: Pickup proof image URLs. Stored in pickup.images and the pickup tracking event photographUrls.
+          items:
+            type: string
+            format: uri
+        driverNotes:
+          type: string
+          description: Optional driver pickup notes. Stored in pickup.driverNotes and trackingEvent.driverComments.
+    InternalUpdateOrderFulfillmentDeliveredDto:
+      type: object
+      description: Internal request payload for marking an order fulfilment as delivered.
+      required:
+        - deduplicationKey
+        - dropoffTime
+        - location
+        - imageUrls
+        - signatureStatus
+      properties:
+        deduplicationKey:
+          type: string
+          description: Idempotency key for this delivered update operation. Reusing the same key returns the already-updated fulfilment without appending duplicate dropoff details.
+        dropoffTime:
+          type: string
+          format: date-time
+          description: Timestamp when the dropoff occurred.
+        location:
+          $ref: '#/components/schemas/Location'
+        imageUrls:
+          type: array
+          minItems: 1
+          description: Dropoff proof image URLs. Stored in dropoff.images and the delivery tracking event photographUrls.
+          items:
+            type: string
+            format: uri
+        driverNotes:
+          type: string
+          description: Optional driver dropoff notes. Stored in dropoff.driverNotes and trackingEvent.driverComments.
+        signatureStatus:
+          $ref: '#/components/schemas/SignatureStatus'
+        signature:
+          $ref: '#/components/schemas/SignatureDetails'
+    UpdateDriverFulfillmentActionDto:
+      type: object
+      description: Request payload for the driver pickup/dropoff action endpoint. The driver user ID is derived from the JWT, not from the body.
+      required:
+        - action
+      properties:
+        action:
+          $ref: '#/components/schemas/DriverFulfillmentAction'
+        images:
+          type: array
+          description: Proof images to append to pickup.images or dropoff.images depending on action.
+          items:
+            $ref: '#/components/schemas/DriverActionImage'
+        driverNotes:
+          type: string
+          description: Driver-entered notes for the pickup or dropoff.
+        time:
+          type: string
+          format: date-time
+          description: Time the pickup or dropoff occurred. Defaults to server time when omitted.
+        location:
+          $ref: '#/components/schemas/Location'
+        receivedBy:
+          type: string
+          description: Recipient name for dropoff actions.
+        signature:
+          $ref: '#/components/schemas/SignatureDetails'
+        signatureRequired:
+          type: boolean
+        signatureStatus:
+          $ref: '#/components/schemas/SignatureStatus'
+    OrderFulfillmentDto:
+      type: object
+      description: Public DTO representation of an order fulfilment.
+      allOf:
+        - $ref: '#/components/schemas/OrderFulfillmentBase'
+    PagedOrderFulfillmentsResponseDto:
+      type: object
+      description: Paginated response for order fulfilment list APIs.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderFulfillmentDto'
+        page:
+          type: integer
+          format: int32
+          description: Zero-based current page number.
+        size:
+          type: integer
+          format: int32
+          description: Requested page size.
+        totalElements:
+          type: integer
+          format: int64
+          description: Total matching order fulfillments.
+        totalPages:
+          type: integer
+          format: int32
+          description: Total pages available for the current filters.
+    OrderFulfillment:
+      type: object
+      description: Persisted order fulfilment document returned by mutation APIs.
+      allOf:
+        - $ref: '#/components/schemas/OrderFulfillmentBase'
+    OrderFulfillmentBase:
+      type: object
+      properties:
+        id:
+          type: string
+        trackingNumber:
+          type: string
+        sourceOrderId:
+          type: string
+          description: Source order item identifier.
+        shippingOrderId:
+          type: string
+        customerContact:
+          $ref: '#/components/schemas/CustomerContact'
+        itemDescription:
+          type: string
+        packageDimensions:
+          $ref: '#/components/schemas/PackageDimensions'
+        pickup:
+          $ref: '#/components/schemas/PickupDetails'
+        dropoff:
+          $ref: '#/components/schemas/DropoffDetails'
+        distanceToDelivery:
+          type: number
+          format: double
+        status:
+          $ref: '#/components/schemas/FulfillmentStatus'
+        assignedDriverUserId:
+          type: string
+        assignedDriverName:
+          type: string
+        shippingLabelURL:
+          type: string
+          format: uri
+        createdAt:
+          type: string
+          format: date-time
+        dispatchedAt:
+          type: string
+          format: date-time
+        deliveredAt:
+          type: string
+          format: date-time
+        receivedBy:
+          type: string
+        signature:
+          $ref: '#/components/schemas/SignatureDetails'
+        signatureRequired:
+          type: boolean
+        signatureStatus:
+          $ref: '#/components/schemas/SignatureStatus'
+        trackingEvents:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackingEvent'
+    PickupDetails:
+      type: object
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        coordinates:
+          $ref: '#/components/schemas/Location'
+        scheduledTime:
+          type: string
+          format: date-time
+        driverNotes:
+          type: string
+        pickupInstructions:
+          type: string
+        pickupTime:
+          type: string
+          format: date-time
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+    DropoffDetails:
+      type: object
+      properties:
+        address:
+          $ref: '#/components/schemas/Address'
+        coordinates:
+          $ref: '#/components/schemas/Location'
+        scheduledTime:
+          type: string
+          format: date-time
+        driverNotes:
+          type: string
+        dropoffInstructions:
+          type: string
+        dropoffTime:
+          type: string
+          format: date-time
+        images:
+          type: array
+          items:
+            $ref: '#/components/schemas/Image'
+    Address:
+      type: object
+      properties:
+        fullName:
+          type: string
+        company:
+          type: string
+        streetAddress:
+          type: string
+        addressLine2:
+          type: string
+        city:
+          type: string
+        province:
+          type: string
+        postalCode:
+          type: string
+        country:
+          type: string
+        phoneNumber:
+          type: string
+        deliveryInstructions:
+          type: string
+    Location:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    LocationDouble:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+        longitude:
+          type: number
+          format: double
+    Image:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+          format: uri
+        timestamp:
+          type: string
+          format: date-time
+    DriverActionImage:
+      type: object
+      properties:
+        imageUrl:
+          type: string
+          format: uri
+        timestamp:
+          type: string
+          format: date-time
+          description: Image capture time. Defaults to the action time when omitted.
+    DriverFulfillmentAction:
+      type: string
+      enum:
+        - PICKUP
+        - DROPOFF
+    SignatureDetails:
+      type: object
+      properties:
+        signedByName:
+          type: string
+        signedByRelationship:
+          $ref: '#/components/schemas/SignerRelationship'
+        signatureImageUrl:
+          type: string
+          format: uri
+        signatureImageObjectKey:
+          type: string
+        signedAt:
+          type: string
+          format: date-time
+        capturedByDriverId:
+          type: string
+          description: Driver user ID that captured the signature. Defaults to the authenticated driver user when omitted.
+        note:
+          type: string
+    SignatureStatus:
+      type: string
+      enum:
+        - NOT_REQUIRED
+        - REQUIRED_PENDING
+        - CAPTURED
+        - REFUSED
+        - UNAVAILABLE
+        - WAIVED
+    SignerRelationship:
+      type: string
+      enum:
+        - CUSTOMER
+        - RECEPTION
+        - SECURITY
+        - FAMILY_MEMBER
+        - STAFF
+        - OTHER
+    TrackingEvent:
+      type: object
+      properties:
+        status:
+          $ref: '#/components/schemas/FulfillmentStatus'
+        timestamp:
+          type: string
+          format: date-time
+        location:
+          $ref: '#/components/schemas/Location'
+        statusMessage:
+          type: string
+        driverComments:
+          type: string
+        photographUrls:
+          type: array
+          items:
+            type: string
+            format: uri
+    PackageDimensions:
+      type: object
+      properties:
+        length:
+          type: number
+          format: double
+        width:
+          type: number
+          format: double
+        height:
+          type: number
+          format: double
+    CustomerContact:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+          format: email
+    TrackingInfoDto:
+      type: object
+      description: Tracking events for a single tracking number within a shipping order.
+      properties:
+        trackingNumber:
+          type: string
+        trackingEvents:
+          type: array
+          items:
+            $ref: '#/components/schemas/TrackingEvent'
+    FulfillmentStatus:
+      type: string
+      description: |
+        Java enum names for fulfilment status. The enum also defines lower-case business values in code,
+        but the REST JSON/query binding uses the enum names unless the application adds custom enum serialization.
+      enum:
+        - DRAFT
+        - PAYMENT_PENDING
+        - CONFIRMED
+        - PENDING
+        - LABEL_CREATED
+        - SCHEDULED
+        - CREATED
+        - ASSIGNED
+        - PICKED_UP
+        - IN_TRANSIT
+        - DELIVERED
+        - PICKUP_FAILED
+        - DROP_OFF_FAILED
+        - RETURNED
+        - FAILED
+        - CANCELLED
+        - END_OF_DAY
+        - IN_PROGRESS
+      x-enum-business-values:
+        DRAFT: draft
+        PAYMENT_PENDING: payment_pending
+        CONFIRMED: confirmed
+        PENDING: pending
+        LABEL_CREATED: label_created
+        SCHEDULED: scheduled
+        CREATED: created
+        ASSIGNED: assigned
+        PICKED_UP: picked_up
+        IN_TRANSIT: in_transit
+        DELIVERED: delivered
+        PICKUP_FAILED: pickup_failed
+        DROP_OFF_FAILED: drop_off_failed
+        RETURNED: returned
+        FAILED: failed
+        CANCELLED: cancelled
+        END_OF_DAY: end_of_day
+        IN_PROGRESS: in_progress
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorResponseErrorsInner'
+        errorDetails:
+          $ref: '#/components/schemas/ErrorResponseErrorDetails'
+    ErrorResponseErrorsInner:
+      type: object
+      properties:
+        field:
+          type: string
+        message:
+          type: string
+    ErrorResponseErrorDetails:
+      type: object
+      properties:
+        errorCode:
+          type: integer
+          format: int32
+        errorType:
+          type: string
+        characteristics:
+          type: object
+          additionalProperties:
+            type: string
+    ActuatorHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+        components:
+          type: object
+          additionalProperties: true
+        groups:
+          type: array
+          items:
+            type: string
+      additionalProperties: true

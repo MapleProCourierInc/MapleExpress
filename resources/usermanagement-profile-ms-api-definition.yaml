@@ -1,0 +1,2010 @@
+openapi: 3.0.3
+info:
+  title: usermanagement-profile-ms API
+  version: 1.0.0
+  description: |
+    Master OpenAPI contract for **usermanagement-profile-ms** only.
+    All endpoints in this spec are sourced from this service's controllers and DTOs.
+
+servers:
+  - url: /
+
+tags:
+  - name: Driver - Me
+  - name: Admin - Drivers
+  - name: Onboarding
+  - name: Identity - Me
+  - name: Individual Profile
+  - name: Organization Profile
+  - name: Profile Address
+  - name: Internal
+  - name: Admin - Billing
+  - name: Profile Billing
+
+security:
+  - bearerAuth: []
+
+paths:
+  /me:
+    get:
+      tags: [Identity - Me]
+      summary: Resolve authenticated principal identity and profile status
+      description: |
+        Requires JWT bearer access token. Supports optional `X-Id-Token` for display-name enrichment.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/XIdTokenHeader'
+      responses:
+        '200':
+          description: "Identity resolved"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /onboarding:
+    post:
+      tags: [Onboarding]
+      summary: Upsert onboarding details and assign onboarding status
+      description: |
+        Requires JWT bearer token and `X-Id-Token` header.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/OnboardingIdTokenHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OnboardingRequest'
+      responses:
+        '200':
+          description: "Onboarding processing response"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OnboardingResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /driver/me/driver-profile:
+    get:
+      tags: [Driver - Me]
+      summary: Get current driver profile
+      description: |
+        Group access is validated in service logic.
+        Allowed groups: `driver_maplex` and `admin_super`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      responses:
+        '200':
+          description: "Driver profile"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMeProfileDto'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /driver/me/my-status:
+    get:
+      tags: [Driver - Me]
+      summary: Get current driver status summary
+      description: |
+        Returns the authenticated driver's aggregate status for mobile/FE status gating.
+        `canGoOnline` is true only when the root driver profile status is `ACTIVE`.
+        `driverLicenseStatus` comes from the latest license by `createdAt`, or `PENDING` when no license exists.
+        `workEligibilityStatus` comes from the latest proof-of-work document by `createdAt`, preferring verification status when present, or `PENDING` when no document exists.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      responses:
+        '200':
+          description: "Driver status summary"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMyStatusResponseDto'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /driver/me/licenses:
+    put:
+      tags: [Driver - Me]
+      summary: Upsert driver licenses
+      description: "Allowed groups: `driver_maplex`, `admin_super`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverLicenseUpsertRequestDto'
+      responses:
+        '200':
+          description: "Updated driver profile"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMeProfileDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /driver/me/work-eligibility-documents:
+    put:
+      tags: [Driver - Me]
+      summary: Upsert work eligibility documents
+      description: "Allowed groups: `driver_maplex`, `admin_super`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkEligibilityDocumentsUpsertRequestDto'
+      responses:
+        '200':
+          description: "Updated driver profile"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMeProfileDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /driver/me/images:
+    put:
+      tags: [Driver - Me]
+      summary: Upsert driver images
+      description: "Allowed groups: `driver_maplex`, `admin_super`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverImagesUpsertRequestDto'
+      responses:
+        '200':
+          description: "Updated driver profile"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMeProfileDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /driver/me/weekly-availability:
+    put:
+      tags: [Driver - Me]
+      summary: Upsert weekly availability
+      description: "Allowed groups: `driver_maplex`, `admin_super`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WeeklyAvailabilityUpsertRequestDto'
+      responses:
+        '200':
+          description: "Updated driver profile"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMeProfileDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /driver/me/submit-for-verification:
+    post:
+      tags: [Driver - Me]
+      summary: Submit driver profile for admin verification
+      description: "Allowed group: `driver_maplex`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverSubmitForVerificationRequestDto'
+      responses:
+        '200':
+          description: "Transitioned profile status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverActionResponseDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '422':
+          description: "Illegal status transition"
+          content:
+            text/plain:
+              schema:
+                type: string
+
+  /admin/drivers:
+    post:
+      tags: [Admin - Drivers]
+      summary: Invite a new driver account
+      description: "Allowed groups: `admin_super`, `admin_limited`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminInviteDriverRequest'
+      responses:
+        '201':
+          description: "Driver invited"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminInviteDriverResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '409':
+          $ref: '#/components/responses/ConflictError'
+    get:
+      tags: [Admin - Drivers]
+      summary: List drivers with optional filters
+      description: "Allowed groups: `admin_super`, `admin_limited`."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - in: query
+          name: profileStatus
+          schema:
+            $ref: '#/components/schemas/DriverProfileStatus'
+        - in: query
+          name: email
+          schema: { type: string }
+        - in: query
+          name: name
+          schema: { type: string }
+        - in: query
+          name: station
+          schema: { type: string }
+        - in: query
+          name: companyName
+          schema: { type: string }
+          description: "Enum of CommonEnums.CompanyName from shared dependency."
+        - in: query
+          name: page
+          schema: { type: integer, default: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20 }
+      responses:
+        '200':
+          description: "Driver page"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverListResponseDto'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /admin/drivers/{driverId}:
+    get:
+      tags: [Admin - Drivers]
+      summary: Get full driver details
+      description: |
+        Allowed groups: `admin_super`, `admin_limited`.
+        Driver license, work eligibility document, and driver image fields are enriched with AWS presigned view URLs.
+        If AWS URL enrichment fails, populated image URL fields return `Not Available` while the rest of the driver details response is still returned.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      responses:
+        '200':
+          description: "Driver details with FE-ready presigned image view URLs"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverDetailsDto'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /admin/drivers/{driverId}/approve:
+    post:
+      tags: [Admin - Drivers]
+      summary: Approve driver profile
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverActionRequestDto'
+      responses:
+        '200':
+          description: "Updated driver status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverActionResponseDto'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '422':
+          description: "Illegal status transition"
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /admin/drivers/{driverId}/reject:
+    post:
+      tags: [Admin - Drivers]
+      summary: Reject driver profile
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverActionRequestDto'
+      responses:
+        '200':
+          description: "Updated driver status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverActionResponseDto'
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+
+  /admin/drivers/{driverId}/suspend:
+    post:
+      tags: [Admin - Drivers]
+      summary: Suspend a driver
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverActionRequestDto'
+      responses:
+        '200':
+          description: "Updated driver status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverActionResponseDto'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+
+  /admin/drivers/{driverId}/unsuspend:
+    post:
+      tags: [Admin - Drivers]
+      summary: Unsuspend a driver
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverActionRequestDto'
+      responses:
+        '200':
+          description: "Updated driver status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverActionResponseDto'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+
+
+  /admin/drivers/{driverId}/driving-license/approve:
+    post:
+      tags: [Admin - Drivers]
+      summary: Review driver driving license
+      description: "Allowed groups: `admin_super`, `admin_limited`. Use action `APPROVED` to approve or `REJECTED` to reject."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminApproveDrivingLicenseRequest'
+      responses:
+        '200':
+          description: "Driving license reviewed"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDocumentApprovalResponseDto'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '422':
+          description: "Illegal status transition"
+          content:
+            text/plain:
+              schema: { type: string }
+
+  /admin/drivers/{driverId}/work-eligibility-documents/approve:
+    post:
+      tags: [Admin - Drivers]
+      summary: Review driver proof-of-work eligibility document
+      description: "Allowed groups: `admin_super`, `admin_limited`. Use action `APPROVED` to approve or `REJECTED` to reject."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminApproveWorkEligibilityDocumentRequest'
+      responses:
+        '200':
+          description: "Work eligibility document reviewed"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDocumentApprovalResponseDto'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '422':
+          description: "Illegal status transition"
+          content:
+            text/plain:
+              schema: { type: string }
+  /admin/drivers/{driverId}/terminate:
+    post:
+      tags: [Admin - Drivers]
+      summary: Terminate a driver
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverActionRequestDto'
+      responses:
+        '200':
+          description: "Updated driver status"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverActionResponseDto'
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+
+  /profile/individual:
+    get:
+      tags: [Individual Profile]
+      summary: List individual profiles
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: query
+          name: email
+          schema: { type: string }
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: type
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0, minimum: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20, minimum: 1 }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Paginated profiles"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IndividualProfilePageResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /profile/individual/{id}:
+    get:
+      tags: [Individual Profile]
+      summary: Get individual profile by profile id
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Profile"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IndividualProfile' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    patch:
+      tags: [Individual Profile]
+      summary: Patch individual profile
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/PatchElement' }
+      responses:
+        '200':
+          description: "Updated"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IndividualProfile' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Individual Profile]
+      summary: Delete individual profile
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '204':
+          description: "Deleted"
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /profile/individual/user/{userId}:
+    put:
+      tags: [Individual Profile]
+      summary: Update individual profile by user id
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateIndividualRequest' }
+      responses:
+        '200':
+          description: "Updated"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IndividualProfile' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /profile/addresses:
+    get:
+      tags: [Profile Address]
+      summary: List addresses for authenticated profile
+      description: |
+        Returns addresses for the authenticated user.
+        Backend derives `userId` from JWT `sub` and profile type from `cognito:groups` (`client_individual` or `client_organization`).
+        Frontend must not send `userId`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Address list"
+          content:
+            application/json:
+              schema:
+                type: array
+                items: { $ref: '#/components/schemas/Address' }
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+    post:
+      tags: [Profile Address]
+      summary: Create address for authenticated profile
+      description: |
+        Creates a new address for the authenticated user.
+        Backend derives `userId` from JWT `sub`, derives profile type from `cognito:groups`, and generates a unique `addressId`.
+        Frontend must not send `userId`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Address' }
+      responses:
+        '201':
+          description: "Address created"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /profile/addresses/{addressId}:
+    patch:
+      tags: [Profile Address]
+      summary: Update address for authenticated profile
+      description: |
+        Updates an existing address identified by `addressId` for the authenticated user.
+        Backend derives `userId` from JWT `sub` and profile type from `cognito:groups`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: addressId
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Address' }
+      responses:
+        '200':
+          description: "Address updated"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    delete:
+      tags: [Profile Address]
+      summary: Delete address for authenticated profile
+      description: |
+        Deletes an existing address identified by `addressId` for the authenticated user.
+        Backend derives `userId` from JWT `sub` and profile type from `cognito:groups`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - in: path
+          name: addressId
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Address deleted"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SuccessMessageResponse' }
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /profile/organization:
+    get:
+      tags: [Organization Profile]
+      summary: List organization profiles
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: query
+          name: userId
+          schema: { type: string }
+        - in: query
+          name: email
+          schema: { type: string }
+        - in: query
+          name: name
+          schema: { type: string }
+        - in: query
+          name: industry
+          schema: { type: string }
+        - in: query
+          name: page
+          schema: { type: integer, default: 0, minimum: 0 }
+        - in: query
+          name: size
+          schema: { type: integer, default: 20, minimum: 1 }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Paginated profiles"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfilePageResponse' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /profile/organization/{id}:
+    get:
+      tags: [Organization Profile]
+      summary: Get organization profile by profile id
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Profile"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfile' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    patch:
+      tags: [Organization Profile]
+      summary: Patch organization profile
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items: { $ref: '#/components/schemas/PatchElement' }
+      responses:
+        '200':
+          description: "Updated"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfile' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+    delete:
+      tags: [Organization Profile]
+      summary: Delete organization profile
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: id
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '204':
+          description: "Deleted"
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /profile/organization/user/{userId}:
+    put:
+      tags: [Organization Profile]
+      summary: Update organization profile by user id
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/UpdateOrganizationRequest' }
+      responses:
+        '200':
+          description: "Updated"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfile' }
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /actuator/health:
+    get:
+      tags: [Internal]
+      security: []
+      summary: Health check
+      responses:
+        '200':
+          description: "Healthy"
+
+
+  /internal/individuals/{userId}:
+    get:
+      tags: [Internal]
+      summary: Get individual profile by user id for internal service consumers
+      description: |
+        Service-to-service endpoint for trusted internal consumers such as document-generator-ms.
+        This endpoint does not require a Cognito bearer token, but it requires a valid internal service secret header.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+          description: Cognito/user id of the individual profile.
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Individual profile"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/IndividualProfile' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /internal/organizations/{userId}:
+    get:
+      tags: [Internal]
+      summary: Get organization profile by user id for internal service consumers
+      description: |
+        Service-to-service endpoint for trusted internal consumers such as document-generator-ms.
+        This endpoint does not require a Cognito bearer token, but it requires a valid internal service secret header.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string }
+          description: Cognito/user id of the organization profile.
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Organization profile"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/OrganizationProfile' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '500': { $ref: '#/components/responses/InternalServerError' }
+
+  /admin/profile/billing/pay-later/enable:
+    post:
+      tags: [Admin - Billing]
+      summary: Enable postpay/pay-later for a target profile
+      description: |
+        Admin-only endpoint. Sets profile pay-later activation status to `PENDING_BILLING_ACCOUNT`
+        and publishes `CustomerBillingConfigurationUpdatedEvent` to Kafka.
+        Final activation becomes `ACTIVE` only after asynchronous provisioning result is consumed.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminEnablePayLaterRequest'
+      responses:
+        '200':
+          description: "Postpay enablement requested"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileBillingConfigurationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+
+  /admin/profile/billing/postpay/status:
+    patch:
+      tags: [Admin - Billing]
+      summary: Update postpay/pay-later status for a target profile
+      description: |
+        Admin-only endpoint for operational post-provisioning control.
+        Enables or disables postpay without using the provisioning lifecycle state.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminUpdatePostpayStatusRequest'
+            examples:
+              enablePostpay:
+                summary: Enable postpay for profile
+                value:
+                  ownerType: INDIVIDUAL
+                  ownerId: profile-id
+                  action: ENABLE
+                  reason: Admin approved monthly billing
+                  notes: Optional notes
+              disablePostpay:
+                summary: Disable postpay for profile
+                value:
+                  ownerType: ORGANIZATION
+                  ownerId: profile-id
+                  action: DISABLE
+                  reason: Billing risk policy update
+      responses:
+        '200':
+          description: "Postpay status updated"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileBillingConfigurationResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /profile/billing/configuration:
+    get:
+      tags: [Profile Billing]
+      summary: Get billing-way / postpay state for authenticated profile
+      description: |
+        Returns current billing terms and activation state.
+        `payLaterEligible` is `true` only when `paymentTerms=MONTHLY_INVOICE` and `activationStatus=ACTIVE`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      responses:
+        '200':
+          description: "Billing configuration"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileBillingConfigurationResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /profile/tax-id:
+    put:
+      tags: [Profile Billing]
+      summary: Update tax ID for authenticated profile
+      description: |
+        JWT-secured endpoint for individual and organization profile owners.
+        The service resolves the target profile from `cognito:groups` and JWT `sub`,
+        updates the profile tax ID, and publishes `CustomerBillingConfigurationUpdatedEvent`
+        with `owner.ownerTaxId`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaxIdRequest'
+      responses:
+        '200':
+          description: "Tax ID updated"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProfileTaxIdUpdateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalServiceSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      schema: { type: string }
+      description: "Bearer <AccessToken>"
+    XRequestIdHeader:
+      name: X-Request-ID
+      in: header
+      required: false
+      schema: { type: string }
+    InternalServiceSecretHeader:
+      name: X-Internal-Service-Secret
+      in: header
+      required: true
+      schema: { type: string, format: password }
+      description: Shared internal service secret configured by INTERNAL_SERVICE_SECRET.
+    AcceptHeader:
+      name: Accept
+      in: header
+      required: true
+      schema: { type: string, default: application/json }
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema: { type: string, default: application/json }
+    XIdTokenHeader:
+      name: X-Id-Token
+      in: header
+      required: false
+      schema: { type: string }
+      description: "Optional Cognito ID token used for display-name extraction."
+    OnboardingIdTokenHeader:
+      name: X-Id-Token
+      in: header
+      required: true
+      schema: { type: string }
+      description: "Required Cognito ID token for onboarding validation."
+    DriverIdPath:
+      name: driverId
+      in: path
+      required: true
+      schema: { type: string }
+  responses:
+    BadRequestError:
+      description: "Bad request"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    UnauthorizedError:
+      description: "Unauthorized"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ForbiddenError:
+      description: "Forbidden"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    NotFoundError:
+      description: "Not found"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    ConflictError:
+      description: "Conflict"
+      content:
+        text/plain:
+          schema: { type: string }
+    BadGatewayError:
+      description: "Bad gateway"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+    InternalServerError:
+      description: "Internal server error"
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/ErrorResponse' }
+  schemas:
+    MeStatus:
+      type: string
+      enum: [ONBOARDING_REQUIRED, ACTIVE, PROFILE_NOT_FOUND, DRIVER_LICENSE_MISSING, PROOF_OF_WORK_ELIGIBILITY_MISSING, BACKGROUND_CHECK_MISSING, PROFILE_COMPLETE, PENDING_PROFILE_COMPLETION, SUSPENDED, LICENSE_EXPIRED, PENDING_ADMIN_VERIFICATION, TERMINATED]
+    MeResponse:
+      type: object
+      required: [authenticated, sub, groups, status]
+      properties:
+        authenticated: { type: boolean }
+        sub: { type: string }
+        groups:
+          type: array
+          items: { type: string }
+        status: { $ref: '#/components/schemas/MeStatus' }
+        displayName: { type: string, nullable: true }
+    OnboardingRequest:
+      type: object
+      required: [userType, details]
+      properties:
+        userType:
+          type: string
+          enum: [INDIVIDUAL, ORGANIZATION]
+        details:
+          description: "Payload shape depends on userType."
+          oneOf:
+            - $ref: '#/components/schemas/IndividualOnboardingDetails'
+            - $ref: '#/components/schemas/OrganizationOnboardingDetails'
+    OnboardingResponse:
+      type: object
+      required: [authenticated, sub, groups, status]
+      properties:
+        authenticated: { type: boolean }
+        sub: { type: string }
+        groups:
+          type: array
+          items: { type: string }
+        status: { type: string }
+        displayName: { type: string, nullable: true }
+    IndividualOnboardingDetails:
+      type: object
+      required: [firstName, lastName]
+      properties:
+        firstName: { type: string }
+        lastName: { type: string }
+        dateOfBirth: { type: string, format: date-time }
+        taxID: { type: string }
+        phone: { type: string }
+        extensions:
+          type: object
+          additionalProperties: { type: string }
+    OrganizationOnboardingDetails:
+      type: object
+      required: [name, phone, pointOfContact]
+      properties:
+        name: { type: string }
+        registrationNumber: { type: string }
+        taxID: { type: string }
+        industry: { type: string }
+        phone: { type: string }
+        website: { type: string }
+        pointOfContact:
+          $ref: '#/components/schemas/OrganizationPointOfContactDto'
+        extensions:
+          type: object
+          additionalProperties: { type: string }
+    OrganizationPointOfContactDto:
+      type: object
+      required: [name, email, phone]
+      properties:
+        name: { type: string }
+        position: { type: string }
+        email: { type: string, format: email }
+        phone: { type: string }
+    AdminInviteDriverRequest:
+      type: object
+      required: [email, firstName, lastName, phone, station]
+      properties:
+        email: { type: string, format: email }
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        companyName: { type: string }
+        station: { type: string }
+    AdminInviteDriverResponse:
+      type: object
+      properties:
+        driverId: { type: string }
+        email: { type: string }
+        profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
+        message: { type: string }
+        createdAt: { type: string, format: date-time }
+
+    AdminApproveDrivingLicenseRequest:
+      type: object
+      required: [licenseNumber, action]
+      properties:
+        licenseNumber: { type: string }
+        action: { $ref: '#/components/schemas/AdminDocumentReviewAction' }
+        reason: { type: string }
+        notes: { type: string }
+
+    AdminApproveWorkEligibilityDocumentRequest:
+      type: object
+      required: [documentId, action]
+      properties:
+        documentId: { type: string }
+        action: { $ref: '#/components/schemas/AdminDocumentReviewAction' }
+        reason: { type: string }
+        notes: { type: string }
+
+    AdminDocumentReviewAction:
+      type: string
+      enum: [APPROVED, REJECTED]
+
+    AdminDocumentApprovalResponseDto:
+      type: object
+      properties:
+        driverId: { type: string }
+        identifier: { type: string }
+        status: { type: string }
+        updatedAt: { type: string, format: date-time }
+        message: { type: string }
+    DriverActionRequestDto:
+      type: object
+      required: [reason]
+      properties:
+        reason: { type: string }
+        notes: { type: string }
+    DriverActionResponseDto:
+      type: object
+      properties:
+        driverId: { type: string }
+        profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
+        updatedAt: { type: string, format: date-time }
+        message: { type: string }
+    DriverListResponseDto:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/DriverListItemDto' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    DriverListItemDto:
+      type: object
+      properties:
+        driverId: { type: string }
+        userId: { type: string }
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        station: { type: string }
+        companyName: { type: string }
+        profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        isVerified: { type: boolean }
+        backgroundCheckStatus: { type: string }
+    DriverDetailsDto:
+      type: object
+      description: Admin driver details response. Image fields contain AWS presigned view URLs instead of stored S3 keys when enrichment succeeds.
+      properties:
+        driverId: { type: string, example: driver_123 }
+        userId: { type: string }
+        email: { type: string, format: email, example: driver@example.com }
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        station: { type: string }
+        companyName: { type: string }
+        gender: { type: string }
+        dob: { type: string, format: date }
+        isVerified: { type: boolean }
+        backgroundCheckStatus: { type: string }
+        profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
+        driverLicenses:
+          type: array
+          description: License image fields contain presigned view URLs or `Not Available` if enrichment fails.
+          items: { $ref: '#/components/schemas/AdminDriverLicense' }
+        workEligibilityDocuments:
+          type: array
+          description: Document image fields contain presigned view URLs or `Not Available` if enrichment fails.
+          items: { $ref: '#/components/schemas/AdminWorkEligibilityDocument' }
+        driverImages:
+          type: array
+          description: Driver image URL fields contain presigned view URLs or `Not Available` if enrichment fails.
+          items: { $ref: '#/components/schemas/AdminDriverImage' }
+        weeklyAvailability:
+          type: array
+          items: { $ref: '#/components/schemas/WeeklyAvailability' }
+        ratingSummary: { $ref: '#/components/schemas/RatingSummary' }
+        analytics: { $ref: '#/components/schemas/Analytics' }
+        adminNotes: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        lastLoginAt: { type: string, format: date-time }
+    AdminDriverLicense:
+      type: object
+      properties:
+        licenseImageFront:
+          type: string
+          description: Presigned view URL for the front license image. Returns `Not Available` if URL enrichment fails.
+          example: https://s3.ca-central-1.amazonaws.com/bucket/key?X-Amz-Signature=...
+        licenseImageBack:
+          type: string
+          description: Presigned view URL for the back license image. Returns `Not Available` if URL enrichment fails.
+          example: https://s3.ca-central-1.amazonaws.com/bucket/key?X-Amz-Signature=...
+        licenseNumber: { type: string }
+        issueDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        issuingProvince: { type: string }
+        licenseClass: { type: string }
+        restrictions: { type: string }
+        status: { $ref: '#/components/schemas/LicenseStatus' }
+        verification: { $ref: '#/components/schemas/Verification' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminWorkEligibilityDocument:
+      type: object
+      properties:
+        documentId: { type: string }
+        documentType: { $ref: '#/components/schemas/DocumentType' }
+        documentNumber: { type: string }
+        holderFullName: { type: string }
+        issuingCountry: { type: string }
+        issuingAuthority: { type: string }
+        issueDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDocumentImage' }
+        verification: { $ref: '#/components/schemas/Verification' }
+        isPrimary: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    AdminDocumentImage:
+      type: object
+      properties:
+        imageType: { type: string }
+        imageUrl:
+          type: string
+          description: Presigned view URL for the document image. Returns `Not Available` if URL enrichment fails.
+          example: https://s3.ca-central-1.amazonaws.com/bucket/key?X-Amz-Signature=...
+        timestamp: { type: string, format: date-time }
+    AdminDriverImage:
+      type: object
+      properties:
+        imageType: { type: string }
+        imageUrl:
+          type: string
+          description: Presigned view URL for the driver image. Returns `Not Available` if URL enrichment fails.
+          example: https://s3.ca-central-1.amazonaws.com/bucket/key?X-Amz-Signature=...
+        timestamp: { type: string, format: date-time }
+    DriverMeProfileDto:
+      type: object
+      properties:
+        driverId: { type: string }
+        userId: { type: string }
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        phone: { type: string }
+        companyName: { type: string }
+        station: { type: string }
+        profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
+        isVerified: { type: boolean }
+        backgroundCheckStatus: { type: string }
+        driverLicenses:
+          type: array
+          items: { $ref: '#/components/schemas/DriverLicense' }
+        workEligibilityDocuments:
+          type: array
+          items: { $ref: '#/components/schemas/WorkEligibilityDocument' }
+        driverImages:
+          type: array
+          items: { $ref: '#/components/schemas/ImageEntity' }
+        weeklyAvailability:
+          type: array
+          items: { $ref: '#/components/schemas/WeeklyAvailability' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    DriverMyStatusResponseDto:
+      type: object
+      description: Aggregated current status for the authenticated driver.
+      properties:
+        driverId: { type: string, example: driver_123 }
+        overallStatus:
+          type: string
+          enum: [ACTIVE, ACTION_REQUIRED, SUSPENDED, TERMINATED]
+          description: Compact aggregate status derived from the root driver profile status.
+          example: ACTION_REQUIRED
+        canGoOnline:
+          type: boolean
+          description: True only when profileStatus is ACTIVE.
+          example: false
+        profileStatus:
+          $ref: '#/components/schemas/DriverProfileStatus'
+        driverLicenseStatus:
+          type: string
+          description: Latest driver license status by createdAt, or PENDING when no license exists.
+          example: EXPIRED
+        workEligibilityStatus:
+          type: string
+          description: Latest proof-of-work status by createdAt. Verification status is used when present; otherwise document status is used. Returns PENDING when no document exists.
+          example: VERIFIED
+        backgroundCheckStatus:
+          type: string
+          example: IN_PROGRESS
+        profilePhotoStatus:
+          type: string
+          enum: [UPLOADED, PENDING]
+          example: UPLOADED
+        isAdminVerified:
+          type: boolean
+          example: false
+        updatedAt:
+          type: string
+          format: date-time
+          example: '2026-06-07T20:58:03.447Z'
+    DriverProfileStatus:
+      type: string
+      enum: [DRIVER_LICENSE_EXPIRED, BACKGROUND_CHECK_MISSING, PROFILE_COMPLETE, SUSPENDED, LICENSE_EXPIRED, PENDING_PROFILE_COMPLETION, PENDING_DRIVER_HEADSHOT, PROOF_OF_WORK_ELIGIBILITY_MISSING, PENDING_ACTIVE_DRIVING_LICENSE_ADMIN_APPROVAL, PENDING_ADMIN_VERIFICATION, TERMINATED, ACTIVE]
+    LicenseStatus:
+      type: string
+      enum: [ACTIVE, EXPIRED, REVOKED, SUSPENDED, PENDING, REJECTED]
+    DocumentType:
+      type: string
+      enum: [PASSPORT, WORK_PERMIT, PR_CARD, BIRTH_CERTIFICATE, CITIZENSHIP_CERTIFICATE, SIN_LETTER]
+    DocumentStatus:
+      type: string
+      enum: [ACTIVE, EXPIRED, REVOKED, PENDING, REJECTED]
+    VerificationStatus:
+      type: string
+      enum: [UNVERIFIED, VERIFIED, REJECTED]
+    DriverLicenseUpsertRequestDto:
+      type: object
+      required: [licenses]
+      properties:
+        licenses:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/LicenseItem' }
+    LicenseItem:
+      type: object
+      required: [licenseNumber, issuingProvince, licenseClass, expiryDate]
+      properties:
+        licenseNumber: { type: string }
+        issuingProvince: { type: string }
+        licenseClass: { type: string }
+        issueDate:
+          type: string
+          format: date-time
+          description: Date-time accepted for client compatibility; only the date part is stored and returned.
+        expiryDate:
+          type: string
+          format: date-time
+          description: Date-time accepted for client compatibility; only the date part is stored and returned.
+        restrictions: { type: string }
+        licenseImageFront: { type: string }
+        licenseImageBack: { type: string }
+        status: { $ref: '#/components/schemas/LicenseStatus' }
+    WorkEligibilityDocumentsUpsertRequestDto:
+      type: object
+      required: [documents]
+      properties:
+        documents:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/WorkEligibilityDocumentInput' }
+    WorkEligibilityDocumentInput:
+      type: object
+      required: [documentType, documentNumber]
+      properties:
+        documentId: { type: string }
+        documentType: { $ref: '#/components/schemas/DocumentType' }
+        documentNumber: { type: string }
+        holderFullName: { type: string }
+        issuingCountry: { type: string }
+        issuingAuthority: { type: string }
+        issueDate:
+          type: string
+          format: date-time
+          description: Date-time accepted for client compatibility; only the date part is stored and returned.
+        expiryDate:
+          type: string
+          format: date-time
+          description: Date-time accepted for client compatibility; only the date part is stored and returned.
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        images:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/DocumentImageItem' }
+    DocumentImageItem:
+      type: object
+      required: [imageType, imageUrl]
+      properties:
+        imageType: { type: string }
+        imageUrl: { type: string }
+        timestamp: { type: string, format: date-time }
+    DriverImagesUpsertRequestDto:
+      type: object
+      required: [images]
+      properties:
+        images:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/ImageEntityInput' }
+    ImageEntityInput:
+      type: object
+      required: [imageType, imageUrl]
+      properties:
+        imageType: { type: string }
+        imageUrl: { type: string }
+        timestamp: { type: string, format: date-time }
+    WeeklyAvailabilityUpsertRequestDto:
+      type: object
+      required: [weeks]
+      properties:
+        weeks:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/WeeklyAvailabilityInput' }
+    WeeklyAvailabilityInput:
+      type: object
+      required: [isoYear, isoWeek, weekStartDate, weekEndDate, slots]
+      properties:
+        isoYear: { type: integer }
+        isoWeek: { type: integer, minimum: 1, maximum: 53 }
+        weekStartDate: { type: string, format: date }
+        weekEndDate: { type: string, format: date }
+        slots:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/AvailabilitySlotInput' }
+    AvailabilitySlotInput:
+      type: object
+      required: [dayOfWeek, startTime, endTime]
+      properties:
+        dayOfWeek:
+          type: string
+          enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY]
+        startTime: { type: string, format: time }
+        endTime: { type: string, format: time }
+        note: { type: string }
+    DriverSubmitForVerificationRequestDto:
+      type: object
+      properties:
+        note: { type: string }
+    DriverLicense:
+      type: object
+      properties:
+        licenseNumber: { type: string }
+        issuingProvince: { type: string }
+        licenseClass: { type: string }
+        issueDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        restrictions: { type: string }
+        licenseImageFront: { type: string }
+        licenseImageBack: { type: string }
+        status: { $ref: '#/components/schemas/LicenseStatus' }
+        verification: { $ref: '#/components/schemas/Verification' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    ImageEntity:
+      type: object
+      properties:
+        imageType: { type: string }
+        imageUrl: { type: string }
+        timestamp: { type: string, format: date-time }
+    WeeklyAvailability:
+      allOf:
+        - $ref: '#/components/schemas/WeeklyAvailabilityInput'
+        - type: object
+          properties:
+            createdAt: { type: string, format: date-time }
+            updatedAt: { type: string, format: date-time }
+            source: { type: string }
+    WorkEligibilityDocument:
+      type: object
+      properties:
+        documentId: { type: string }
+        documentType: { $ref: '#/components/schemas/DocumentType' }
+        documentNumber: { type: string }
+        holderFullName: { type: string }
+        issuingCountry: { type: string }
+        issuingAuthority: { type: string }
+        issueDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/DocumentStatus' }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentImageItem' }
+        verification: { $ref: '#/components/schemas/Verification' }
+        isPrimary: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+    Verification:
+      type: object
+      properties:
+        status: { $ref: '#/components/schemas/VerificationStatus' }
+        method: { type: string }
+        verifiedBy: { type: string }
+        verifiedAt: { type: string, format: date-time }
+        notes: { type: string }
+    RatingSummary:
+      type: object
+      properties:
+        averageRating: { type: number, format: double }
+        totalRatings: { type: integer }
+        reviews:
+          type: array
+          items: { $ref: '#/components/schemas/Review' }
+    Review:
+      type: object
+      properties:
+        reviewText: { type: string }
+        rating: { type: number, format: double }
+        reviewerName: { type: string }
+        timestamp: { type: string, format: date-time }
+    Analytics:
+      type: object
+      properties:
+        totalDeliveries: { type: integer }
+        totalDistanceTravelledKm: { type: number, format: double }
+        lastOrderCompletedAt: { type: string, format: date-time }
+        firstOrderCompletedAt: { type: string, format: date-time }
+
+    IndividualProfile:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        status: { type: string }
+        email: { type: string }
+        firstName: { type: string }
+        lastName: { type: string }
+        dateOfBirth: { type: string, format: date-time }
+        taxID: { type: string }
+        type: { type: string }
+        address:
+          type: array
+          items: { $ref: '#/components/schemas/Address' }
+        phone: { type: string }
+        phoneNumberVerified: { type: boolean }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        relatedParty: { $ref: '#/components/schemas/RelatedParty' }
+        billingAccount: { $ref: '#/components/schemas/BillingAccount' }
+        discounts:
+          type: array
+          items: { $ref: '#/components/schemas/Discount' }
+        extensions:
+          type: object
+          additionalProperties: { type: string }
+        payLaterConfiguration:
+          $ref: '#/components/schemas/PayLaterConfiguration'
+    IndividualProfilePageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/IndividualProfile' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    OrganizationProfile:
+      type: object
+      properties:
+        id: { type: string }
+        userId: { type: string }
+        status: { type: string }
+        name: { type: string }
+        registrationNumber: { type: string }
+        taxID: { type: string }
+        industry: { type: string }
+        address:
+          type: array
+          items: { $ref: '#/components/schemas/Address' }
+        phone: { type: string }
+        email: { type: string }
+        website: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+        pointOfContact: { $ref: '#/components/schemas/PointOfContact' }
+        billingAccount: { $ref: '#/components/schemas/BillingAccount' }
+        discounts:
+          type: array
+          items: { $ref: '#/components/schemas/Discount' }
+        extensions:
+          type: object
+          additionalProperties: { type: string }
+        payLaterConfiguration:
+          $ref: '#/components/schemas/PayLaterConfiguration'
+    OrganizationProfilePageResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items: { $ref: '#/components/schemas/OrganizationProfile' }
+        page: { type: integer }
+        size: { type: integer }
+        totalElements: { type: integer, format: int64 }
+        totalPages: { type: integer }
+    PayLaterConfiguration:
+      type: object
+      properties:
+        paymentTerms:
+          type: string
+          enum: [PREPAID, MONTHLY_INVOICE]
+        activationStatus:
+          type: string
+          enum: [DISABLED, PENDING_BILLING_ACCOUNT, ACTIVE, FAILED]
+        billingAccountId: { type: string, nullable: true }
+        enabledByAdminUserId: { type: string }
+        enabledAt: { type: string, format: date-time }
+        reason: { type: string }
+        notes: { type: string }
+        lastUpdatedAt: { type: string, format: date-time }
+    UpdateIndividualRequest:
+      type: object
+      properties:
+        taxId: { type: string }
+        phone: { type: string }
+    UpdateTaxIdRequest:
+      type: object
+      required: [taxID]
+      properties:
+        taxID: { type: string }
+    ProfileTaxIdUpdateResponse:
+      type: object
+      properties:
+        ownerType:
+          type: string
+          enum: [INDIVIDUAL, ORGANIZATION]
+        ownerId: { type: string }
+        taxID: { type: string }
+        message: { type: string }
+    UpdateOrganizationRequest:
+      type: object
+      properties:
+        registrationNumber: { type: string }
+        taxId: { type: string }
+        industry: { type: string }
+        phone: { type: string }
+        websiteUrl: { type: string }
+        pointOfContactName: { type: string }
+        pointOfContactPosition: { type: string }
+        pointOfContactEmail: { type: string }
+        pointOfContactPhone: { type: string }
+    Address:
+      type: object
+      required: [fullName, city, postalCode, country, phoneNumber]
+      properties:
+        addressId: { type: string }
+        fullName: { type: string }
+        company: { type: string }
+        streetAddress: { type: string }
+        addressLine2: { type: string }
+        city: { type: string }
+        province: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+        phoneNumber: { type: string }
+        deliveryInstructions: { type: string }
+        addressType: { type: string }
+        coordinates: { $ref: '#/components/schemas/Location' }
+        isPrimary: { type: boolean }
+    Location:
+      type: object
+      required: [latitude, longitude]
+      properties:
+        latitude: { type: number }
+        longitude: { type: number }
+    PointOfContact:
+      type: object
+      properties:
+        name: { type: string }
+        position: { type: string }
+        email: { type: string }
+        phone: { type: string }
+    RelatedParty:
+      type: object
+      properties:
+        relatedPartyId: { type: string }
+        type: { type: string }
+    BillingAccount:
+      type: object
+      properties:
+        billingAccountId: { type: string }
+    Discount:
+      type: object
+      properties:
+        calculationMethod: { type: string }
+        amount: { type: number }
+        discountType: { type: string }
+    PatchElement:
+      type: object
+      properties:
+        operation: { type: string }
+        path: { type: string }
+        value: {}
+    SuccessMessageResponse:
+      type: object
+      required: [message, processedAT]
+      properties:
+        message: { type: string }
+        processedAT: { type: string, format: date-time }
+
+    AdminEnablePayLaterRequest:
+      type: object
+      required: [ownerType, ownerId, reason]
+      properties:
+        ownerType:
+          type: string
+          enum: [INDIVIDUAL, ORGANIZATION]
+        ownerId: { type: string }
+        reason: { type: string }
+        notes: { type: string }
+
+    AdminUpdatePostpayStatusRequest:
+      type: object
+      required: [ownerType, ownerId, action, reason]
+      properties:
+        ownerType:
+          type: string
+          enum: [INDIVIDUAL, ORGANIZATION]
+        ownerId: { type: string }
+        action:
+          type: string
+          enum: [ENABLE, DISABLE]
+        reason: { type: string }
+        notes: { type: string }
+    ProfileBillingConfigurationResponse:
+      type: object
+      properties:
+        ownerType:
+          type: string
+          enum: [INDIVIDUAL, ORGANIZATION]
+        ownerId: { type: string }
+        paymentTerms:
+          type: string
+          enum: [PREPAID, MONTHLY_INVOICE]
+        activationStatus:
+          type: string
+          enum: [DISABLED, PENDING_BILLING_ACCOUNT, ACTIVE, FAILED]
+        billingAccountId: { type: string, nullable: true }
+        payLaterEligible: { type: boolean }
+        message: { type: string }
+    ErrorResponse:
+      type: object
+      required: [status, message, errors, errorDetails]
+      properties:
+        status: { type: string }
+        message: { type: string }
+        errors:
+          type: array
+          items: { $ref: '#/components/schemas/ErrorResponseErrors' }
+        errorDetails: { $ref: '#/components/schemas/ErrorResponseErrorDetails' }
+    ErrorResponseErrors:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
+    ErrorResponseErrorDetails:
+      type: object
+      required: [errorCode, errorType, characteristics]
+      properties:
+        errorCode: { type: integer }
+        errorType: { type: string }
+        characteristics:
+          type: object
+          additionalProperties: { type: string }

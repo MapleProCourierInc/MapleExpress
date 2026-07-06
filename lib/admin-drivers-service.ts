@@ -11,6 +11,7 @@ import type {
   DriverDetailsDto,
   AdminInviteDriverRequest,
   AdminInviteDriverResponse,
+  AdminDocumentApprovalResponseDto,
   DriverLicenseApprovalRequestDto,
   DriverWorkEligibilityApprovalRequestDto,
 } from "@/types/admin-drivers"
@@ -113,10 +114,10 @@ export async function postAdminDriverAction(
   return { data: (await response.json()) as DriverActionResponseDto, error: null, textError: null }
 }
 
-export async function approveDriverLicense(
+export async function reviewDriverLicense(
   driverId: string,
   payload: DriverLicenseApprovalRequestDto,
-): Promise<ServiceResult<Record<string, unknown>>> {
+): Promise<ServiceResult<AdminDocumentApprovalResponseDto>> {
   const response = await authenticatedServerFetch(
     getEndpointUrl(PROFILE_SERVICE_URL, `/admin/drivers/${driverId}/driving-license/approve`),
     {
@@ -138,14 +139,14 @@ export async function approveDriverLicense(
     return { data: null, ...parsed }
   }
 
-  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
+  const data = (await response.json().catch(() => ({}))) as AdminDocumentApprovalResponseDto
   return { data, error: null, textError: null }
 }
 
-export async function approveDriverWorkEligibilityDocument(
+export async function reviewDriverWorkEligibilityDocument(
   driverId: string,
   payload: DriverWorkEligibilityApprovalRequestDto,
-): Promise<ServiceResult<Record<string, unknown>>> {
+): Promise<ServiceResult<AdminDocumentApprovalResponseDto>> {
   const response = await authenticatedServerFetch(
     getEndpointUrl(PROFILE_SERVICE_URL, `/admin/drivers/${driverId}/work-eligibility-documents/approve`),
     {
@@ -167,7 +168,7 @@ export async function approveDriverWorkEligibilityDocument(
     return { data: null, ...parsed }
   }
 
-  const data = (await response.json().catch(() => ({}))) as Record<string, unknown>
+  const data = (await response.json().catch(() => ({}))) as AdminDocumentApprovalResponseDto
   return { data, error: null, textError: null }
 }
 

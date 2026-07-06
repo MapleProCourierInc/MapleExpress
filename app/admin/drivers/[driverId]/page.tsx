@@ -1,34 +1,58 @@
 import Link from "next/link"
-import { ArrowLeft, ChevronDown } from "lucide-react"
+import type { ComponentType, ReactNode } from "react"
+import {
+  AlertTriangle,
+  ArrowLeft,
+  BriefcaseBusiness,
+  CalendarClock,
+  CheckCircle2,
+  ChevronDown,
+  CircleAlert,
+  FileCheck2,
+  Gauge,
+  IdCard,
+  Mail,
+  MapPin,
+  Phone,
+  ShieldCheck,
+  UserRound,
+} from "lucide-react"
 import { DriverDetailActions } from "@/components/admin/driver-detail-actions"
-import { DocumentApprovalButton } from "@/components/admin/document-approval-button"
+import { DocumentDecisionButtons } from "@/components/admin/document-approval-button"
 import { DriverImageGallery } from "@/components/admin/driver-image-gallery"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getAdminDriverDetails } from "@/lib/admin-drivers-service"
-import type { DriverLicense, WorkEligibilityDocument } from "@/types/admin-drivers"
+import type { DocumentVerification, DriverDetailsDto, DriverImageEntity, DriverLicense, WorkEligibilityDocument } from "@/types/admin-drivers"
+
+type GalleryImage = {
+  key: string
+  url?: string | null
+  title?: string
+  subtitle?: string
+}
 
 function formatDateTime(value?: string | null) {
-  if (!value) return "—"
+  if (!value) return "-"
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return "—"
+  if (Number.isNaN(date.getTime())) return "-"
   return date.toLocaleString()
 }
 
 function formatLocalDate(value?: string | null) {
-  if (!value) return "—"
+  if (!value) return "-"
   const date = new Date(value)
   if (Number.isNaN(date.getTime())) return value
   return date.toLocaleDateString()
 }
 
 function humanize(value?: string | null) {
-  if (!value) return "—"
+  if (!value) return "-"
   return value
     .toLowerCase()
     .split("_")
@@ -41,7 +65,7 @@ function renderEmpty(message = "No data available") {
 }
 
 function field(value: string | number | null | undefined) {
-  if (value === null || value === undefined || value === "") return "—"
+  if (value === null || value === undefined || value === "") return "-"
   return String(value)
 }
 
@@ -87,76 +111,43 @@ function splitByPriority<T extends { status?: string | null }>(items: T[] | null
   }
 }
 
-function LicenseCard({
-  license,
-  index,
-  driverId,
-}: {
-  license: DriverLicense
-  index: number
-  driverId: string
-}) {
-  return (
-    <div key={`${license.licenseNumber || "license"}-${index}`} className="space-y-3 rounded-md border p-3 text-sm">
-      <div className="flex items-start justify-between gap-2">
-        <Badge variant="outline" className={statusBadgeClass(license.status)}>
-          {humanize(license.status)}
-        </Badge>
-        {isPending(license.status) ? (
-          <DocumentApprovalButton
-            endpoint="/api/driver/license/approve"
-            payload={{
-              driverId,
-              licenseNumber: license.licenseNumber || "",
-              reason: "Approved by admin",
-              notes: `Auto approval request from Admin portal for ${license.licenseNumber || "license"}`,
-            }}
-            label="Approve License"
-          />
-        ) : null}
-      </div>
-      <div className="grid gap-2 md:grid-cols-2">
-        <p><span className="text-muted-foreground">License Number:</span> {field(license.licenseNumber)}</p>
-        <p><span className="text-muted-foreground">Province:</span> {field(license.issuingProvince)}</p>
-        <p><span className="text-muted-foreground">Class:</span> {field(license.licenseClass)}</p>
-        <p><span className="text-muted-foreground">Restrictions:</span> {field(license.restrictions)}</p>
-        <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(license.issueDate)}</p>
-        <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(license.expiryDate)}</p>
-        <p><span className="text-muted-foreground">Created:</span> {formatDateTime(license.createdAt)}</p>
-        <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(license.updatedAt)}</p>
-      </div>
-      <div className="space-y-2">
-        <p className="font-medium">License Images</p>
-        <DriverImageGallery
-          images={[
-            {
-              key: license.licenseImageFront || "",
-              url: license.licenseImageFront,
-              title: "Front",
-            },
-            {
-              key: license.licenseImageBack || "",
-              url: license.licenseImageBack,
-              title: "Back",
-            },
-          ].filter((item) => Boolean(item.key))}
-        />
-      </div>
-    </div>
-  )
+function driverImagePriority(type?: string | null) {
+  const normalized = String(type || "").toUpperCase()
+  if (normalized.includes("SELFIE") || normalized.includes("FACE")) return 0
+  if (normalized.includes("PROFILE") || normalized.includes("AVATAR")) return 1
+  if (normalized.includes("PORTRAIT") || normalized.includes("DRIVER")) return 2
+  return 3
 }
 
-function WorkDocumentCard({
-  doc,
-  index,
-  driverId,
-}: {
-  doc: WorkEligibilityDocument
-  index: number
-  driverId: string
-}) {
-  const attributes = Object.entries(doc.attributes || {})
-  const docImages = (doc.images || [])
+function toDriverImageItems(images?: DriverImageEntity[] | null): GalleryImage[] {
+  return (images || [])
+    .filter((item) => Boolean(item.imageUrl))
+    .sort((a, b) => driverImagePriority(a.imageType) - driverImagePriority(b.imageType))
+    .map((item, idx) => ({
+      key: item.imageUrl as string,
+      url: item.imageUrl,
+      title: `${humanize(item.imageType)}${item.imageType ? "" : ` #${idx + 1}`}`,
+      subtitle: `Captured: ${formatDateTime(item.timestamp)}`,
+    }))
+}
+
+function licenseImages(license: DriverLicense): GalleryImage[] {
+  return [
+    {
+      key: license.licenseImageFront || "",
+      url: license.licenseImageFront,
+      title: "License front",
+    },
+    {
+      key: license.licenseImageBack || "",
+      url: license.licenseImageBack,
+      title: "License back",
+    },
+  ].filter((item) => Boolean(item.key))
+}
+
+function workDocumentImages(doc: WorkEligibilityDocument): GalleryImage[] {
+  return (doc.images || [])
     .map((image, imageIdx) => {
       const key = image.imageUrl
       if (!key) return null
@@ -167,84 +158,514 @@ function WorkDocumentCard({
         subtitle: image.timestamp ? `Captured: ${formatDateTime(image.timestamp)}` : undefined,
       }
     })
-    .filter(Boolean) as Array<{ key: string; url?: string; title: string; subtitle?: string }>
+    .filter(Boolean) as GalleryImage[]
+}
+
+function StatusPill({ status }: { status?: string | null }) {
+  return (
+    <Badge variant="outline" className={statusBadgeClass(status)}>
+      {humanize(status)}
+    </Badge>
+  )
+}
+
+function Fact({
+  label,
+  value,
+  icon: Icon,
+}: {
+  label: string
+  value: string | number | null | undefined
+  icon?: ComponentType<{ className?: string }>
+}) {
+  return (
+    <div className="min-w-0 rounded-md border bg-background p-3">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-normal text-muted-foreground">
+        {Icon ? <Icon className="h-3.5 w-3.5" /> : null}
+        {label}
+      </div>
+      <div className="mt-1 break-words text-sm font-medium">{field(value)}</div>
+    </div>
+  )
+}
+
+function ReviewStage({
+  title,
+  status,
+  count,
+  icon: Icon,
+}: {
+  title: string
+  status?: string | null
+  count: number
+  icon: ComponentType<{ className?: string }>
+}) {
+  const tone = statusTone(status)
+  const iconClass =
+    tone === "green"
+      ? "bg-emerald-100 text-emerald-700"
+      : tone === "red"
+        ? "bg-rose-100 text-rose-700"
+        : tone === "yellow"
+          ? "bg-amber-100 text-amber-700"
+          : "bg-muted text-muted-foreground"
 
   return (
-    <div key={`${doc.documentId || doc.documentNumber || "document"}-${index}`} className="space-y-3 rounded-md border p-3 text-sm">
-      <div className="flex items-start justify-between gap-2">
-        <Badge variant="outline" className={statusBadgeClass(doc.status)}>
-          {humanize(doc.status)}
-        </Badge>
+    <div className="flex min-w-0 items-start gap-3 rounded-md border bg-background p-4">
+      <div className={`rounded-md p-2 ${iconClass}`}>
+        <Icon className="h-4 w-4" />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold">{title}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-2">
+          <StatusPill status={status} />
+          <span className="text-xs text-muted-foreground">{count} record{count === 1 ? "" : "s"}</span>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function VerificationBlock({ verification }: { verification?: DocumentVerification | null }) {
+  return (
+    <div className="rounded-md border p-3">
+      <p className="mb-2 text-sm font-semibold">Verification</p>
+      {verification ? (
+        <div className="grid gap-2 text-sm sm:grid-cols-2">
+          <p><span className="text-muted-foreground">Status:</span> {humanize(verification.status)}</p>
+          <p><span className="text-muted-foreground">Method:</span> {field(verification.method)}</p>
+          <p><span className="text-muted-foreground">Verified By:</span> {field(verification.verifiedBy)}</p>
+          <p><span className="text-muted-foreground">Verified At:</span> {formatDateTime(verification.verifiedAt)}</p>
+          <p className="sm:col-span-2"><span className="text-muted-foreground">Notes:</span> {field(verification.notes)}</p>
+        </div>
+      ) : (
+        renderEmpty()
+      )}
+    </div>
+  )
+}
+
+function IdentitySummary({
+  data,
+  fullName,
+  driverId,
+}: {
+  data: DriverDetailsDto
+  fullName: string
+  driverId: string
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Identity & Contact</CardTitle>
+        <CardDescription>Reference details used while reviewing driver documents.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          <Fact label="Name" value={fullName} icon={UserRound} />
+          <Fact label="Email" value={data.email} icon={Mail} />
+          <Fact label="Phone" value={data.phone} icon={Phone} />
+          <Fact label="Station" value={data.station} icon={MapPin} />
+          <Fact label="Company" value={humanize(data.companyName)} icon={BriefcaseBusiness} />
+          <Fact label="Date of Birth" value={formatLocalDate(data.dob)} icon={CalendarClock} />
+          <Fact label="Driver ID" value={data.driverId || driverId} icon={IdCard} />
+          <Fact label="User ID" value={data.userId} icon={ShieldCheck} />
+          <Fact label="Last Login" value={formatDateTime(data.lastLoginAt)} icon={Gauge} />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function IdentityReferencePanel({
+  data,
+  fullName,
+  driverImages,
+}: {
+  data: DriverDetailsDto
+  fullName: string
+  driverImages: GalleryImage[]
+}) {
+  const primaryImage = driverImages[0]
+
+  return (
+    <Card className="overflow-hidden">
+      <CardHeader className="space-y-3">
+        <div>
+          <CardTitle>Always-Visible Identity</CardTitle>
+          <CardDescription>Keep this photo in view while comparing DL and POW images.</CardDescription>
+        </div>
+        <div className="flex flex-wrap items-center gap-2">
+          <StatusPill status={data.profileStatus} />
+          <Badge variant={data.isVerified ? "default" : "secondary"}>{data.isVerified ? "Verified" : "Not verified"}</Badge>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="overflow-hidden rounded-md border bg-muted">
+          {primaryImage?.url ? (
+            <img src={primaryImage.url} alt={`${fullName} reference`} className="h-72 w-full object-cover" />
+          ) : (
+            <div className="flex h-72 items-center justify-center px-4 text-center text-sm text-muted-foreground">
+              No driver reference image available.
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">{fullName}</p>
+          <dl className="grid gap-2 text-sm">
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-muted-foreground">DOB</dt>
+              <dd className="font-medium">{formatLocalDate(data.dob)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-muted-foreground">Phone</dt>
+              <dd className="font-medium">{field(data.phone)}</dd>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <dt className="text-muted-foreground">Station</dt>
+              <dd className="font-medium">{field(data.station)}</dd>
+            </div>
+          </dl>
+        </div>
+
+        <Separator />
+
+        <div className="space-y-2">
+          <p className="text-sm font-semibold">All driver images</p>
+          <DriverImageGallery
+            images={driverImages}
+            gridClassName="grid grid-cols-2 gap-2"
+            imageClassName="h-28 w-full object-cover"
+            itemClassName="rounded-md"
+          />
+        </div>
+      </CardContent>
+    </Card>
+  )
+}
+
+function LicenseReviewCard({
+  license,
+  index,
+  driverId,
+}: {
+  license: DriverLicense
+  index: number
+  driverId: string
+}) {
+  const images = licenseImages(license)
+
+  return (
+    <section className="rounded-md border bg-background p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold">Driving license {index + 1}</h3>
+            <StatusPill status={license.status} />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Check the license photos against the identity reference, then record the decision here.
+          </p>
+        </div>
+        {isPending(license.status) ? (
+          <DocumentDecisionButtons
+            endpoint="/api/driver/license/approve"
+            payload={{
+              driverId,
+              licenseNumber: license.licenseNumber || "",
+              reason: "Approved by admin",
+              notes: `Approved from Admin portal for ${license.licenseNumber || "license"}`,
+            }}
+            approveLabel="Approve DL"
+            rejectLabel="Reject DL"
+            subjectLabel="driving license"
+          />
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div>
+          <DriverImageGallery
+            images={images}
+            gridClassName="grid gap-3 md:grid-cols-2"
+            imageClassName="h-64 w-full object-contain bg-muted"
+            itemClassName="rounded-md"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid content-start gap-3 text-sm sm:grid-cols-2">
+            <Fact label="License Number" value={license.licenseNumber} />
+            <Fact label="Province" value={license.issuingProvince} />
+            <Fact label="Class" value={license.licenseClass} />
+            <Fact label="Restrictions" value={license.restrictions} />
+            <Fact label="Issue Date" value={formatLocalDate(license.issueDate)} />
+            <Fact label="Expiry Date" value={formatLocalDate(license.expiryDate)} />
+            <Fact label="Created" value={formatLocalDate(license.createdAt)} />
+          </div>
+          <VerificationBlock verification={license.verification} />
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function WorkDocumentReviewCard({
+  doc,
+  index,
+  driverId,
+}: {
+  doc: WorkEligibilityDocument
+  index: number
+  driverId: string
+}) {
+  const attributes = Object.entries(doc.attributes || {})
+  const images = workDocumentImages(doc)
+
+  return (
+    <section className="rounded-md border bg-background p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold">Proof of work {index + 1}</h3>
+            <StatusPill status={doc.status} />
+            {doc.isPrimary ? <Badge variant="secondary">Primary</Badge> : null}
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Compare the work eligibility document photos with the driver reference before approving.
+          </p>
+        </div>
         {isPending(doc.status) ? (
-          <DocumentApprovalButton
+          <DocumentDecisionButtons
             endpoint="/api/driver/pow/approve"
             payload={{
               driverId,
               documentId: doc.documentId || "",
               documentNumber: doc.documentNumber || "",
               reason: "Approved by admin",
-              notes: `Auto approval request from Admin portal for ${doc.documentId || doc.documentNumber || "document"}`,
+              notes: `Approved from Admin portal for ${doc.documentId || doc.documentNumber || "document"}`,
             }}
-            label="Approve Proof of Work"
+            approveLabel="Approve POW"
+            rejectLabel="Reject POW"
+            subjectLabel="proof of work document"
           />
         ) : null}
       </div>
-      <div className="grid gap-2 md:grid-cols-2">
-        <p><span className="text-muted-foreground">Document Type:</span> {humanize(doc.documentType)}</p>
-        <p><span className="text-muted-foreground">Primary:</span> {doc.isPrimary === null || doc.isPrimary === undefined ? "—" : doc.isPrimary ? "Yes" : "No"}</p>
-        <p><span className="text-muted-foreground">Document Number:</span> {field(doc.documentNumber)}</p>
-        <p><span className="text-muted-foreground">Holder Name:</span> {field(doc.holderFullName)}</p>
-        <p><span className="text-muted-foreground">Issuing Country:</span> {field(doc.issuingCountry)}</p>
-        <p><span className="text-muted-foreground">Issuing Authority:</span> {field(doc.issuingAuthority)}</p>
-        <p><span className="text-muted-foreground">Issue Date:</span> {formatDateTime(doc.issueDate)}</p>
-        <p><span className="text-muted-foreground">Expiry Date:</span> {formatDateTime(doc.expiryDate)}</p>
-        <p><span className="text-muted-foreground">Created:</span> {formatDateTime(doc.createdAt)}</p>
-        <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(doc.updatedAt)}</p>
-      </div>
 
-      <div>
-        <p className="mb-2 font-medium">Verification</p>
-        {doc.verification ? (
-          <div className="grid gap-2 md:grid-cols-2">
-            <p><span className="text-muted-foreground">Status:</span> {humanize(doc.verification.status)}</p>
-            <p><span className="text-muted-foreground">Method:</span> {field(doc.verification.method)}</p>
-            <p><span className="text-muted-foreground">Verified By:</span> {field(doc.verification.verifiedBy)}</p>
-            <p><span className="text-muted-foreground">Verified At:</span> {formatDateTime(doc.verification.verifiedAt)}</p>
-            <p className="md:col-span-2"><span className="text-muted-foreground">Notes:</span> {field(doc.verification.notes)}</p>
+      <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div>
+          <DriverImageGallery
+            images={images}
+            gridClassName="grid gap-3 md:grid-cols-2"
+            imageClassName="h-64 w-full object-contain bg-muted"
+            itemClassName="rounded-md"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <Fact label="Document Type" value={humanize(doc.documentType)} />
+            <Fact label="Holder Name" value={doc.holderFullName} />
+            <Fact label="Document Number" value={doc.documentNumber} />
+            <Fact label="Issuing Country" value={doc.issuingCountry} />
+            <Fact label="Issuing Authority" value={doc.issuingAuthority} />
+            <Fact label="Issue Date" value={formatLocalDate(doc.issueDate)} />
+            <Fact label="Expiry Date" value={formatLocalDate(doc.expiryDate)} />
+            <Fact label="Created" value={formatLocalDate(doc.createdAt)} />
           </div>
-        ) : (
-          renderEmpty()
-        )}
-      </div>
 
-      <div>
-        <p className="mb-2 font-medium">Attributes</p>
-        {attributes.length ? (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Key</TableHead>
-                <TableHead>Value</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {attributes.map(([key, value]) => (
-                <TableRow key={key}>
-                  <TableCell>{key}</TableCell>
-                  <TableCell>{value}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        ) : (
-          renderEmpty()
-        )}
-      </div>
+          <VerificationBlock verification={doc.verification} />
 
-      <div>
-        <p className="mb-2 font-medium">Document Images</p>
-        <DriverImageGallery images={docImages} />
+          <Collapsible>
+            <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+              <ChevronDown className="h-4 w-4" />
+              Attributes ({attributes.length})
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              {attributes.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Key</TableHead>
+                      <TableHead>Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attributes.map(([key, value]) => (
+                      <TableRow key={key}>
+                        <TableCell>{key}</TableCell>
+                        <TableCell>{value}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                renderEmpty()
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
       </div>
+    </section>
+  )
+}
+
+function ReviewSection({
+  title,
+  description,
+  children,
+}: {
+  title: string
+  description: string
+  children: ReactNode
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>{title}</CardTitle>
+        <CardDescription>{description}</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">{children}</CardContent>
+    </Card>
+  )
+}
+
+function SecondarySections({ data }: { data: DriverDetailsDto }) {
+  return (
+    <div className="space-y-3">
+      <Collapsible>
+        <Card>
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left">
+            <span className="grid gap-1.5">
+              <span className="text-base font-semibold leading-none tracking-tight">Weekly Availability</span>
+              <span className="text-sm text-muted-foreground">{data.weeklyAvailability?.length || 0} availability week{data.weeklyAvailability?.length === 1 ? "" : "s"}</span>
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-3 text-sm">
+              {data.weeklyAvailability?.length ? (
+                data.weeklyAvailability.map((week, weekIdx) => (
+                  <div key={`${week.isoYear}-${week.isoWeek}-${weekIdx}`} className="space-y-2 rounded-md border p-3">
+                    <div className="grid gap-2 md:grid-cols-2">
+                      <p><span className="text-muted-foreground">ISO Year/Week:</span> {field(week.isoYear)}/{field(week.isoWeek)}</p>
+                      <p><span className="text-muted-foreground">Week Range:</span> {formatLocalDate(week.weekStartDate)} - {formatLocalDate(week.weekEndDate)}</p>
+                      <p><span className="text-muted-foreground">Source:</span> {field(week.source)}</p>
+                      <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(week.updatedAt)}</p>
+                    </div>
+
+                    {week.slots?.length ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Day</TableHead>
+                            <TableHead>Start</TableHead>
+                            <TableHead>End</TableHead>
+                            <TableHead>Note</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {week.slots.map((slot, slotIdx) => (
+                            <TableRow key={`${slot.dayOfWeek}-${slot.startTime}-${slotIdx}`}>
+                              <TableCell>{field(slot.dayOfWeek)}</TableCell>
+                              <TableCell>{field(slot.startTime)}</TableCell>
+                              <TableCell>{field(slot.endTime)}</TableCell>
+                              <TableCell>{field(slot.note)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      renderEmpty()
+                    )}
+                  </div>
+                ))
+              ) : (
+                renderEmpty()
+              )}
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      <Collapsible>
+        <Card>
+          <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-6 py-4 text-left">
+            <span className="grid gap-1.5">
+              <span className="text-base font-semibold leading-none tracking-tight">Performance</span>
+              <span className="text-sm text-muted-foreground">Ratings, reviews, and delivery analytics.</span>
+            </span>
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-5 text-sm">
+              {data.ratingSummary ? (
+                <div className="space-y-3">
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <Fact label="Average Rating" value={data.ratingSummary.averageRating} />
+                    <Fact label="Total Ratings" value={data.ratingSummary.totalRatings} />
+                  </div>
+
+                  <div>
+                    <p className="mb-2 font-medium">Reviews</p>
+                    {data.ratingSummary.reviews?.length ? (
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Reviewer</TableHead>
+                            <TableHead>Rating</TableHead>
+                            <TableHead>Timestamp</TableHead>
+                            <TableHead>Review</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {data.ratingSummary.reviews.map((review, idx) => (
+                            <TableRow key={`${review.reviewerName || "reviewer"}-${idx}`}>
+                              <TableCell>{field(review.reviewerName)}</TableCell>
+                              <TableCell>{field(review.rating)}</TableCell>
+                              <TableCell>{formatDateTime(review.timestamp)}</TableCell>
+                              <TableCell>{field(review.reviewText)}</TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    ) : (
+                      renderEmpty()
+                    )}
+                  </div>
+                </div>
+              ) : (
+                renderEmpty()
+              )}
+
+              <Separator />
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                {data.analytics ? (
+                  <>
+                    <Fact label="Total Deliveries" value={data.analytics.totalDeliveries} />
+                    <Fact label="Distance Travelled (km)" value={data.analytics.totalDistanceTravelledKm} />
+                    <Fact label="First Order Completed" value={formatDateTime(data.analytics.firstOrderCompletedAt)} />
+                    <Fact label="Last Order Completed" value={formatDateTime(data.analytics.lastOrderCompletedAt)} />
+                  </>
+                ) : (
+                  <div className="sm:col-span-2">{renderEmpty()}</div>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Admin Notes</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <p className="whitespace-pre-wrap text-sm">{data.adminNotes || "No data available"}</p>
+        </CardContent>
+      </Card>
     </div>
   )
 }
@@ -273,301 +694,159 @@ export default async function DriverDetailPage({
   }
 
   const fullName = `${data.firstName || ""} ${data.lastName || ""}`.trim() || "Unknown Driver"
-
   const groupedLicenses = splitByPriority(data.driverLicenses)
   const groupedWorkDocs = splitByPriority(data.workEligibilityDocuments)
+  const driverImages = toDriverImageItems(data.driverImages)
+  const primaryLicenseStatus = groupedLicenses.visible[0]?.status || data.driverLicenses?.[0]?.status
+  const primaryWorkStatus = groupedWorkDocs.visible[0]?.status || data.workEligibilityDocuments?.[0]?.status
 
   return (
     <TooltipProvider>
-      <div className="space-y-4">
-        <div className="flex items-start justify-between gap-3">
-          <div className="space-y-2">
-            <Link href={returnTo || "/admin/drivers"} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="mr-1 h-4 w-4" /> Back to Drivers
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold">{fullName}</h1>
-              <p className="text-sm text-muted-foreground">{field(data.email)}</p>
-              <p className="text-xs text-muted-foreground">
-                Driver ID: <span className="font-mono">{field(data.driverId || driverId)}</span>
-                {data.userId ? (
-                  <>
-                    {" "}• User ID: <span className="font-mono">{data.userId}</span>
-                  </>
-                ) : null}
-              </p>
-            </div>
-            <div className="flex flex-wrap items-center gap-2">
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Badge variant="outline" className={statusBadgeClass(data.profileStatus)}>
-                    {humanize(data.profileStatus)}
-                  </Badge>
-                </TooltipTrigger>
-                <TooltipContent>{field(data.profileStatus)}</TooltipContent>
-              </Tooltip>
-              <Badge variant={data.isVerified ? "default" : "secondary"}>{data.isVerified ? "Verified" : "Not verified"}</Badge>
-              {data.backgroundCheckStatus ? (
-                <Badge variant="outline" title={data.backgroundCheckStatus}>
-                  BG: {humanize(data.backgroundCheckStatus)}
-                </Badge>
-              ) : null}
-            </div>
-          </div>
+      <div className="space-y-6">
+        <div className="space-y-4">
+          <Link href={returnTo || "/admin/drivers"} className="inline-flex items-center text-sm text-muted-foreground hover:text-foreground">
+            <ArrowLeft className="mr-1 h-4 w-4" /> Back to Drivers
+          </Link>
 
-          <DriverDetailActions driverId={driverId} profileStatus={data.profileStatus} />
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <div>
+                <h1 className="text-2xl font-bold">{fullName}</h1>
+                <p className="text-sm text-muted-foreground">{field(data.email)}</p>
+                <p className="text-xs text-muted-foreground">
+                  Driver ID: <span className="font-mono">{field(data.driverId || driverId)}</span>
+                  {data.userId ? <> | User ID: <span className="font-mono">{data.userId}</span></> : null}
+                </p>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge variant="outline" className={statusBadgeClass(data.profileStatus)}>
+                      {humanize(data.profileStatus)}
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>{field(data.profileStatus)}</TooltipContent>
+                </Tooltip>
+                <Badge variant={data.isVerified ? "default" : "secondary"}>{data.isVerified ? "Verified" : "Not verified"}</Badge>
+                {data.backgroundCheckStatus ? (
+                  <Badge variant="outline" title={data.backgroundCheckStatus}>
+                    BG: {humanize(data.backgroundCheckStatus)}
+                  </Badge>
+                ) : null}
+              </div>
+            </div>
+
+            {String(data.profileStatus || "").toUpperCase().includes("PENDING") ? (
+              <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>Review identity, DL, and POW before approving the driver profile.</p>
+              </div>
+            ) : null}
+          </div>
         </div>
 
-        <Tabs defaultValue="overview" className="w-full">
-          <TabsList className="w-full justify-start overflow-auto">
-            <TabsTrigger value="overview">Overview</TabsTrigger>
-            <TabsTrigger value="driving-license">Driving License</TabsTrigger>
-            <TabsTrigger value="proof-of-work">Proof of Work</TabsTrigger>
-            <TabsTrigger value="images">Images</TabsTrigger>
-            <TabsTrigger value="availability">Availability</TabsTrigger>
-            <TabsTrigger value="performance">Performance</TabsTrigger>
-            <TabsTrigger value="notes">Admin Notes</TabsTrigger>
-          </TabsList>
+        <div className="grid gap-4 md:grid-cols-3">
+          <ReviewStage title="Driver profile" status={data.profileStatus} count={1} icon={UserRound} />
+          <ReviewStage title="Driving license" status={primaryLicenseStatus} count={data.driverLicenses?.length || 0} icon={IdCard} />
+          <ReviewStage title="Proof of work" status={primaryWorkStatus} count={data.workEligibilityDocuments?.length || 0} icon={FileCheck2} />
+        </div>
 
-          <TabsContent value="overview">
-            <Card>
-              <CardHeader>
-                <CardTitle>Identity & Contact</CardTitle>
-                <CardDescription>Core profile details and status summary.</CardDescription>
-              </CardHeader>
-              <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-                <p><span className="text-muted-foreground">Name:</span> {fullName}</p>
-                <p><span className="text-muted-foreground">Email:</span> {field(data.email)}</p>
-                <p><span className="text-muted-foreground">Phone:</span> {field(data.phone)}</p>
-                <p><span className="text-muted-foreground">User ID:</span> {field(data.userId)}</p>
-                <p><span className="text-muted-foreground">Driver ID:</span> {field(data.driverId)}</p>
-                <p><span className="text-muted-foreground">Company:</span> {humanize(data.companyName)}</p>
-                <p><span className="text-muted-foreground">Station:</span> {field(data.station)}</p>
-                <p><span className="text-muted-foreground">Gender:</span> {field(data.gender)}</p>
-                <p><span className="text-muted-foreground">Date of Birth:</span> {formatLocalDate(data.dob)}</p>
-                <p><span className="text-muted-foreground">Verified:</span> {data.isVerified ? "Yes" : "No"}</p>
-                <p><span className="text-muted-foreground">Background Check:</span> {humanize(data.backgroundCheckStatus)}</p>
-                <p><span className="text-muted-foreground">Profile Status:</span> {humanize(data.profileStatus)}</p>
-                <p><span className="text-muted-foreground">Created:</span> {formatDateTime(data.createdAt)}</p>
-                <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(data.updatedAt)}</p>
-                <p><span className="text-muted-foreground">Last Login:</span> {formatDateTime(data.lastLoginAt)}</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
+        <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
+          <main className="space-y-6">
+            <IdentitySummary data={data} fullName={fullName} driverId={driverId} />
 
-          <TabsContent value="driving-license">
-            <Card>
-              <CardHeader>
-                <CardTitle>Driver Licenses</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.driverLicenses?.length ? (
-                  <>
-                    {groupedLicenses.visible.length ? groupedLicenses.visible.map((license, idx) => (
-                      <LicenseCard key={`license-visible-${idx}`} license={license} index={idx} driverId={driverId} />
-                    )) : renderEmpty("No active or pending licenses available")}
+            <ReviewSection
+              title="Driving License Check"
+              description="License photos are large by default so admins can compare them with the persistent driver photo."
+            >
+              {data.driverLicenses?.length ? (
+                <>
+                  {groupedLicenses.visible.length ? groupedLicenses.visible.map((license, idx) => (
+                    <LicenseReviewCard key={`license-visible-${idx}`} license={license} index={idx} driverId={driverId} />
+                  )) : renderEmpty("No active or pending licenses available")}
 
-                    {groupedLicenses.hidden.length ? (
-                      <Collapsible>
-                        <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-                          <ChevronDown className="h-4 w-4" />
-                          Show other licenses ({groupedLicenses.hidden.length})
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-3 space-y-3">
-                          {groupedLicenses.hidden.map((license, idx) => (
-                            <LicenseCard key={`license-hidden-${idx}`} license={license} index={idx} driverId={driverId} />
-                          ))}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    ) : null}
-                  </>
-                ) : (
-                  renderEmpty()
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                  {groupedLicenses.hidden.length ? (
+                    <Collapsible>
+                      <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                        <ChevronDown className="h-4 w-4" />
+                        Show other licenses ({groupedLicenses.hidden.length})
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-4 space-y-4">
+                        {groupedLicenses.hidden.map((license, idx) => (
+                          <LicenseReviewCard key={`license-hidden-${idx}`} license={license} index={idx} driverId={driverId} />
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : null}
+                </>
+              ) : (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No license submitted</AlertTitle>
+                  <AlertDescription>The driver has not uploaded a driving license yet.</AlertDescription>
+                </Alert>
+              )}
+            </ReviewSection>
 
-          <TabsContent value="proof-of-work">
-            <Card>
-              <CardHeader>
-                <CardTitle>Work Eligibility Documents</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3">
-                {data.workEligibilityDocuments?.length ? (
-                  <>
-                    {groupedWorkDocs.visible.length ? groupedWorkDocs.visible.map((doc, idx) => (
-                      <WorkDocumentCard key={`doc-visible-${idx}`} doc={doc} index={idx} driverId={driverId} />
-                    )) : renderEmpty("No active or pending work eligibility documents available")}
+            <ReviewSection
+              title="Proof of Work Eligibility"
+              description="POW document photos stay next to their details and decision controls."
+            >
+              {data.workEligibilityDocuments?.length ? (
+                <>
+                  {groupedWorkDocs.visible.length ? groupedWorkDocs.visible.map((doc, idx) => (
+                    <WorkDocumentReviewCard key={`doc-visible-${idx}`} doc={doc} index={idx} driverId={driverId} />
+                  )) : renderEmpty("No active or pending work eligibility documents available")}
 
-                    {groupedWorkDocs.hidden.length ? (
-                      <Collapsible>
-                        <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
-                          <ChevronDown className="h-4 w-4" />
-                          Show other documents ({groupedWorkDocs.hidden.length})
-                        </CollapsibleTrigger>
-                        <CollapsibleContent className="mt-3 space-y-3">
-                          {groupedWorkDocs.hidden.map((doc, idx) => (
-                            <WorkDocumentCard key={`doc-hidden-${idx}`} doc={doc} index={idx} driverId={driverId} />
-                          ))}
-                        </CollapsibleContent>
-                      </Collapsible>
-                    ) : null}
-                  </>
-                ) : (
-                  renderEmpty()
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
+                  {groupedWorkDocs.hidden.length ? (
+                    <Collapsible>
+                      <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+                        <ChevronDown className="h-4 w-4" />
+                        Show other documents ({groupedWorkDocs.hidden.length})
+                      </CollapsibleTrigger>
+                      <CollapsibleContent className="mt-4 space-y-4">
+                        {groupedWorkDocs.hidden.map((doc, idx) => (
+                          <WorkDocumentReviewCard key={`doc-hidden-${idx}`} doc={doc} index={idx} driverId={driverId} />
+                        ))}
+                      </CollapsibleContent>
+                    </Collapsible>
+                  ) : null}
+                </>
+              ) : (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No POW document submitted</AlertTitle>
+                  <AlertDescription>The driver has not uploaded proof of work eligibility yet.</AlertDescription>
+                </Alert>
+              )}
+            </ReviewSection>
 
-          <TabsContent value="images">
-            <Card>
-              <CardHeader>
-                <CardTitle>Driver Images</CardTitle>
-                <CardDescription>Click any image to preview.</CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DriverImageGallery
-                  images={(data.driverImages || [])
-                    .filter((item) => Boolean(item.imageUrl))
-                    .map((item, idx) => ({
-                      key: item.imageUrl as string,
-                      url: item.imageUrl,
-                      title: `${humanize(item.imageType)}${item.imageType ? "" : ` #${idx + 1}`}`,
-                      subtitle: `Captured: ${formatDateTime(item.timestamp)}`,
-                    }))}
-                />
-              </CardContent>
-            </Card>
-          </TabsContent>
+            <SecondarySections data={data} />
+          </main>
 
-          <TabsContent value="availability">
-            <Card>
-              <CardHeader>
-                <CardTitle>Weekly Availability</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                {data.weeklyAvailability?.length ? (
-                  data.weeklyAvailability.map((week, weekIdx) => (
-                    <div key={`${week.isoYear}-${week.isoWeek}-${weekIdx}`} className="space-y-2 rounded-md border p-3">
-                      <div className="grid gap-2 md:grid-cols-2">
-                        <p><span className="text-muted-foreground">ISO Year/Week:</span> {field(week.isoYear)}/{field(week.isoWeek)}</p>
-                        <p><span className="text-muted-foreground">Week Range:</span> {formatLocalDate(week.weekStartDate)} - {formatLocalDate(week.weekEndDate)}</p>
-                        <p><span className="text-muted-foreground">Source:</span> {field(week.source)}</p>
-                        <p><span className="text-muted-foreground">Updated:</span> {formatDateTime(week.updatedAt)}</p>
-                      </div>
-
-                      {week.slots?.length ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Day</TableHead>
-                              <TableHead>Start</TableHead>
-                              <TableHead>End</TableHead>
-                              <TableHead>Note</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {week.slots.map((slot, slotIdx) => (
-                              <TableRow key={`${slot.dayOfWeek}-${slot.startTime}-${slotIdx}`}>
-                                <TableCell>{field(slot.dayOfWeek)}</TableCell>
-                                <TableCell>{field(slot.startTime)}</TableCell>
-                                <TableCell>{field(slot.endTime)}</TableCell>
-                                <TableCell>{field(slot.note)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      ) : (
-                        renderEmpty()
-                      )}
-                    </div>
-                  ))
-                ) : (
-                  renderEmpty()
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="performance" className="space-y-3">
-            <Card>
-              <CardHeader>
-                <CardTitle>Rating Summary</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                {data.ratingSummary ? (
-                  <>
-                    <div className="grid gap-2 md:grid-cols-2">
-                      <p><span className="text-muted-foreground">Average Rating:</span> {field(data.ratingSummary.averageRating)}</p>
-                      <p><span className="text-muted-foreground">Total Ratings:</span> {field(data.ratingSummary.totalRatings)}</p>
-                    </div>
-
-                    <div>
-                      <p className="mb-2 font-medium">Reviews</p>
-                      {data.ratingSummary.reviews?.length ? (
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Reviewer</TableHead>
-                              <TableHead>Rating</TableHead>
-                              <TableHead>Timestamp</TableHead>
-                              <TableHead>Review</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {data.ratingSummary.reviews.map((review, idx) => (
-                              <TableRow key={`${review.reviewerName || "reviewer"}-${idx}`}>
-                                <TableCell>{field(review.reviewerName)}</TableCell>
-                                <TableCell>{field(review.rating)}</TableCell>
-                                <TableCell>{formatDateTime(review.timestamp)}</TableCell>
-                                <TableCell>{field(review.reviewText)}</TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      ) : (
-                        renderEmpty()
-                      )}
-                    </div>
-                  </>
-                ) : (
-                  renderEmpty()
-                )}
-              </CardContent>
-            </Card>
+          <aside className="space-y-4 2xl:sticky 2xl:top-6">
+            <IdentityReferencePanel data={data} fullName={fullName} driverImages={driverImages} />
 
             <Card>
               <CardHeader>
-                <CardTitle>Analytics</CardTitle>
+                <CardTitle>Profile Decision</CardTitle>
+                <CardDescription>Use after DL, POW, and background review are complete.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-2 text-sm md:grid-cols-2">
-                {data.analytics ? (
-                  <>
-                    <p><span className="text-muted-foreground">Total Deliveries:</span> {field(data.analytics.totalDeliveries)}</p>
-                    <p><span className="text-muted-foreground">Distance Travelled (km):</span> {field(data.analytics.totalDistanceTravelledKm)}</p>
-                    <p><span className="text-muted-foreground">First Order Completed:</span> {formatDateTime(data.analytics.firstOrderCompletedAt)}</p>
-                    <p><span className="text-muted-foreground">Last Order Completed:</span> {formatDateTime(data.analytics.lastOrderCompletedAt)}</p>
-                  </>
-                ) : (
-                  <div className="md:col-span-2">{renderEmpty()}</div>
-                )}
+              <CardContent className="space-y-4">
+                <div className="rounded-md border bg-muted/40 p-3 text-sm">
+                  <div className="mb-2 flex items-center gap-2 font-medium">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                    Admin actions
+                  </div>
+                  <p className="text-muted-foreground">
+                    Decisions are captured with a required reason for audit history.
+                  </p>
+                </div>
+                <DriverDetailActions driverId={driverId} profileStatus={data.profileStatus} mode="panel" />
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="notes">
-            <Card>
-              <CardHeader>
-                <CardTitle>Admin Notes</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <p className="whitespace-pre-wrap text-sm">{data.adminNotes || "No data available"}</p>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+          </aside>
+        </div>
       </div>
     </TooltipProvider>
   )

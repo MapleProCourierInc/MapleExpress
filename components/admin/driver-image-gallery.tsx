@@ -3,6 +3,7 @@
 import { useState } from "react"
 import Image from "next/image"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
+import { cn } from "@/lib/utils"
 
 type DriverImageGalleryItem = {
   key: string
@@ -14,9 +15,15 @@ type DriverImageGalleryItem = {
 export function DriverImageGallery({
   images,
   fallbackLabel = "Failed to load image preview",
+  gridClassName,
+  itemClassName,
+  imageClassName,
 }: {
   images: DriverImageGalleryItem[]
   fallbackLabel?: string
+  gridClassName?: string
+  itemClassName?: string
+  imageClassName?: string
 }) {
   const [active, setActive] = useState<DriverImageGalleryItem | null>(null)
 
@@ -26,13 +33,23 @@ export function DriverImageGallery({
 
   return (
     <>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+      <div className={cn("grid grid-cols-1 gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4", gridClassName)}>
         {images.map((image, idx) => (
-          <button key={`${image.key}-${idx}`} className="overflow-hidden rounded-md border text-left" onClick={() => setActive(image)}>
+          <button
+            key={`${image.key}-${idx}`}
+            className={cn("overflow-hidden rounded-md border text-left", itemClassName)}
+            onClick={() => setActive(image)}
+          >
             {image.url ? (
-              <img src={image.url} alt={image.title || `Driver image ${idx + 1}`} className="h-28 w-full object-cover" />
+              <img
+                src={image.url}
+                alt={image.title || `Driver image ${idx + 1}`}
+                className={cn("h-28 w-full object-cover", imageClassName)}
+              />
             ) : (
-              <div className="flex h-28 items-center justify-center bg-muted px-2 text-center text-xs text-muted-foreground">{fallbackLabel}</div>
+              <div className={cn("flex h-28 items-center justify-center bg-muted px-2 text-center text-xs text-muted-foreground", imageClassName)}>
+                {fallbackLabel}
+              </div>
             )}
             <div className="space-y-1 p-2">
               {image.title ? <p className="text-xs font-medium">{image.title}</p> : null}

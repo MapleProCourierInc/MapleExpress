@@ -2,7 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
-import { MoreHorizontal } from "lucide-react"
+import { Ban, CheckCircle2, MoreHorizontal, PauseCircle, PlayCircle, XCircle } from "lucide-react"
 import type { DriverProfileStatus } from "@/types/admin-drivers"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
@@ -25,7 +25,23 @@ const labels: Record<ActionKey, string> = {
   terminate: "Terminate",
 }
 
-export function DriverDetailActions({ driverId, profileStatus }: { driverId: string; profileStatus?: DriverProfileStatus | string }) {
+const actionIcons = {
+  approve: CheckCircle2,
+  reject: XCircle,
+  suspend: PauseCircle,
+  unsuspend: PlayCircle,
+  terminate: Ban,
+}
+
+export function DriverDetailActions({
+  driverId,
+  profileStatus,
+  mode = "menu",
+}: {
+  driverId: string
+  profileStatus?: DriverProfileStatus | string
+  mode?: "menu" | "panel"
+}) {
   const [currentAction, setCurrentAction] = useState<ActionKey | null>(null)
   const [loading, setLoading] = useState(false)
   const router = useRouter()
@@ -75,33 +91,56 @@ export function DriverDetailActions({ driverId, profileStatus }: { driverId: str
     }
   }
 
+  const isDestructiveAction = currentAction === "reject" || currentAction === "suspend" || currentAction === "terminate"
+
   return (
     <>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button variant="outline" size="sm">
-            <MoreHorizontal className="mr-2 h-4 w-4" />
-            Actions
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          {actions.map((action) => (
-            <DropdownMenuItem
-              key={action}
-              onClick={() => setCurrentAction(action)}
-              className={action === "terminate" ? "text-destructive" : undefined}
-            >
-              {labels[action]}
-            </DropdownMenuItem>
-          ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {mode === "panel" ? (
+        <div className="grid grid-cols-2 gap-2">
+          {actions.map((action) => {
+            const Icon = actionIcons[action]
+            const isDanger = action === "reject" || action === "terminate"
+            return (
+              <Button
+                key={action}
+                variant={isDanger ? "outline" : action === "approve" || action === "unsuspend" ? "default" : "secondary"}
+                size="sm"
+                className={isDanger ? "border-destructive/40 text-destructive hover:bg-destructive hover:text-destructive-foreground" : undefined}
+                onClick={() => setCurrentAction(action)}
+              >
+                <Icon className="h-4 w-4" />
+                {labels[action]}
+              </Button>
+            )
+          })}
+        </div>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" size="sm">
+              <MoreHorizontal className="mr-2 h-4 w-4" />
+              Actions
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            {actions.map((action) => (
+              <DropdownMenuItem
+                key={action}
+                onClick={() => setCurrentAction(action)}
+                className={action === "terminate" ? "text-destructive" : undefined}
+              >
+                {labels[action]}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
 
       <DriverActionDialog
         open={Boolean(currentAction)}
         onOpenChange={(open) => !open && setCurrentAction(null)}
         actionLabel={currentAction ? labels[currentAction] : "Action"}
-        destructive={currentAction === "suspend" || currentAction === "terminate"}
+        destructive={isDestructiveAction}
         loading={loading}
         onConfirm={submit}
       />

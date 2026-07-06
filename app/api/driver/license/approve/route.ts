@@ -1,30 +1,36 @@
 import { revalidatePath } from "next/cache"
 import { NextRequest, NextResponse } from "next/server"
-import { approveDriverLicense } from "@/lib/admin-drivers-service"
+import { reviewDriverLicense } from "@/lib/admin-drivers-service"
 
 export async function POST(request: NextRequest) {
   const body = await request.json().catch(() => ({}))
 
   const driverId = String(body?.driverId || "").trim()
   const licenseNumber = String(body?.licenseNumber || "").trim()
-  const reason = String(body?.reason || "Approved by admin").trim()
+  const action = String(body?.action || "APPROVED").trim().toUpperCase()
+  const isValidAction = action === "APPROVED" || action === "REJECTED"
+  const reason = String(body?.reason || (action === "REJECTED" ? "" : "Approved by admin")).trim()
   const notes = body?.notes ? String(body.notes).trim() : ""
 
-  if (!driverId || !licenseNumber) {
+  if (!driverId || !licenseNumber || !isValidAction || (action === "REJECTED" && !reason)) {
     return NextResponse.json(
       {
-        message: "driverId and licenseNumber are required",
+        message: "driverId, licenseNumber, and a valid action are required",
         errors: [
-          { field: "driverId", message: "driverId is required" },
-          { field: "licenseNumber", message: "licenseNumber is required" },
+          ...(!driverId ? [{ field: "driverId", message: "driverId is required" }] : []),
+          ...(!licenseNumber ? [{ field: "licenseNumber", message: "licenseNumber is required" }] : []),
+          ...(!isValidAction ? [{ field: "action", message: "action must be APPROVED or REJECTED" }] : []),
+          ...(action === "REJECTED" && !reason ? [{ field: "reason", message: "reason is required when rejecting" }] : []),
         ],
       },
       { status: 400 },
     )
   }
 
-  const result = await approveDriverLicense(driverId, {
+  const reviewAction = action as "APPROVED" | "REJECTED"
+  const result = await reviewDriverLicense(driverId, {
     licenseNumber,
+    action: reviewAction,
     reason,
     notes,
   })
@@ -33,11 +39,14 @@ export async function POST(request: NextRequest) {
     if (result.textError) {
       return new NextResponse(result.textError, { status: 422, headers: { "Content-Type": "text/plain" } })
     }
-    return NextResponse.json(result.error ?? { message: "License approval failed" }, { status: Number(result.error?.status) || 400 })
+    return NextResponse.json(result.error ?? { message: "License review failed" }, { status: Number(result.error?.status) || 400 })
   }
 
   revalidatePath("/admin/drivers")
   revalidatePath(`/admin/drivers/${driverId}`)
 
-  return NextResponse.json({ message: "License approved successfully" })
+  return NextResponse.json({
+    ...result.data,
+    message: result.data?.message || (reviewAction === "APPROVED" ? "License approved successfully" : "License rejected successfully"),
+  })
 }
