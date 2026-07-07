@@ -1,0 +1,1994 @@
+openapi: 3.0.3
+info:
+  title: Driver Management Service API
+  version: 1.0.0
+  description: |
+    Runtime driver session and live driver location APIs for driver-management-ms.
+
+    Driver profile management is owned by usermanagement-profile-ms. This service handles
+    driver sessions, order activity snapshots, Mongo last-known location, and Redis-backed
+    live driver location reads/writes.
+
+    Protected APIs use AWS Cognito JWT bearer authentication. Driver ownership is derived
+    from the authenticated JWT by the service; request bodies must not provide userId or
+    driverId for ownership decisions.
+servers:
+  - url: /drivermanagement
+    description: Service context path configured by server.servlet.context-path
+tags:
+  - name: Driver Sessions
+    description: Driver work-session lifecycle and session activity APIs.
+  - name: Driver Live Location
+    description: Authenticated Redis-backed live driver location APIs.
+  - name: Public Driver Live Location
+    description: Public sanitized driver location tracking APIs.
+  - name: Driver Order Fulfilments
+    description: JWT-protected driver app order fulfilment status update APIs.
+  - name: Admin Dashboard
+    description: Authenticated driver operations APIs used by the admin dashboard.
+  - name: Internal Driver Sessions
+    description: Internal service-to-service driver session APIs protected by X-Internal-Service-Secret.
+  - name: Actuator
+    description: Permitted service health and info endpoints.
+
+security:
+  - cognitoBearerAuth: []
+
+paths:
+  /drivers/sessions/start:
+    post:
+      tags:
+        - Driver Sessions
+      summary: Start driver session
+      description: |
+        Starts a driver session for the authenticated JWT user.
+
+        The service derives userId from the Cognito JWT, calls usermanagement-profile-ms
+        with the same bearer token to resolve driver profile details, and stores driverId
+        and the driverNameSnapshot, phone, and email snapshots from that trusted profile response.
+      operationId: startDriverSession
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/StartSessionRequestDTO'
+            examples:
+              withInitialLocation:
+                summary: Start session with initial last-known location
+                value:
+                  lastKnownLocation:
+                    coordinates:
+                      type: Point
+                      coordinates:
+                        - -63.5752
+                        - 44.6488
+                    accuracyMeters: 8.5
+                    speedKph: 0.0
+                    heading: 90.0
+                    recordedAt: '2026-07-02T18:45:00-03:00'
+                    serverReceivedAt: '2026-07-02T18:45:02-03:00'
+              withoutInitialLocation:
+                summary: Start session without initial location
+                value: {}
+      responses:
+        '200':
+          description: Driver session created successfully.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StartSessionResponseDTO'
+              example:
+                sessionId: driver_123_Session_abc
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/driver/location:
+    post:
+      tags:
+        - Driver Live Location
+      summary: Update live driver location
+      description: |
+        Updates the authenticated driver's live location in Redis and the Mongo session
+        lastKnownLocation snapshot.
+
+        The request body includes GPS/session data only. The service extracts userId from
+        the Cognito JWT, validates active session ownership, resolves driverId from the
+        active session, and writes Redis key driver:live-location:{driverId}.
+      operationId: updateLiveDriverLocation
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DriverLocationUpdateRequest'
+            examples:
+              locationUpdate:
+                summary: Driver app location update
+                value:
+                  sessionId: session_20260702_000001
+                  latitude: 44.6488
+                  longitude: -63.5752
+                  accuracyMeters: 12.5
+                  speedKph: 34.2
+                  heading: 185.0
+                  recordedAt: '2026-07-02T15:15:00-03:00'
+      responses:
+        '200':
+          description: Live location updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverLocationUpdateResponse'
+              example:
+                sessionId: session_20260702_000001
+                driverId: driver_456
+                status: IDLE
+                serverReceivedAt: '2026-07-02T15:15:01-03:00'
+                ttlSeconds: 120
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/sessions/{sessionId}:
+    get:
+      tags:
+        - Driver Sessions
+      summary: Get driver session by ID
+      description: Retrieves a driver session by sessionId.
+      operationId: getDriverSessionById
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/SessionIdPath'
+      responses:
+        '200':
+          description: Driver session found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverSessionDTO'
+              examples:
+                activeSession:
+                  $ref: '#/components/examples/ActiveDriverSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/sessions/active:
+    get:
+      tags:
+        - Driver Sessions
+      summary: Get active driver session
+      description: |
+        Retrieves the active session for the authenticated JWT user.
+        The client does not provide driverId; ownership is derived from the Cognito JWT.
+      operationId: getActiveDriverSession
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Active driver session found.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverSessionDTO'
+              examples:
+                activeSession:
+                  $ref: '#/components/examples/ActiveDriverSession'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/sessions/active/orders:
+    get:
+      tags:
+        - Driver Sessions
+      summary: Get assigned order fulfillments
+      description: Retrieves order activity entries from the authenticated driver's active session.
+      operationId: getAssignedOrderFulfillmentsForAuthenticatedDriver
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Assigned order fulfillment activities.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderActivityDTO'
+              examples:
+                assignedOrders:
+                  summary: Lean order activity snapshot
+                  value:
+                    - orderFulfillmentId: of_123
+                      shippingOrderId: so_789
+                      trackingNumber: MPC123456789
+                      assignedAt: '2026-07-02T18:50:00-03:00'
+                      startedAt: null
+                      completedAt: null
+                      pickup:
+                        address:
+                          fullName: Pickup Contact
+                          company: Maple Warehouse
+                          streetAddress: 123 Pickup St
+                          addressLine2: Dock 2
+                          city: Halifax
+                          province: NS
+                          postalCode: B3J 1A1
+                          country: CA
+                          phoneNumber: '+19025550100'
+                          deliveryInstructions: Use loading dock
+                        coordinates:
+                          type: Point
+                          coordinates:
+                            - -63.5752
+                            - 44.6488
+                        scheduledTime: '2026-07-02T19:00:00-03:00'
+                        notes: Use loading dock
+                      dropoff:
+                        address:
+                          fullName: Dropoff Contact
+                          company: Customer Office
+                          streetAddress: 456 Dropoff Ave
+                          addressLine2: Suite 400
+                          city: Dartmouth
+                          province: NS
+                          postalCode: B2Y 1A1
+                          country: CA
+                          phoneNumber: '+19025550101'
+                          deliveryInstructions: Front desk
+                        coordinates:
+                          type: Point
+                          coordinates:
+                            - -63.5676
+                            - 44.6713
+                        scheduledTime: '2026-07-02T19:45:00-03:00'
+                        notes: Front desk
+                      distanceToDelivery: 12.4
+                      taskStatus: ASSIGNED
+                      fulfillmentStatus: ASSIGNED
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/sessions/search:
+    get:
+      tags:
+        - Driver Sessions
+      summary: Find driver sessions by filters
+      description: Finds sessions owned by the authenticated JWT user using optional sessionStatus and currentStatus filters.
+      operationId: findDriverSessions
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - name: sessionStatus
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/SessionStatus'
+          example: ACTIVE
+        - name: currentStatus
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/DriverActivityStatus'
+          example: IDLE
+      responses:
+        '200':
+          description: Matching driver sessions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DriverSessionDTO'
+              examples:
+                sessions:
+                  summary: Matching active sessions
+                  value:
+                    - sessionId: session_20260702_000001
+                      userId: user_789
+                      driverId: driver_456
+                      driverNameSnapshot: Alex Driver
+                      phone: '+19025550123'
+                      email: alex.driver@example.com
+                      startedAt: '2026-07-02T15:00:00-03:00'
+                      endedAt: null
+                      lastUpdatedAt: '2026-07-02T15:15:01-03:00'
+                      lastHeartbeatAt: '2026-07-02T15:15:01-03:00'
+                      lastOnlineAt: '2026-07-02T15:15:01-03:00'
+                      offlineSince: null
+                      lastSyncAt: '2026-07-02T15:15:01-03:00'
+                      sessionStatus: ACTIVE
+                      currentStatus: IDLE
+                      connectivityStatus: ONLINE
+                      lastKnownLocation:
+                        coordinates:
+                          type: Point
+                          coordinates:
+                            - -63.5752
+                            - 44.6488
+                        accuracyMeters: 12.5
+                        speedKph: 34.2
+                        heading: 185.0
+                        recordedAt: '2026-07-02T15:15:00-03:00'
+                        serverReceivedAt: '2026-07-02T15:15:01-03:00'
+                      orders: []
+                      totalDeliveries: 0
+                      totalDistanceTravelledKm: 0.0
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/admin/drivers/sessions/active:
+    get:
+      tags:
+        - Admin Dashboard
+      summary: Get all active driver sessions
+      description: Returns every driver session whose sessionStatus is ACTIVE for the admin dashboard.
+      operationId: getAllActiveDriverSessions
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Active driver sessions.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DriverSessionDTO'
+              example:
+                - sessionId: session_20260702_000001
+                  userId: user_789
+                  driverId: driver_456
+                  driverNameSnapshot: Alex Driver
+                  phone: '+19025550123'
+                  email: alex.driver@example.com
+                  startedAt: '2026-07-02T15:00:00-03:00'
+                  endedAt: null
+                  lastUpdatedAt: '2026-07-02T15:15:01-03:00'
+                  lastHeartbeatAt: '2026-07-02T15:15:01-03:00'
+                  lastOnlineAt: '2026-07-02T15:15:01-03:00'
+                  offlineSince: null
+                  lastSyncAt: '2026-07-02T15:15:01-03:00'
+                  sessionStatus: ACTIVE
+                  currentStatus: IDLE
+                  connectivityStatus: ONLINE
+                  orders: []
+                  totalDeliveries: 0
+                  totalDistanceTravelledKm: 0.0
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /drivers/sessions/{sessionId}/end:
+    post:
+      tags:
+        - Driver Sessions
+      summary: End driver session
+      description: |
+        Ends an active session owned by the authenticated JWT user.
+
+        All order activities in the session must have taskStatus END_OF_DAY or
+        COMPLETED. If any assigned task is still in another state, the session
+        cannot be ended.
+
+        Session lifecycle status is updated independently from connectivityStatus; a session
+        is not ended merely because driver connectivity is lost.
+      operationId: endDriverSession
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/SessionIdPath'
+      responses:
+        '200':
+          description: Driver session ended.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/EndSessionResponseDTO'
+              example:
+                sessionId: session_20260702_000001
+                userId: user_789
+                driverId: driver_456
+                startedAt: '2026-07-02T15:00:00-03:00'
+                endedAt: '2026-07-02T22:10:00-03:00'
+                sessionStatus: ENDED
+        '400':
+          description: Assigned tasks are still incomplete.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Please Complete all assigned tasks before ending the session.
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/admin/drivers/{driverId}/location:
+    get:
+      tags:
+        - Driver Live Location
+      summary: Get one driver live location
+      description: Reads one driver's live location JSON from Redis key driver:live-location:{driverId}.
+      operationId: getDriverLiveLocation
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      responses:
+        '200':
+          description: Live driver location found in Redis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverLiveLocationResponse'
+              examples:
+                liveLocation:
+                  $ref: '#/components/examples/DriverLiveLocation'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/admin/drivers/locations:
+    get:
+      tags:
+        - Driver Live Location
+      summary: Get all live driver locations
+      description: Scans Redis live-location keys using the configured prefix and returns currently live locations.
+      operationId: getAllDriverLiveLocations
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      responses:
+        '200':
+          description: Live driver locations currently present in Redis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverLiveLocationsResponse'
+              examples:
+                liveLocations:
+                  summary: One live driver
+                  value:
+                    count: 1
+                    drivers:
+                      - driverId: driver_456
+                        userId: user_789
+                        sessionId: session_20260702_000001
+                        status: IDLE
+                        latitude: 44.6488
+                        longitude: -63.5752
+                        accuracyMeters: 12.5
+                        speedKph: 34.2
+                        heading: 185.0
+                        recordedAt: '2026-07-02T15:15:00-03:00'
+                        serverReceivedAt: '2026-07-02T15:15:01-03:00'
+                        live: true
+                noLiveDrivers:
+                  summary: No live drivers
+                  value:
+                    count: 0
+                    drivers: []
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /api/v1/public/drivers/{driverId}/location:
+    get:
+      tags:
+        - Public Driver Live Location
+      summary: Get public driver live location
+      description: |
+        Reads a sanitized public live driver location from Redis.
+
+        This endpoint is permit-all by security configuration and never returns userId,
+        accuracyMeters, or speedKph.
+      operationId: getPublicDriverLiveLocation
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptHeaderOptional'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      responses:
+        '200':
+          description: Sanitized live driver location found in Redis.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicDriverLiveLocationResponse'
+              examples:
+                publicLiveLocation:
+                  $ref: '#/components/examples/PublicDriverLiveLocation'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal/v1/updateOrderFulfilmentStatus/{orderFulfilmentId}:
+    post:
+      tags:
+        - Driver Order Fulfilments
+      summary: Update assigned order fulfilment status
+      description: |
+        JWT-protected driver app endpoint that forwards the status request to
+        ordermanagement-fulfilment-ms after verifying the authenticated driver has an
+        ACTIVE session and that the fulfilment belongs to that session.
+
+        The body shape is compatible with ordermanagement-fulfilment-ms. If
+        driverUserId is supplied, this service ignores it and forwards the JWT `sub`
+        as driverUserId.
+      operationId: updateDriverOrderFulfillmentStatus
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/OrderFulfilmentIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderFulfillmentStatusRequest'
+            example:
+              deduplicationKey: driver-session-123:OrderFulfilment_12345:IN_TRANSIT
+              newStatus: IN_TRANSIT
+              imageUrls:
+                - https://cdn.example.com/proof/status-1.jpg
+              trackingEvent:
+                statusMessage: Package is in transit.
+                location:
+                  latitude: 44.6488
+                  longitude: -63.5752
+      responses:
+        '200':
+          description: Updated order activity from the authenticated driver's active session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderActivityDTO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal/v1/orderFulfillments/{orderFulfilmentId}/pickedUp:
+    post:
+      tags:
+        - Driver Order Fulfilments
+      summary: Mark assigned order fulfilment picked up
+      description: |
+        JWT-protected driver app endpoint that forwards the pickup request to
+        ordermanagement-fulfilment-ms after active-session and assignment checks.
+      operationId: updateDriverOrderFulfillmentPickedUp
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/OrderFulfilmentIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderFulfillmentPickedUpRequest'
+            example:
+              deduplicationKey: driver-session-123:OrderFulfilment_12345:PICKED_UP
+              pickupTime: '2026-07-05T12:45:00Z'
+              driverNotes: Picked up from reception desk.
+              location:
+                latitude: 44.6488
+                longitude: -63.5752
+              imageUrls:
+                - https://cdn.example.com/proof/pickup-1.jpg
+      responses:
+        '200':
+          description: Updated order activity from the authenticated driver's active session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderActivityDTO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal/v1/orderFulfillments/{orderFulfilmentId}/delivered:
+    post:
+      tags:
+        - Driver Order Fulfilments
+      summary: Mark assigned order fulfilment delivered
+      description: |
+        JWT-protected driver app endpoint that forwards the delivered request to
+        ordermanagement-fulfilment-ms after active-session and assignment checks.
+      operationId: updateDriverOrderFulfillmentDelivered
+      security:
+        - cognitoBearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - $ref: '#/components/parameters/OrderFulfilmentIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateOrderFulfillmentDeliveredRequest'
+            example:
+              deduplicationKey: driver-session-123:OrderFulfilment_12345:DELIVERED
+              dropoffTime: '2026-07-05T13:25:00Z'
+              driverNotes: Delivered to reception desk.
+              signatureStatus: CAPTURED
+              signature:
+                signedByName: Jane Doe
+                signedByRelationship: RECEPTION
+                signatureImageUrl: https://cdn.example.com/signatures/signature-1.png
+                signatureImageObjectKey: signatures/signature-1.png
+                signedAt: '2026-07-05T13:24:30Z'
+                capturedByDriverId: driver-user-123
+                note: Reception accepted the package.
+              location:
+                latitude: 44.6488
+                longitude: -63.5752
+              imageUrls:
+                - https://cdn.example.com/proof/dropoff-1.jpg
+      responses:
+        '200':
+          description: Updated order activity from the authenticated driver's active session.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderActivityDTO'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /internal/api/v1/driver-sessions/active/check:
+    post:
+      tags:
+        - Internal Driver Sessions
+      summary: Check driver active session
+      description: |
+        Internal service-to-service API that checks whether the provided driverUserId
+        currently has an ACTIVE driver session.
+
+        This endpoint does not use Cognito JWT bearer auth. It is protected by the
+        X-Internal-Service-Secret header and is intended for trusted backend services
+        that need to decide whether a new order can be assigned to a driver.
+      operationId: checkInternalDriverActiveSession
+      security:
+        - internalServiceSecretAuth: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - $ref: '#/components/parameters/AcceptHeaderRequired'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalDriverActiveSessionRequest'
+            example:
+              driverUserId: user_789
+      responses:
+        '200':
+          description: Active session check result.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalDriverActiveSessionResponse'
+              examples:
+                activeSession:
+                  summary: Driver has an active session
+                  value:
+                    driverUserId: user_789
+                    hasActiveSession: true
+                    sessionId: session_20260702_000001
+                    driverId: driver_456
+                    sessionStatus: ACTIVE
+                    currentStatus: IDLE
+                    startedAt: '2026-07-02T15:00:00-03:00'
+                    lastUpdatedAt: '2026-07-02T15:15:01-03:00'
+                noActiveSession:
+                  summary: Driver has no active session
+                  value:
+                    driverUserId: user_789
+                    hasActiveSession: false
+                    sessionId: null
+                    driverId: null
+                    sessionStatus: null
+                    currentStatus: null
+                    startedAt: null
+                    lastUpdatedAt: null
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Unauthorized internal service request.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: error
+                  message:
+                    type: string
+                    example: Unauthorized internal service request
+                additionalProperties: false
+              example:
+                status: error
+                message: Unauthorized internal service request
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+
+  /actuator/health:
+    get:
+      tags:
+        - Actuator
+      summary: Service health
+      description: Spring Boot actuator health endpoint permitted without authentication.
+      operationId: actuatorHealth
+      security: []
+      responses:
+        '200':
+          description: Service health response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ActuatorHealthResponse'
+              example:
+                status: UP
+
+  /actuator/info:
+    get:
+      tags:
+        - Actuator
+      summary: Service info
+      description: Spring Boot actuator info endpoint permitted without authentication.
+      operationId: actuatorInfo
+      security: []
+      responses:
+        '200':
+          description: Service info response.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example: {}
+
+components:
+  securitySchemes:
+    cognitoBearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: AWS Cognito JWT validated by Spring Security OAuth2 resource server.
+    internalServiceSecretAuth:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+      description: Shared internal service secret used for /internal/** service-to-service APIs.
+
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      description: AWS Cognito bearer access token or ID token accepted by the resource server.
+      schema:
+        type: string
+        pattern: '^Bearer .+'
+      example: Bearer eyJraWQiOiJ...
+    AcceptHeaderRequired:
+      name: Accept
+      in: header
+      required: true
+      description: Response media type requested by the client.
+      schema:
+        type: string
+        enum:
+          - application/json
+      example: application/json
+    AcceptHeaderOptional:
+      name: Accept
+      in: header
+      required: false
+      description: Response media type requested by the client.
+      schema:
+        type: string
+        enum:
+          - application/json
+      example: application/json
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      description: Request body media type.
+      schema:
+        type: string
+        enum:
+          - application/json
+      example: application/json
+    InternalServiceSecretHeader:
+      name: X-Internal-Service-Secret
+      in: header
+      required: true
+      description: Shared internal service secret for trusted backend service-to-service calls.
+      schema:
+        type: string
+      example: '{{INTERNAL_SERVICE_SECRET}}'
+    RequestIdHeader:
+      name: X-Request-ID
+      in: header
+      required: false
+      description: Optional caller-provided request correlation identifier.
+      schema:
+        type: string
+      example: req_20260702_000001
+    DriverIdPath:
+      name: driverId
+      in: path
+      required: true
+      description: Driver profile identifier used by admin/public live-location lookup APIs. Driver-app session ownership is never taken from this value.
+      schema:
+        type: string
+      example: driver_456
+    SessionIdPath:
+      name: sessionId
+      in: path
+      required: true
+      description: Driver session identifier.
+      schema:
+        type: string
+      example: session_20260702_000001
+    OrderFulfilmentIdPath:
+      name: orderFulfilmentId
+      in: path
+      required: true
+      description: Order fulfilment identifier assigned to the authenticated driver's active session.
+      schema:
+        type: string
+      example: OrderFulfilment_12345
+
+  responses:
+    BadRequest:
+      description: Bad request or validation error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            message: Invalid location request
+            errors:
+              - field: latitude
+                message: Latitude must be between -90 and 90
+            errorDetails:
+              errorCode: 400
+              errorType: Validation Error
+              characteristics:
+                path: /api/v1/driver/location
+    Unauthorized:
+      description: Missing, invalid, or expired JWT.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            message: Unauthorized
+            errors:
+              - field: Authorization
+                message: Missing or invalid bearer token
+            errorDetails:
+              errorCode: 401
+              errorType: Authentication Error
+              characteristics:
+                scheme: Bearer
+    NotFound:
+      description: Requested resource was not found.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            message: Resource not found
+            errors: []
+            errorDetails:
+              errorCode: 404
+              errorType: Not Found
+              characteristics: {}
+    InternalServerError:
+      description: Internal server error.
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          example:
+            status: error
+            message: An error occurred
+            errors: []
+            errorDetails:
+              errorCode: 500
+              errorType: Internal Server Error
+              characteristics: {}
+
+  examples:
+    ActiveDriverSession:
+      summary: Active driver session
+      value:
+        sessionId: session_20260702_000001
+        userId: user_789
+        driverId: driver_456
+        driverNameSnapshot: Alex Driver
+        phone: '+19025550123'
+        email: alex.driver@example.com
+        startedAt: '2026-07-02T15:00:00-03:00'
+        endedAt: null
+        lastUpdatedAt: '2026-07-02T15:15:01-03:00'
+        lastHeartbeatAt: '2026-07-02T15:15:01-03:00'
+        lastOnlineAt: '2026-07-02T15:15:01-03:00'
+        offlineSince: null
+        lastSyncAt: '2026-07-02T15:15:01-03:00'
+        sessionStatus: ACTIVE
+        currentStatus: IDLE
+        connectivityStatus: ONLINE
+        lastKnownLocation:
+          coordinates:
+            type: Point
+            coordinates:
+              - -63.5752
+              - 44.6488
+          accuracyMeters: 12.5
+          speedKph: 34.2
+          heading: 185.0
+          recordedAt: '2026-07-02T15:15:00-03:00'
+          serverReceivedAt: '2026-07-02T15:15:01-03:00'
+        orders:
+          - orderFulfillmentId: of_123
+            shippingOrderId: so_789
+            trackingNumber: MPC123456789
+            assignedAt: '2026-07-02T18:50:00-03:00'
+            startedAt: null
+            completedAt: null
+            pickup:
+              address:
+                fullName: Pickup Contact
+                company: Maple Warehouse
+                streetAddress: 123 Pickup St
+                addressLine2: Dock 2
+                city: Halifax
+                province: NS
+                postalCode: B3J 1A1
+                country: CA
+                phoneNumber: '+19025550100'
+                deliveryInstructions: Use loading dock
+              coordinates:
+                type: Point
+                coordinates:
+                  - -63.5752
+                  - 44.6488
+              scheduledTime: '2026-07-02T19:00:00-03:00'
+              notes: Use loading dock
+            dropoff:
+              address:
+                fullName: Dropoff Contact
+                company: Customer Office
+                streetAddress: 456 Dropoff Ave
+                addressLine2: Suite 400
+                city: Dartmouth
+                province: NS
+                postalCode: B2Y 1A1
+                country: CA
+                phoneNumber: '+19025550101'
+                deliveryInstructions: Front desk
+              coordinates:
+                type: Point
+                coordinates:
+                  - -63.5676
+                  - 44.6713
+              scheduledTime: '2026-07-02T19:45:00-03:00'
+              notes: Front desk
+            distanceToDelivery: 12.4
+            taskStatus: ASSIGNED
+            fulfillmentStatus: ASSIGNED
+        totalDeliveries: 0
+        totalDistanceTravelledKm: 0.0
+    DriverLiveLocation:
+      summary: Redis live location response
+      value:
+        driverId: driver_456
+        userId: user_789
+        sessionId: session_20260702_000001
+        status: IDLE
+        latitude: 44.6488
+        longitude: -63.5752
+        accuracyMeters: 12.5
+        speedKph: 34.2
+        heading: 185.0
+        recordedAt: '2026-07-02T15:15:00-03:00'
+        serverReceivedAt: '2026-07-02T15:15:01-03:00'
+        live: true
+    PublicDriverLiveLocation:
+      summary: Public sanitized live location response
+      value:
+        driverId: driver_456
+        sessionId: session_20260702_000001
+        status: IDLE
+        latitude: 44.6488
+        longitude: -63.5752
+        heading: 185.0
+        recordedAt: '2026-07-02T15:15:00-03:00'
+        serverReceivedAt: '2026-07-02T15:15:01-03:00'
+        live: true
+
+  schemas:
+    StartSessionRequestDTO:
+      type: object
+      description: Request to start a driver session. userId and driverId are not accepted in the request body.
+      properties:
+        lastKnownLocation:
+          $ref: '#/components/schemas/LocationSnapshotDTO'
+      additionalProperties: false
+
+    StartSessionResponseDTO:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          example: driver_123_Session_abc
+      additionalProperties: false
+
+    EndSessionResponseDTO:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          example: session_20260702_000001
+        userId:
+          type: string
+          example: user_789
+        driverId:
+          type: string
+          example: driver_456
+        startedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:00:00-03:00'
+        endedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T22:10:00-03:00'
+        sessionStatus:
+          $ref: '#/components/schemas/SessionStatus'
+      additionalProperties: false
+
+    InternalDriverActiveSessionRequest:
+      type: object
+      required:
+        - driverUserId
+      properties:
+        driverUserId:
+          type: string
+          description: Driver user id from usermanagement-profile-ms / Cognito subject.
+          example: user_789
+      additionalProperties: false
+
+    InternalDriverActiveSessionResponse:
+      type: object
+      required:
+        - driverUserId
+        - hasActiveSession
+      properties:
+        driverUserId:
+          type: string
+          example: user_789
+        hasActiveSession:
+          type: boolean
+          description: True when the driver user currently has an ACTIVE driver session.
+          example: true
+        sessionId:
+          type: string
+          nullable: true
+          example: session_20260702_000001
+        driverId:
+          type: string
+          nullable: true
+          example: driver_456
+        sessionStatus:
+          type: string
+          nullable: true
+          enum:
+            - ACTIVE
+            - ENDED
+            - CANCELLED
+          example: ACTIVE
+        currentStatus:
+          type: string
+          nullable: true
+          enum:
+            - IDLE
+            - EN_ROUTE
+            - BUSY
+            - ON_BREAK
+          example: IDLE
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:00:00-03:00'
+        lastUpdatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:15:01-03:00'
+      additionalProperties: false
+
+    UpdateOrderFulfillmentStatusRequest:
+      type: object
+      description: Request payload compatible with ordermanagement-fulfilment-ms status update. driverUserId is accepted for compatibility but ignored; this service forwards the authenticated JWT subject.
+      required:
+        - deduplicationKey
+        - newStatus
+      properties:
+        deduplicationKey:
+          type: string
+          description: Idempotency key for this status update operation.
+          example: driver-session-123:OrderFulfilment_12345:IN_TRANSIT
+        imageUrls:
+          type: array
+          description: Proof image URLs. Pickup statuses append pickup proof images; delivered statuses append dropoff proof images.
+          items:
+            type: string
+            format: uri
+        driverUserId:
+          type: string
+          nullable: true
+          deprecated: true
+          description: Ignored by driver-management-ms. The forwarded value is derived from the JWT subject.
+          example: user_789
+        receivedBy:
+          type: string
+          nullable: true
+          description: Recipient name for completed delivery.
+          example: John Customer
+        newStatus:
+          $ref: '#/components/schemas/FulfillmentStatus'
+        trackingEvent:
+          $ref: '#/components/schemas/UpdateTrackingEventRequest'
+      additionalProperties: false
+
+    UpdateTrackingEventRequest:
+      type: object
+      description: Tracking event details supplied by a driver during a status update.
+      properties:
+        location:
+          $ref: '#/components/schemas/FulfillmentLocationDouble'
+        statusMessage:
+          type: string
+          nullable: true
+          description: Driver-entered tracking note or status message.
+          example: Package is in transit.
+      additionalProperties: false
+
+    UpdateOrderFulfillmentPickedUpRequest:
+      type: object
+      description: Request payload for marking an assigned order fulfilment as picked up.
+      required:
+        - deduplicationKey
+        - pickupTime
+        - location
+        - imageUrls
+      properties:
+        deduplicationKey:
+          type: string
+          description: Idempotency key for this pickup update operation.
+          example: driver-session-123:OrderFulfilment_12345:PICKED_UP
+        pickupTime:
+          type: string
+          format: date-time
+          description: Timestamp when the pickup occurred.
+          example: '2026-07-05T12:45:00Z'
+        location:
+          $ref: '#/components/schemas/FulfillmentLocation'
+        imageUrls:
+          type: array
+          minItems: 1
+          description: Pickup proof image URLs.
+          items:
+            type: string
+            format: uri
+        driverNotes:
+          type: string
+          nullable: true
+          description: Optional driver pickup notes.
+          example: Picked up from reception desk.
+      additionalProperties: false
+
+    UpdateOrderFulfillmentDeliveredRequest:
+      type: object
+      description: Request payload for marking an assigned order fulfilment as delivered.
+      required:
+        - deduplicationKey
+        - dropoffTime
+        - location
+        - imageUrls
+        - signatureStatus
+      properties:
+        deduplicationKey:
+          type: string
+          description: Idempotency key for this delivered update operation.
+          example: driver-session-123:OrderFulfilment_12345:DELIVERED
+        dropoffTime:
+          type: string
+          format: date-time
+          description: Timestamp when the dropoff occurred.
+          example: '2026-07-05T13:25:00Z'
+        location:
+          $ref: '#/components/schemas/FulfillmentLocation'
+        imageUrls:
+          type: array
+          minItems: 1
+          description: Dropoff proof image URLs.
+          items:
+            type: string
+            format: uri
+        driverNotes:
+          type: string
+          nullable: true
+          description: Optional driver dropoff notes.
+          example: Delivered to reception desk.
+        signatureStatus:
+          $ref: '#/components/schemas/SignatureStatus'
+        signature:
+          $ref: '#/components/schemas/SignatureDetails'
+      additionalProperties: false
+
+    FulfillmentLocation:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+          example: 44.6488
+        longitude:
+          type: number
+          format: double
+          example: -63.5752
+      additionalProperties: false
+
+    FulfillmentLocationDouble:
+      type: object
+      properties:
+        latitude:
+          type: number
+          format: double
+          example: 44.6488
+        longitude:
+          type: number
+          format: double
+          example: -63.5752
+      additionalProperties: false
+
+    SignatureDetails:
+      type: object
+      properties:
+        signedByName:
+          type: string
+          nullable: true
+          example: Jane Doe
+        signedByRelationship:
+          $ref: '#/components/schemas/SignerRelationship'
+        signatureImageUrl:
+          type: string
+          nullable: true
+          format: uri
+          example: https://cdn.example.com/signatures/signature-1.png
+        signatureImageObjectKey:
+          type: string
+          nullable: true
+          example: signatures/signature-1.png
+        signedAt:
+          type: string
+          nullable: true
+          format: date-time
+          example: '2026-07-05T13:24:30Z'
+        capturedByDriverId:
+          type: string
+          nullable: true
+          example: driver-user-123
+        note:
+          type: string
+          nullable: true
+          example: Reception accepted the package.
+      additionalProperties: false
+
+    DriverSessionDTO:
+      type: object
+      description: Driver work-session response. sessionStatus is lifecycle; connectivityStatus is app connectivity.
+      properties:
+        sessionId:
+          type: string
+          example: session_20260702_000001
+        userId:
+          type: string
+          example: user_789
+        driverId:
+          type: string
+          example: driver_456
+        driverNameSnapshot:
+          type: string
+          example: Alex Driver
+        phone:
+          type: string
+          nullable: true
+          example: '+19025550123'
+        email:
+          type: string
+          format: email
+          nullable: true
+          example: alex.driver@example.com
+        startedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:00:00-03:00'
+        endedAt:
+          type: string
+          nullable: true
+          format: date-time
+          example: null
+        lastUpdatedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        lastOnlineAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        offlineSince:
+          type: string
+          nullable: true
+          format: date-time
+          example: null
+        lastSyncAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        sessionStatus:
+          $ref: '#/components/schemas/SessionStatus'
+        currentStatus:
+          $ref: '#/components/schemas/DriverActivityStatus'
+        connectivityStatus:
+          $ref: '#/components/schemas/ConnectivityStatus'
+        lastKnownLocation:
+          $ref: '#/components/schemas/LocationSnapshotDTO'
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderActivityDTO'
+        totalDeliveries:
+          type: integer
+          format: int32
+          example: 0
+        totalDistanceTravelledKm:
+          type: number
+          format: double
+          example: 0.0
+      additionalProperties: false
+
+    LocationSnapshotDTO:
+      type: object
+      description: Persistent last-seen driver location stored in Mongo.
+      properties:
+        coordinates:
+          $ref: '#/components/schemas/GeoJsonPoint'
+        accuracyMeters:
+          type: number
+          format: double
+          nullable: true
+          example: 12.5
+        speedKph:
+          type: number
+          format: double
+          nullable: true
+          example: 34.2
+        heading:
+          type: number
+          format: double
+          nullable: true
+          example: 185.0
+        recordedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:15:00-03:00'
+        serverReceivedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:15:01-03:00'
+      additionalProperties: false
+
+    GeoJsonPoint:
+      type: object
+      description: GeoJSON point. Coordinates are ordered as [longitude, latitude].
+      required:
+        - type
+        - coordinates
+      properties:
+        type:
+          type: string
+          enum:
+            - Point
+          example: Point
+        coordinates:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: number
+            format: double
+          example:
+            - -63.5752
+            - 44.6488
+      additionalProperties: false
+
+    OrderActivityDTO:
+      type: object
+      description: Lean order activity snapshot tracked within a driver session. Proof-of-pickup, proof-of-delivery, photos, and signatures are owned by orderfulfilment-ms.
+      properties:
+        orderFulfillmentId:
+          type: string
+          example: of_123
+        shippingOrderId:
+          type: string
+          nullable: true
+          description: Shipping order id copied from the order assignment notification.
+          example: so_789
+        trackingNumber:
+          type: string
+          nullable: true
+          description: Customer-facing tracking number copied from the order assignment notification.
+          example: MPC123456789
+        assignedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T18:50:00-03:00'
+        startedAt:
+          type: string
+          nullable: true
+          format: date-time
+          example: '2026-07-02T19:05:00-03:00'
+        completedAt:
+          type: string
+          nullable: true
+          format: date-time
+          example: '2026-07-02T19:45:00-03:00'
+        pickup:
+          $ref: '#/components/schemas/StopSnapshotDTO'
+        dropoff:
+          $ref: '#/components/schemas/StopSnapshotDTO'
+        distanceToDelivery:
+          type: number
+          example: 12.4
+        taskStatus:
+          $ref: '#/components/schemas/TaskStatus'
+        fulfillmentStatus:
+          $ref: '#/components/schemas/OrderFulfillmentStatus'
+      additionalProperties: false
+
+    StopSnapshotDTO:
+      type: object
+      description: Pickup or dropoff route snapshot copied from the assignment notification. Images are intentionally not stored in driver sessions.
+      properties:
+        address:
+          $ref: '#/components/schemas/AddressSnapshotDTO'
+        coordinates:
+          $ref: '#/components/schemas/GeoJsonPoint'
+        scheduledTime:
+          type: string
+          nullable: true
+          format: date-time
+          example: '2026-07-02T19:00:00-03:00'
+        notes:
+          type: string
+          nullable: true
+          example: Use loading dock
+      additionalProperties: false
+
+    AddressSnapshotDTO:
+      type: object
+      properties:
+        fullName:
+          type: string
+          nullable: true
+          example: Pickup Contact
+        company:
+          type: string
+          nullable: true
+          example: Maple Warehouse
+        streetAddress:
+          type: string
+          nullable: true
+          example: 123 Pickup St
+        addressLine2:
+          type: string
+          nullable: true
+          example: Dock 2
+        city:
+          type: string
+          nullable: true
+          example: Halifax
+        province:
+          type: string
+          nullable: true
+          example: NS
+        postalCode:
+          type: string
+          nullable: true
+          example: B3J 1A1
+        country:
+          type: string
+          nullable: true
+          example: CA
+        phoneNumber:
+          type: string
+          nullable: true
+          example: '+19025550100'
+        deliveryInstructions:
+          type: string
+          nullable: true
+          example: Use loading dock
+      additionalProperties: false
+
+    DriverLocationUpdateRequest:
+      type: object
+      description: Driver app GPS update. userId and driverId are not accepted in this request body.
+      required:
+        - sessionId
+        - latitude
+        - longitude
+      properties:
+        sessionId:
+          type: string
+          minLength: 1
+          example: session_20260702_000001
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          example: 44.6488
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          example: -63.5752
+        accuracyMeters:
+          type: number
+          format: double
+          nullable: true
+          example: 12.5
+        speedKph:
+          type: number
+          format: double
+          nullable: true
+          example: 34.2
+        heading:
+          type: number
+          format: double
+          nullable: true
+          example: 185.0
+        recordedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:15:00-03:00'
+      additionalProperties: false
+
+    DriverLocationUpdateResponse:
+      type: object
+      properties:
+        sessionId:
+          type: string
+          example: session_20260702_000001
+        driverId:
+          type: string
+          example: driver_456
+        status:
+          $ref: '#/components/schemas/DriverActivityStatus'
+        serverReceivedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        ttlSeconds:
+          type: integer
+          format: int64
+          example: 120
+      additionalProperties: false
+
+    DriverLiveLocationResponse:
+      type: object
+      description: Redis live driver location response for authenticated/admin callers.
+      properties:
+        driverId:
+          type: string
+          example: driver_456
+        userId:
+          type: string
+          example: user_789
+        sessionId:
+          type: string
+          example: session_20260702_000001
+        status:
+          $ref: '#/components/schemas/DriverActivityStatus'
+        latitude:
+          type: number
+          format: double
+          example: 44.6488
+        longitude:
+          type: number
+          format: double
+          example: -63.5752
+        accuracyMeters:
+          type: number
+          format: double
+          nullable: true
+          example: 12.5
+        speedKph:
+          type: number
+          format: double
+          nullable: true
+          example: 34.2
+        heading:
+          type: number
+          format: double
+          nullable: true
+          example: 185.0
+        recordedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:15:00-03:00'
+        serverReceivedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        live:
+          type: boolean
+          example: true
+      additionalProperties: false
+
+    DriverLiveLocationsResponse:
+      type: object
+      properties:
+        count:
+          type: integer
+          format: int32
+          example: 1
+        drivers:
+          type: array
+          items:
+            $ref: '#/components/schemas/DriverLiveLocationResponse'
+      additionalProperties: false
+
+    PublicDriverLiveLocationResponse:
+      type: object
+      description: Sanitized public live driver location. userId, accuracyMeters, and speedKph are intentionally omitted.
+      properties:
+        driverId:
+          type: string
+          example: driver_456
+        sessionId:
+          type: string
+          example: session_20260702_000001
+        status:
+          $ref: '#/components/schemas/DriverActivityStatus'
+        latitude:
+          type: number
+          format: double
+          example: 44.6488
+        longitude:
+          type: number
+          format: double
+          example: -63.5752
+        heading:
+          type: number
+          format: double
+          nullable: true
+          example: 185.0
+        recordedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-02T15:15:00-03:00'
+        serverReceivedAt:
+          type: string
+          format: date-time
+          example: '2026-07-02T15:15:01-03:00'
+        live:
+          type: boolean
+          example: true
+      additionalProperties: false
+
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+        - errors
+        - errorDetails
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: An error occurred
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorResponseErrors'
+        errorDetails:
+          $ref: '#/components/schemas/ErrorResponseErrorDetails'
+      additionalProperties: false
+
+    ErrorResponseErrors:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          example: latitude
+        message:
+          type: string
+          example: Latitude must be between -90 and 90
+      additionalProperties: false
+
+    ErrorResponseErrorDetails:
+      type: object
+      required:
+        - errorCode
+        - errorType
+        - characteristics
+      properties:
+        errorCode:
+          type: integer
+          format: int32
+          example: 400
+        errorType:
+          type: string
+          example: Validation Error
+        characteristics:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            path: /api/v1/driver/location
+      additionalProperties: false
+
+    ActuatorHealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+        components:
+          type: object
+          additionalProperties: true
+      additionalProperties: true
+
+    SessionStatus:
+      type: string
+      description: Driver session lifecycle status.
+      enum:
+        - ACTIVE
+        - ENDED
+        - CANCELLED
+      example: ACTIVE
+
+    DriverActivityStatus:
+      type: string
+      description: Driver activity status within an active session.
+      enum:
+        - IDLE
+        - EN_ROUTE
+        - BUSY
+        - ON_BREAK
+      example: IDLE
+
+    ConnectivityStatus:
+      type: string
+      description: Whether the backend has recently heard from the driver app.
+      enum:
+        - ONLINE
+        - STALE
+        - OFFLINE
+      example: ONLINE
+
+    TaskStatus:
+      type: string
+      enum:
+        - ASSIGNED
+        - IN_PROGRESS
+        - END_OF_DAY
+        - COMPLETED
+      example: ASSIGNED
+
+    OrderFulfillmentStatus:
+      type: string
+      enum:
+        - DRAFT
+        - PAYMENT_PENDING
+        - CONFIRMED
+        - PENDING
+        - LABEL_CREATED
+        - SCHEDULED
+        - CREATED
+        - ASSIGNED
+        - PICKED_UP
+        - IN_TRANSIT
+        - DELIVERED
+        - PICKUP_FAILED
+        - DROP_OFF_FAILED
+        - RETURNED
+        - FAILED
+        - CANCELLED
+        - END_OF_DAY
+        - IN_PROGRESS
+      example: ASSIGNED
+
+    FulfillmentStatus:
+      type: string
+      description: Fulfilment status enum accepted by ordermanagement-fulfilment-ms.
+      enum:
+        - DRAFT
+        - PAYMENT_PENDING
+        - CONFIRMED
+        - PENDING
+        - LABEL_CREATED
+        - SCHEDULED
+        - CREATED
+        - ASSIGNED
+        - PICKED_UP
+        - IN_TRANSIT
+        - DELIVERED
+        - PICKUP_FAILED
+        - DROP_OFF_FAILED
+        - RETURNED
+        - FAILED
+        - CANCELLED
+        - END_OF_DAY
+        - IN_PROGRESS
+      example: IN_TRANSIT
+
+    SignatureStatus:
+      type: string
+      enum:
+        - NOT_REQUIRED
+        - REQUIRED_PENDING
+        - CAPTURED
+        - REFUSED
+        - UNAVAILABLE
+        - WAIVED
+      example: CAPTURED
+
+    SignerRelationship:
+      type: string
+      enum:
+        - CUSTOMER
+        - RECEPTION
+        - SECURITY
+        - FAMILY_MEMBER
+        - STAFF
+        - OTHER
+      example: RECEPTION

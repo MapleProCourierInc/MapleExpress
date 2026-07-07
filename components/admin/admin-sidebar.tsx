@@ -9,6 +9,7 @@ import { AdminUserMenu } from "@/components/admin/admin-user-menu"
 import {
   BadgeDollarSign,
   Building2,
+  ClipboardList,
   FileText,
   LifeBuoy,
   Map,
@@ -22,6 +23,7 @@ import {
 
 const navItems = [
   { href: "/admin/drivers", label: "Drivers", icon: Truck, disabled: false },
+  { href: "/admin/order-fulfillments", label: "Fulfilments", icon: ClipboardList, disabled: false },
   { href: "/admin/customers", label: "Users", icon: Users, disabled: false },
   { href: "/admin/pricing", label: "Pricing", icon: BadgeDollarSign, disabled: false },
   { href: "/admin/quotes", label: "Quotes", icon: FileText, disabled: false },

@@ -23,6 +23,9 @@ export const AWS_INTEGRATION_SERVICE_URL =
 // Order Service
 export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'http://localhost/ordermanagement';
 
+// Driver-management-ms
+export const DRIVER_MANAGEMENT_SERVICE_BASE_URL = process.env.NEXT_PUBLIC_DRIVER_MANAGEMENT_SERVICE_BASE_URL || 'http://localhost/drivermanagement';
+
 // Order Fulfilment Service
 export const ORDER_FULFILMENT_SERVICE_URL =
   process.env.NEXT_PUBLIC_ORDER_FULFILMENT_SERVICE_URL ||
