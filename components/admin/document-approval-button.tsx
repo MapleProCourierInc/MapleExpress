@@ -17,7 +17,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 
-type ApprovalEndpoint = "/api/driver/license/approve" | "/api/driver/pow/approve"
+type ApprovalEndpoint = "/api/driver/license/approve" | "/api/driver/pow/approve" | "/api/driver/background-check/approve"
 type DocumentReviewAction = "APPROVED" | "REJECTED"
 
 type DocumentApprovalButtonProps = {

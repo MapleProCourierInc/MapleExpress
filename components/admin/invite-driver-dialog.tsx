@@ -23,6 +23,7 @@ type FormState = {
   firstName: string
   lastName: string
   phone: string
+  dob: string
   station: string
 }
 
@@ -31,7 +32,17 @@ const initialForm: FormState = {
   firstName: "",
   lastName: "",
   phone: "",
+  dob: "",
   station: "",
+}
+
+function isValidDateOnly(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
+
+  const [year, month, day] = value.split("-").map(Number)
+  const date = new Date(Date.UTC(year, month - 1, day))
+
+  return date.getUTCFullYear() === year && date.getUTCMonth() === month - 1 && date.getUTCDate() === day
 }
 
 export function InviteDriverDialog() {
@@ -61,11 +72,15 @@ export function InviteDriverDialog() {
       errors.email = "Enter a valid email"
     }
 
-    ;(["firstName", "lastName", "phone", "station"] as const).forEach((field) => {
+    ;(["firstName", "lastName", "phone", "dob", "station"] as const).forEach((field) => {
       if (!form[field].trim()) {
         errors[field] = "Required"
       }
     })
+
+    if (form.dob && !isValidDateOnly(form.dob)) {
+      errors.dob = "Enter a valid date"
+    }
 
     setFieldErrors(errors)
     return { valid: Object.keys(errors).length === 0, normalizedEmail: email }
@@ -157,6 +172,12 @@ export function InviteDriverDialog() {
             <Label htmlFor="invite-phone">Phone</Label>
             <Input id="invite-phone" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
             {fieldErrors.phone ? <p className="text-xs text-destructive">{fieldErrors.phone}</p> : null}
+          </div>
+
+          <div className="space-y-1">
+            <Label htmlFor="invite-dob">Date of Birth</Label>
+            <Input id="invite-dob" type="date" value={form.dob} onChange={(e) => updateField("dob", e.target.value)} />
+            {fieldErrors.dob ? <p className="text-xs text-destructive">{fieldErrors.dob}</p> : null}
           </div>
 
           <div className="space-y-1">

@@ -112,7 +112,8 @@ paths:
         Returns the authenticated driver's aggregate status for mobile/FE status gating.
         `canGoOnline` is true only when the root driver profile status is `ACTIVE`.
         `driverLicenseStatus` comes from the latest license by `createdAt`, or `PENDING` when no license exists.
-        `workEligibilityStatus` comes from the latest proof-of-work document by `createdAt`, preferring verification status when present, or `PENDING` when no document exists.
+        `workEligibilityStatus` returns `ACTIVE` when any proof-of-work document is active, then `PENDING` when any proof-of-work document is pending, otherwise it falls back to the latest document by `createdAt` preferring verification status when present.
+        `backgroundCheckStatus` is the legacy string retained for existing API consumers; `backgroundCheckDocumentStatus` is derived from the uploaded RCMP background check object.
       parameters:
         - $ref: '#/components/parameters/AuthorizationHeader'
       responses:
@@ -169,6 +170,33 @@ paths:
           application/json:
             schema:
               $ref: '#/components/schemas/WorkEligibilityDocumentsUpsertRequestDto'
+      responses:
+        '200':
+          description: "Updated driver profile"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DriverMeProfileDto'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+
+  /driver/me/background-check:
+    put:
+      tags: [Driver - Me]
+      summary: Upsert RCMP background check document
+      description: "Allowed groups: `driver_maplex`, `admin_super`. Uploads the driver's RCMP criminal background check document for admin review."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BackgroundCheckUpsertRequestDto'
       responses:
         '200':
           description: "Updated driver profile"
@@ -386,11 +414,8 @@ paths:
                 $ref: '#/components/schemas/DriverActionResponseDto'
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
-        '422':
-          description: "Illegal status transition"
-          content:
-            text/plain:
-              schema: { type: string }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '409': { $ref: '#/components/responses/ConflictError' }
 
   /admin/drivers/{driverId}/reject:
     post:
@@ -484,6 +509,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminDocumentApprovalResponseDto'
+        '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
@@ -514,6 +540,7 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/AdminDocumentApprovalResponseDto'
+        '400': { $ref: '#/components/responses/BadRequestError' }
         '401': { $ref: '#/components/responses/UnauthorizedError' }
         '403': { $ref: '#/components/responses/ForbiddenError' }
         '404': { $ref: '#/components/responses/NotFoundError' }
@@ -522,6 +549,38 @@ paths:
           content:
             text/plain:
               schema: { type: string }
+
+  /admin/drivers/{driverId}/background-check/approve:
+    post:
+      tags: [Admin - Drivers]
+      summary: Review driver RCMP background check
+      description: "Allowed groups: `admin_super`, `admin_limited`. Use action `APPROVED` to approve or `REJECTED` to reject."
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/DriverIdPath'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AdminApproveBackgroundCheckRequest'
+      responses:
+        '200':
+          description: "RCMP background check reviewed"
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminDocumentApprovalResponseDto'
+        '400': { $ref: '#/components/responses/BadRequestError' }
+        '401': { $ref: '#/components/responses/UnauthorizedError' }
+        '403': { $ref: '#/components/responses/ForbiddenError' }
+        '404': { $ref: '#/components/responses/NotFoundError' }
+        '422':
+          description: "Illegal status transition"
+          content:
+            text/plain:
+              schema: { type: string }
+
   /admin/drivers/{driverId}/terminate:
     post:
       tags: [Admin - Drivers]
@@ -937,6 +996,14 @@ paths:
         '200':
           description: "Healthy"
 
+  /actuator/info:
+    get:
+      tags: [Internal]
+      security: []
+      summary: Application info
+      responses:
+        '200':
+          description: "Application information"
 
   /internal/individuals/{userId}:
     get:
@@ -1224,7 +1291,7 @@ components:
   schemas:
     MeStatus:
       type: string
-      enum: [ONBOARDING_REQUIRED, ACTIVE, PROFILE_NOT_FOUND, DRIVER_LICENSE_MISSING, PROOF_OF_WORK_ELIGIBILITY_MISSING, BACKGROUND_CHECK_MISSING, PROFILE_COMPLETE, PENDING_PROFILE_COMPLETION, SUSPENDED, LICENSE_EXPIRED, PENDING_ADMIN_VERIFICATION, TERMINATED]
+      enum: [ONBOARDING_REQUIRED, PROFILE_NOT_FOUND, PENDING_DRIVER_HEADSHOT, DRIVER_LICENSE_EXPIRED, PROOF_OF_WORK_ELIGIBILITY_MISSING, PROOF_OF_WORK_ELIGIBILITY_EXPIRED, BACKGROUND_CHECK_MISSING, RCMP_BACKGROUND_CHECK_MISSING, PROFILE_COMPLETE, PENDING_PROFILE_COMPLETION, SUSPENDED, LICENSE_EXPIRED, PENDING_ADMIN_VERIFICATION, TERMINATED, ACTIVE, PENDING_ACTIVE_DRIVING_LICENSE_ADMIN_APPROVAL]
     MeResponse:
       type: object
       required: [authenticated, sub, groups, status]
@@ -1296,12 +1363,17 @@ components:
         phone: { type: string }
     AdminInviteDriverRequest:
       type: object
-      required: [email, firstName, lastName, phone, station]
+      required: [email, firstName, lastName, phone, dob, station]
       properties:
         email: { type: string, format: email }
         firstName: { type: string }
         lastName: { type: string }
         phone: { type: string }
+        dob:
+          type: string
+          format: date
+          description: Driver date of birth.
+          example: '1990-01-15'
         companyName: { type: string }
         station: { type: string }
     AdminInviteDriverResponse:
@@ -1316,6 +1388,7 @@ components:
     AdminApproveDrivingLicenseRequest:
       type: object
       required: [licenseNumber, action]
+      description: Admin review request for a submitted driving license. `REJECTED` requires `reason` or `notes`.
       properties:
         licenseNumber: { type: string }
         action: { $ref: '#/components/schemas/AdminDocumentReviewAction' }
@@ -1325,6 +1398,17 @@ components:
     AdminApproveWorkEligibilityDocumentRequest:
       type: object
       required: [documentId, action]
+      description: Admin review request for a submitted proof-of-work eligibility document. `REJECTED` requires `reason` or `notes`.
+      properties:
+        documentId: { type: string }
+        action: { $ref: '#/components/schemas/AdminDocumentReviewAction' }
+        reason: { type: string }
+        notes: { type: string }
+
+    AdminApproveBackgroundCheckRequest:
+      type: object
+      required: [documentId, action]
+      description: Admin review request for a submitted RCMP background check document. `REJECTED` requires `reason` or `notes`.
       properties:
         documentId: { type: string }
         action: { $ref: '#/components/schemas/AdminDocumentReviewAction' }
@@ -1398,6 +1482,8 @@ components:
         dob: { type: string, format: date }
         isVerified: { type: boolean }
         backgroundCheckStatus: { type: string }
+        backgroundCheck:
+          $ref: '#/components/schemas/AdminBackgroundCheckDocument'
         profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
         driverLicenses:
           type: array
@@ -1463,6 +1549,26 @@ components:
         isPrimary: { type: boolean }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
+    AdminBackgroundCheckDocument:
+      type: object
+      properties:
+        documentId: { type: string }
+        documentType: { $ref: '#/components/schemas/BackgroundCheckDocumentType' }
+        documentNumber: { type: string }
+        holderFullName: { type: string }
+        issuingAuthority: { type: string }
+        issueDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/BackgroundCheckStatus' }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/AdminDocumentImage' }
+        verification: { $ref: '#/components/schemas/Verification' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     AdminDocumentImage:
       type: object
       properties:
@@ -1495,6 +1601,8 @@ components:
         profileStatus: { $ref: '#/components/schemas/DriverProfileStatus' }
         isVerified: { type: boolean }
         backgroundCheckStatus: { type: string }
+        backgroundCheck:
+          $ref: '#/components/schemas/BackgroundCheckDocument'
         driverLicenses:
           type: array
           items: { $ref: '#/components/schemas/DriverLicense' }
@@ -1531,11 +1639,16 @@ components:
           example: EXPIRED
         workEligibilityStatus:
           type: string
-          description: Latest proof-of-work status by createdAt. Verification status is used when present; otherwise document status is used. Returns PENDING when no document exists.
-          example: VERIFIED
+          description: Returns ACTIVE when any proof-of-work document is active, PENDING when any document is pending and none are active, otherwise the latest document status/verification status by createdAt. Returns PENDING when no document exists.
+          example: ACTIVE
         backgroundCheckStatus:
           type: string
+          description: Legacy background check status string retained for backward compatibility.
           example: IN_PROGRESS
+        backgroundCheckDocumentStatus:
+          type: string
+          description: Status of the uploaded RCMP background check document. Returns PENDING when no document exists.
+          example: PENDING
         profilePhotoStatus:
           type: string
           enum: [UPLOADED, PENDING]
@@ -1549,14 +1662,21 @@ components:
           example: '2026-06-07T20:58:03.447Z'
     DriverProfileStatus:
       type: string
-      enum: [DRIVER_LICENSE_EXPIRED, BACKGROUND_CHECK_MISSING, PROFILE_COMPLETE, SUSPENDED, LICENSE_EXPIRED, PENDING_PROFILE_COMPLETION, PENDING_DRIVER_HEADSHOT, PROOF_OF_WORK_ELIGIBILITY_MISSING, PENDING_ACTIVE_DRIVING_LICENSE_ADMIN_APPROVAL, PENDING_ADMIN_VERIFICATION, TERMINATED, ACTIVE]
+      enum: [DRIVER_LICENSE_EXPIRED, BACKGROUND_CHECK_MISSING, RCMP_BACKGROUND_CHECK_MISSING, PROFILE_COMPLETE, SUSPENDED, LICENSE_EXPIRED, PENDING_PROFILE_COMPLETION, PENDING_DRIVER_HEADSHOT, PROOF_OF_WORK_ELIGIBILITY_MISSING, PROOF_OF_WORK_ELIGIBILITY_EXPIRED, PENDING_ACTIVE_DRIVING_LICENSE_ADMIN_APPROVAL, PENDING_ADMIN_VERIFICATION, TERMINATED, ACTIVE]
     LicenseStatus:
       type: string
       enum: [ACTIVE, EXPIRED, REVOKED, SUSPENDED, PENDING, REJECTED]
     DocumentType:
       type: string
-      enum: [PASSPORT, WORK_PERMIT, PR_CARD, BIRTH_CERTIFICATE, CITIZENSHIP_CERTIFICATE, SIN_LETTER]
+      description: Use `CANADIAN_PASSPORT_OR_BIRTH_CERTIFICATE` for new Canadian passport or birth certificate uploads. `PASSPORT` and `BIRTH_CERTIFICATE` are retained for legacy records.
+      enum: [CANADIAN_PASSPORT_OR_BIRTH_CERTIFICATE, WORK_PERMIT, PR_CARD, CITIZENSHIP_CERTIFICATE, SIN_LETTER, OTHER, PASSPORT, BIRTH_CERTIFICATE]
     DocumentStatus:
+      type: string
+      enum: [ACTIVE, EXPIRED, REVOKED, PENDING, REJECTED]
+    BackgroundCheckDocumentType:
+      type: string
+      enum: [RCMP_CRIMINAL_RECORD_CHECK, OTHER]
+    BackgroundCheckStatus:
       type: string
       enum: [ACTIVE, EXPIRED, REVOKED, PENDING, REJECTED]
     VerificationStatus:
@@ -1616,6 +1736,30 @@ components:
           format: date-time
           description: Date-time accepted for client compatibility; only the date part is stored and returned.
         status: { $ref: '#/components/schemas/DocumentStatus' }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentImageItem' }
+    BackgroundCheckUpsertRequestDto:
+      type: object
+      required: [images]
+      properties:
+        documentId: { type: string }
+        documentType:
+          $ref: '#/components/schemas/BackgroundCheckDocumentType'
+        documentNumber: { type: string }
+        holderFullName: { type: string }
+        issuingAuthority: { type: string }
+        issueDate:
+          type: string
+          format: date-time
+          description: Date-time accepted for client compatibility; only the date part is stored and returned.
+        expiryDate:
+          type: string
+          format: date-time
+          description: Date-time accepted for client compatibility; only the date part is stored and returned.
         attributes:
           type: object
           additionalProperties: { type: string }
@@ -1708,6 +1852,26 @@ components:
             createdAt: { type: string, format: date-time }
             updatedAt: { type: string, format: date-time }
             source: { type: string }
+    BackgroundCheckDocument:
+      type: object
+      properties:
+        documentId: { type: string }
+        documentType: { $ref: '#/components/schemas/BackgroundCheckDocumentType' }
+        documentNumber: { type: string }
+        holderFullName: { type: string }
+        issuingAuthority: { type: string }
+        issueDate: { type: string, format: date }
+        expiryDate: { type: string, format: date }
+        status: { $ref: '#/components/schemas/BackgroundCheckStatus' }
+        attributes:
+          type: object
+          additionalProperties: { type: string }
+        images:
+          type: array
+          items: { $ref: '#/components/schemas/DocumentImageItem' }
+        verification: { $ref: '#/components/schemas/Verification' }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
     WorkEligibilityDocument:
       type: object
       properties:

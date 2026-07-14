@@ -28,7 +28,14 @@ import { Separator } from "@/components/ui/separator"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip"
 import { getAdminDriverDetails } from "@/lib/admin-drivers-service"
-import type { DocumentVerification, DriverDetailsDto, DriverImageEntity, DriverLicense, WorkEligibilityDocument } from "@/types/admin-drivers"
+import type {
+  BackgroundCheckDocument,
+  DocumentVerification,
+  DriverDetailsDto,
+  DriverImageEntity,
+  DriverLicense,
+  WorkEligibilityDocument,
+} from "@/types/admin-drivers"
 
 type GalleryImage = {
   key: string
@@ -155,6 +162,21 @@ function workDocumentImages(doc: WorkEligibilityDocument): GalleryImage[] {
         key,
         url: key,
         title: image.imageType ? humanize(image.imageType) : `Document image ${imageIdx + 1}`,
+        subtitle: image.timestamp ? `Captured: ${formatDateTime(image.timestamp)}` : undefined,
+      }
+    })
+    .filter(Boolean) as GalleryImage[]
+}
+
+function backgroundCheckImages(doc: BackgroundCheckDocument): GalleryImage[] {
+  return (doc.images || [])
+    .map((image, imageIdx) => {
+      const key = image.imageUrl
+      if (!key) return null
+      return {
+        key,
+        url: key,
+        title: image.imageType ? humanize(image.imageType) : `Background check image ${imageIdx + 1}`,
         subtitle: image.timestamp ? `Captured: ${formatDateTime(image.timestamp)}` : undefined,
       }
     })
@@ -293,7 +315,7 @@ function IdentityReferencePanel({
       <CardHeader className="space-y-3">
         <div>
           <CardTitle>Always-Visible Identity</CardTitle>
-          <CardDescription>Keep this photo in view while comparing DL and POW images.</CardDescription>
+          <CardDescription>Keep this photo in view while comparing document images.</CardDescription>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <StatusPill status={data.profileStatus} />
@@ -476,6 +498,102 @@ function WorkDocumentReviewCard({
           </div>
 
           <VerificationBlock verification={doc.verification} />
+
+          <Collapsible>
+            <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+              <ChevronDown className="h-4 w-4" />
+              Attributes ({attributes.length})
+            </CollapsibleTrigger>
+            <CollapsibleContent className="mt-3">
+              {attributes.length ? (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Key</TableHead>
+                      <TableHead>Value</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {attributes.map(([key, value]) => (
+                      <TableRow key={key}>
+                        <TableCell>{key}</TableCell>
+                        <TableCell>{value}</TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              ) : (
+                renderEmpty()
+              )}
+            </CollapsibleContent>
+          </Collapsible>
+        </div>
+      </div>
+    </section>
+  )
+}
+
+function BackgroundCheckReviewCard({
+  backgroundCheck,
+  driverId,
+}: {
+  backgroundCheck: BackgroundCheckDocument
+  driverId: string
+}) {
+  const attributes = Object.entries(backgroundCheck.attributes || {})
+  const images = backgroundCheckImages(backgroundCheck)
+
+  return (
+    <section className="rounded-md border bg-background p-4">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+        <div className="space-y-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold">RCMP background check</h3>
+            <StatusPill status={backgroundCheck.status} />
+          </div>
+          <p className="text-sm text-muted-foreground">
+            Review the uploaded background check document before approving the driver profile.
+          </p>
+        </div>
+        {isPending(backgroundCheck.status) ? (
+          <DocumentDecisionButtons
+            endpoint="/api/driver/background-check/approve"
+            payload={{
+              driverId,
+              documentId: backgroundCheck.documentId || "",
+              documentNumber: backgroundCheck.documentNumber || "",
+              reason: "Approved by admin",
+              notes: `Approved from Admin portal for ${backgroundCheck.documentId || backgroundCheck.documentNumber || "background check"}`,
+            }}
+            approveLabel="Approve BG"
+            rejectLabel="Reject BG"
+            subjectLabel="background check"
+          />
+        ) : null}
+      </div>
+
+      <div className="mt-4 grid gap-4 2xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <div>
+          <DriverImageGallery
+            images={images}
+            gridClassName="grid gap-3 md:grid-cols-2"
+            imageClassName="h-64 w-full object-contain bg-muted"
+            itemClassName="rounded-md"
+          />
+        </div>
+
+        <div className="space-y-4">
+          <div className="grid gap-3 text-sm sm:grid-cols-2">
+            <Fact label="Document Type" value={humanize(backgroundCheck.documentType)} />
+            <Fact label="Holder Name" value={backgroundCheck.holderFullName} />
+            <Fact label="Document Number" value={backgroundCheck.documentNumber} />
+            <Fact label="Issuing Authority" value={backgroundCheck.issuingAuthority} />
+            <Fact label="Issue Date" value={formatLocalDate(backgroundCheck.issueDate)} />
+            <Fact label="Expiry Date" value={formatLocalDate(backgroundCheck.expiryDate)} />
+            <Fact label="Created" value={formatLocalDate(backgroundCheck.createdAt)} />
+          </div>
+
+          <VerificationBlock verification={backgroundCheck.verification} />
 
           <Collapsible>
             <CollapsibleTrigger className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
@@ -699,6 +817,7 @@ export default async function DriverDetailPage({
   const driverImages = toDriverImageItems(data.driverImages)
   const primaryLicenseStatus = groupedLicenses.visible[0]?.status || data.driverLicenses?.[0]?.status
   const primaryWorkStatus = groupedWorkDocs.visible[0]?.status || data.workEligibilityDocuments?.[0]?.status
+  const backgroundCheckStatus = data.backgroundCheck?.status || data.backgroundCheckStatus
 
   return (
     <TooltipProvider>
@@ -739,16 +858,17 @@ export default async function DriverDetailPage({
             {String(data.profileStatus || "").toUpperCase().includes("PENDING") ? (
               <div className="flex items-start gap-2 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-950 dark:border-amber-900 dark:bg-amber-950/30 dark:text-amber-100">
                 <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
-                <p>Review identity, DL, and POW before approving the driver profile.</p>
+                <p>Review identity, DL, POW, and background check before approving the driver profile.</p>
               </div>
             ) : null}
           </div>
         </div>
 
-        <div className="grid gap-4 md:grid-cols-3">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
           <ReviewStage title="Driver profile" status={data.profileStatus} count={1} icon={UserRound} />
           <ReviewStage title="Driving license" status={primaryLicenseStatus} count={data.driverLicenses?.length || 0} icon={IdCard} />
           <ReviewStage title="Proof of work" status={primaryWorkStatus} count={data.workEligibilityDocuments?.length || 0} icon={FileCheck2} />
+          <ReviewStage title="Background check" status={backgroundCheckStatus} count={data.backgroundCheck ? 1 : 0} icon={ShieldCheck} />
         </div>
 
         <div className="grid items-start gap-6 2xl:grid-cols-[minmax(0,1fr)_380px]">
@@ -817,6 +937,21 @@ export default async function DriverDetailPage({
                   <AlertTriangle className="h-4 w-4" />
                   <AlertTitle>No POW document submitted</AlertTitle>
                   <AlertDescription>The driver has not uploaded proof of work eligibility yet.</AlertDescription>
+                </Alert>
+              )}
+            </ReviewSection>
+
+            <ReviewSection
+              title="Background Check"
+              description="RCMP background check images and decision controls for admin review."
+            >
+              {data.backgroundCheck ? (
+                <BackgroundCheckReviewCard backgroundCheck={data.backgroundCheck} driverId={driverId} />
+              ) : (
+                <Alert>
+                  <AlertTriangle className="h-4 w-4" />
+                  <AlertTitle>No background check submitted</AlertTitle>
+                  <AlertDescription>The driver has not uploaded an RCMP background check yet.</AlertDescription>
                 </Alert>
               )}
             </ReviewSection>

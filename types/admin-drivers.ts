@@ -1,11 +1,16 @@
 export type DriverProfileStatus =
   | "DRIVER_LICENSE_MISSING"
+  | "DRIVER_LICENSE_EXPIRED"
   | "PROOF_OF_WORK_ELIGIBILITY_MISSING"
+  | "PROOF_OF_WORK_ELIGIBILITY_EXPIRED"
   | "BACKGROUND_CHECK_MISSING"
+  | "RCMP_BACKGROUND_CHECK_MISSING"
   | "PROFILE_COMPLETE"
   | "PENDING_PROFILE_COMPLETION"
+  | "PENDING_DRIVER_HEADSHOT"
   | "SUSPENDED"
   | "LICENSE_EXPIRED"
+  | "PENDING_ACTIVE_DRIVING_LICENSE_ADMIN_APPROVAL"
   | "PENDING_ADMIN_VERIFICATION"
   | "TERMINATED"
   | "ACTIVE"
@@ -61,6 +66,22 @@ export type WorkEligibilityDocument = {
   images?: WorkEligibilityDocImage[] | null
   verification?: WorkEligibilityVerification | null
   isPrimary?: boolean | null
+  createdAt?: string | null
+  updatedAt?: string | null
+}
+
+export type BackgroundCheckDocument = {
+  documentId?: string | null
+  documentType?: string | null
+  documentNumber?: string | null
+  holderFullName?: string | null
+  issuingAuthority?: string | null
+  issueDate?: string | null
+  expiryDate?: string | null
+  status?: string | null
+  attributes?: Record<string, string> | null
+  images?: WorkEligibilityDocImage[] | null
+  verification?: DocumentVerification | null
   createdAt?: string | null
   updatedAt?: string | null
 }
@@ -129,6 +150,7 @@ export type DriverDetailsDto = AdminDriverItem & {
   gender?: string | null
   dob?: string | null
   lastLoginAt?: string | null
+  backgroundCheck?: BackgroundCheckDocument | null
   driverLicenses?: DriverLicense[] | null
   workEligibilityDocuments?: WorkEligibilityDocument[] | null
   driverImages?: DriverImageEntity[] | null
@@ -160,6 +182,13 @@ export type DriverLicenseApprovalRequestDto = {
 }
 
 export type DriverWorkEligibilityApprovalRequestDto = {
+  documentId: string
+  action: AdminDocumentReviewAction
+  reason: string
+  notes?: string
+}
+
+export type DriverBackgroundCheckApprovalRequestDto = {
   documentId: string
   action: AdminDocumentReviewAction
   reason: string
@@ -211,6 +240,7 @@ export type AdminInviteDriverRequest = {
   firstName: string
   lastName: string
   phone: string
+  dob: string
   companyName: string
   station: string
 }

@@ -14,6 +14,7 @@ import type {
   AdminDocumentApprovalResponseDto,
   DriverLicenseApprovalRequestDto,
   DriverWorkEligibilityApprovalRequestDto,
+  DriverBackgroundCheckApprovalRequestDto,
 } from "@/types/admin-drivers"
 
 type ServiceResult<T> = {
@@ -149,6 +150,35 @@ export async function reviewDriverWorkEligibilityDocument(
 ): Promise<ServiceResult<AdminDocumentApprovalResponseDto>> {
   const response = await authenticatedServerFetch(
     getEndpointUrl(PROFILE_SERVICE_URL, `/admin/drivers/${driverId}/work-eligibility-documents/approve`),
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
+
+  if (!response) {
+    return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
+  }
+
+  if (!response.ok) {
+    const parsed = await parseError(response)
+    return { data: null, ...parsed }
+  }
+
+  const data = (await response.json().catch(() => ({}))) as AdminDocumentApprovalResponseDto
+  return { data, error: null, textError: null }
+}
+
+export async function reviewDriverBackgroundCheck(
+  driverId: string,
+  payload: DriverBackgroundCheckApprovalRequestDto,
+): Promise<ServiceResult<AdminDocumentApprovalResponseDto>> {
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(PROFILE_SERVICE_URL, `/admin/drivers/${driverId}/background-check/approve`),
     {
       method: "POST",
       headers: {
