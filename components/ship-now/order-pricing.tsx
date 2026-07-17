@@ -204,6 +204,16 @@ export function OrderPricing({
                             ) : (
                               <Badge variant="secondary">Pricing available</Badge>
                             )}
+                            {item.isFragile && (
+                              <Badge variant="outline" className="border-amber-300 text-amber-700">
+                                Fragile
+                              </Badge>
+                            )}
+                            {item.signatureRequired && (
+                              <Badge variant="outline" className="border-primary/40 text-primary">
+                                Signature required
+                              </Badge>
+                            )}
                           </div>
 
                           <div className="flex flex-wrap items-center gap-2 text-sm font-medium">
@@ -295,6 +305,18 @@ export function OrderPricing({
                               </div>
                             </div>
                           )}
+
+                          <div>
+                            <p className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Package flags</p>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant={item.isFragile ? "outline" : "secondary"} className={item.isFragile ? "border-amber-300 text-amber-700" : ""}>
+                                {item.isFragile ? "Fragile item" : "Not fragile"}
+                              </Badge>
+                              <Badge variant={item.signatureRequired ? "outline" : "secondary"} className={item.signatureRequired ? "border-primary/40 text-primary" : ""}>
+                                {item.signatureRequired ? "Signature required" : "No signature required"}
+                              </Badge>
+                            </div>
+                          </div>
                         </div>
                       </CollapsibleContent>
                     </div>

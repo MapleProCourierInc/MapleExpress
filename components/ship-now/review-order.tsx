@@ -2,7 +2,9 @@
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
-import type { ShippingOrder } from "@/components/ship-now/ship-now-form"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
+import type { PackageItem, ShippingOrder } from "@/components/ship-now/ship-now-form"
 import { Package, MapPin, Truck, Loader2, Edit, Trash2 } from "lucide-react"
 
 interface ReviewOrderProps {
@@ -10,6 +12,7 @@ interface ReviewOrderProps {
     onSubmit: () => void
     onBack: () => void
     onEditPackage: (packageIndex: number) => void
+    onUpdatePackage: (packageIndex: number, pkg: Partial<PackageItem>) => void
     onDeletePackage: (packageIndex: number) => void
     onEditPickupAddress: () => void
     isSubmitting: boolean
@@ -20,6 +23,7 @@ export function ReviewOrder({
                                 onSubmit,
                                 onBack,
                                 onEditPackage,
+                                onUpdatePackage,
                                 onDeletePackage,
                                 onEditPickupAddress,
                                 isSubmitting,
@@ -112,7 +116,38 @@ export function ReviewOrder({
                                                 <div>
                                                     <p className="text-sm text-muted-foreground">Contents</p>
                                                     <p>{pkg.contents}</p>
-                                                    {pkg.fragile && <p className="text-amber-600 text-sm mt-1">Fragile</p>}
+                                                </div>
+                                                <div className="space-y-2 rounded-md border p-3">
+                                                    <p className="text-sm text-muted-foreground">Package options</p>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id={`review-fragile-${pkg.id}`}
+                                                            checked={pkg.fragile}
+                                                            onCheckedChange={(checked) =>
+                                                                onUpdatePackage(index, { fragile: checked === true })
+                                                            }
+                                                            disabled={isSubmitting}
+                                                        />
+                                                        <Label htmlFor={`review-fragile-${pkg.id}`} className="text-sm font-normal">
+                                                            Fragile item
+                                                        </Label>
+                                                    </div>
+                                                    <div className="flex items-center space-x-2">
+                                                        <Checkbox
+                                                            id={`review-signature-required-${pkg.id}`}
+                                                            checked={pkg.signatureRequired}
+                                                            onCheckedChange={(checked) =>
+                                                                onUpdatePackage(index, { signatureRequired: checked === true })
+                                                            }
+                                                            disabled={isSubmitting}
+                                                        />
+                                                        <Label
+                                                            htmlFor={`review-signature-required-${pkg.id}`}
+                                                            className="text-sm font-normal"
+                                                        >
+                                                            Signature required on delivery
+                                                        </Label>
+                                                    </div>
                                                 </div>
                                                 <div>
                                                     <p className="text-sm text-muted-foreground">Dimensions</p>

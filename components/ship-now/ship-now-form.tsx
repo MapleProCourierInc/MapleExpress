@@ -43,6 +43,7 @@ export type PackageItem = {
   weight: number
   contents: string
   fragile: boolean
+  signatureRequired: boolean
   dropoffAddress: Address | null
 }
 
@@ -82,6 +83,7 @@ const createEmptyPackage = (): PackageItem => ({
   weight: 0,
   contents: "",
   fragile: false,
+  signatureRequired: false,
   dropoffAddress: null,
 })
 
@@ -174,6 +176,7 @@ function storedOrderToDraftOrder(order: StoredShippingOrder): OrderResponse {
       images: [],
     },
     isFragile: Boolean(item.isFragile),
+    signatureRequired: Boolean(item.signatureRequired),
     pricing: {
       currency: item.pricing?.currency || currency,
       customQuoteRequired: Boolean(item.pricing?.customQuoteRequired),
@@ -227,6 +230,7 @@ function storedOrderToFormOrder(order: StoredShippingOrder): ShippingOrder {
           weight: Number(item.packageDetails?.weight || 0),
           contents: item.description || item.packageDetails?.type || "",
           fragile: Boolean(item.isFragile),
+          signatureRequired: Boolean(item.signatureRequired),
           dropoffAddress: storedAddressToFormAddress(item.dropoff?.address, "dropoff"),
         }))
       : [createEmptyPackage()],
@@ -315,6 +319,24 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       const updatedPackages = [...prev.packages]
       updatedPackages[currentPackageIndex] = {
         ...updatedPackages[currentPackageIndex],
+        ...updatedPackage,
+      }
+
+      return {
+        ...prev,
+        packages: updatedPackages,
+      }
+    })
+    setHasDraftChanges(true)
+  }
+
+  const handleUpdatePackageAtIndex = (packageIndex: number, updatedPackage: Partial<PackageItem>) => {
+    setOrder((prev) => {
+      if (!prev.packages[packageIndex]) return prev
+
+      const updatedPackages = [...prev.packages]
+      updatedPackages[packageIndex] = {
+        ...updatedPackages[packageIndex],
         ...updatedPackage,
       }
 
@@ -803,6 +825,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
                     onSubmit={handleCreateDraftOrder}
                     onBack={handlePrevStep}
                     onEditPackage={handleEditPackage}
+                    onUpdatePackage={handleUpdatePackageAtIndex}
                     onDeletePackage={handleDeletePackage}
                     onEditPickupAddress={handleEditPickupAddress}
                     isSubmitting={isSubmitting}

@@ -619,6 +619,13 @@ paths:
           name: isFragile
           schema: { type: boolean }
         - in: query
+          name: signatureRequired
+          schema: { type: boolean }
+        - in: query
+          name: signatureStatus
+          schema:
+            $ref: '#/components/schemas/SignatureStatus'
+        - in: query
           name: page
           schema: { type: integer, minimum: 0, default: 0 }
         - in: query
@@ -1590,7 +1597,8 @@ paths:
       summary: Accept a manual quote offer
       description: |
         Customer accepts a whole quote offer by `quoteId`.
-        The accepted pricing snapshot is patched into the shipping order and the order is moved to the next payment-ready state.
+        The accepted pricing snapshot is patched into the shipping order.
+        For prepaid manual quotes, the order is moved to `MANUAL_QUOTE_PAYMENT_PENDING` instead of the normal `PAYMENT_PENDING` flow.
         This API does not initiate Moneris payment.
       operationId: acceptManualQuoteOffer
       parameters:
@@ -2284,6 +2292,13 @@ components:
         description: { type: string, description: Customer-provided description of this order item. }
         assignedDriverId: { type: string }
         isFragile: { type: boolean }
+        signature:
+          $ref: '#/components/schemas/SignatureDetails'
+        signatureRequired:
+          type: boolean
+          description: Whether this order item requires a delivery signature.
+        signatureStatus:
+          $ref: '#/components/schemas/SignatureStatus'
         estimatedDeliveryTime: { type: string, format: date-time }
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
@@ -2291,6 +2306,39 @@ components:
           type: array
           items:
             $ref: '#/components/schemas/Incident'
+
+    SignatureDetails:
+      type: object
+      properties:
+        signedByName:
+          type: string
+          description: Name of the person who signed for the item.
+        signedByRelationship:
+          $ref: '#/components/schemas/SignerRelationship'
+        signatureImageUrl:
+          type: string
+          description: Public or presigned URL for the captured signature image.
+        signatureImageObjectKey:
+          type: string
+          description: Object storage key for the captured signature image.
+        signedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the signature was captured.
+        capturedByDriverId:
+          type: string
+          description: Driver ID that captured the signature.
+        note:
+          type: string
+          description: Optional signature capture note.
+
+    SignatureStatus:
+      type: string
+      enum: [NOT_REQUIRED, REQUIRED_PENDING, CAPTURED, REFUSED, UNAVAILABLE, WAIVED]
+
+    SignerRelationship:
+      type: string
+      enum: [CUSTOMER, RECEPTION, SECURITY, FAMILY_MEMBER, STAFF, OTHER]
 
     OrderItemPickup:
       type: object

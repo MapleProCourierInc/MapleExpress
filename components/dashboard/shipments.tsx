@@ -445,9 +445,6 @@ function TrackingHistory({ item }: { item: OrderItem }) {
             <p className={`mt-1 text-sm leading-tight ${latest ? "font-semibold text-slate-950" : "text-slate-500"}`}>
               {trackingMessage(event)}
             </p>
-            {event.driverComments && (
-              <p className="mt-1 text-xs text-slate-500">Driver note: {event.driverComments}</p>
-            )}
           </div>
         );
       })}

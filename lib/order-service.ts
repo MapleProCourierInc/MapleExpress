@@ -89,6 +89,7 @@ export interface OrderItemResponse {
     }[];
   };
   isFragile?: boolean;
+  signatureRequired?: boolean;
   pricing: OrderItemPricing;
   itemStatus: string;
   description?: string | null;
@@ -179,6 +180,7 @@ export interface OrderItem {
   itemStatus?: string | null;
   assignedDriverId?: string | null;
   isFragile?: boolean | null;
+  signatureRequired?: boolean | null;
   estimatedDeliveryTime?: string | null;
   createdAt?: string | null;
   updatedAt?: string | null;
@@ -277,6 +279,7 @@ interface OrderRequestItem {
   };
   description: string;
   isFragile?: boolean;
+  signatureRequired?: boolean;
 }
 
 interface OrderRequest {
@@ -378,6 +381,7 @@ function formatOrderRequest(
       },
       description: pkg.contents,
       isFragile: pkg.fragile,
+      signatureRequired: pkg.signatureRequired,
     };
   });
 
