@@ -19,10 +19,14 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    const proxiedBody = JSON.stringify(body)
+
+    console.log("[api/orders] POST body forwarded to order-ms:", JSON.stringify(body, null, 2))
+
     return await proxyWithAuthRetry(request, {
       method: "POST",
       url: getEndpointUrl(ORDER_SERVICE_URL, "orders"),
-      body: JSON.stringify(body),
+      body: proxiedBody,
       contentTypeJson: true,
     })
   } catch (error) {
@@ -34,10 +38,14 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
+    const proxiedBody = JSON.stringify(body)
+
+    console.log("[api/orders] PUT body forwarded to order-ms:", JSON.stringify(body, null, 2))
+
     return await proxyWithAuthRetry(request, {
       method: "PUT",
       url: getEndpointUrl(ORDER_SERVICE_URL, "orders"),
-      body: JSON.stringify(body),
+      body: proxiedBody,
       contentTypeJson: true,
     })
   } catch (error) {

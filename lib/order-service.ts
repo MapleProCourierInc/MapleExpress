@@ -323,6 +323,11 @@ export async function createDraftOrder(
       existingOrderId,
     );
 
+    console.log(
+      `[createDraftOrder] ${existingOrderId ? "Update" : "Create"} order request body:`,
+      JSON.stringify(requestBody, null, 2),
+    );
+
     const response = existingOrderId
       ? await updateOrder(requestBody)
       : await createOrder(requestBody);

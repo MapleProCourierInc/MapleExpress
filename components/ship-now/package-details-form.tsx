@@ -27,6 +27,7 @@ interface PackageDetailsFormProps {
   package: PackageItem
   onUpdatePackage: (pkg: Partial<PackageItem>) => void
   onNext: () => void
+  onExit?: () => void
   canProceed: boolean
 }
 
@@ -101,7 +102,7 @@ const getDimensionInputValues = (pkg: PackageItem, unit: DimensionUnit) => ({
   height: formatMeasurementValue(convertDimensionFromCm(pkg.height, unit)),
 })
 
-export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canProceed }: PackageDetailsFormProps) {
+export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, onExit, canProceed }: PackageDetailsFormProps) {
   const [showFragileDialog, setShowFragileDialog] = useState(false)
   const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>(defaultDimensionUnit)
   const [dimensionInputValues, setDimensionInputValues] = useState<Record<DimensionField, string>>(() =>
@@ -288,7 +289,14 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, canP
           </div>
         </div>
 
-        <div className="flex justify-end pt-4">
+        <div className="flex justify-between gap-3 pt-4">
+          {onExit ? (
+            <Button type="button" variant="outline" onClick={onExit}>
+              Exit
+            </Button>
+          ) : (
+            <span />
+          )}
           <Button onClick={onNext} disabled={!canProceed}>
             Continue
           </Button>

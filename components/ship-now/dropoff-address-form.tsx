@@ -16,9 +16,10 @@ interface DropoffAddressFormProps {
   onSelectAddress: (address: Address, saveForFuture: boolean) => void
   onNext: () => void
   onBack: () => void
+  onExit?: () => void
 }
 
-export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, onBack }: DropoffAddressFormProps) {
+export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, onBack, onExit }: DropoffAddressFormProps) {
   const { user } = useAuth()
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -191,10 +192,17 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                   </div>
               )}
 
-              <div className="flex justify-between pt-4">
-                <Button variant="outline" onClick={onBack}>
-                  Back
-                </Button>
+              <div className="flex justify-between gap-3 pt-4">
+                <div className="flex gap-2">
+                  <Button variant="outline" onClick={onBack}>
+                    Back
+                  </Button>
+                  {onExit && (
+                    <Button variant="outline" onClick={onExit}>
+                      Exit
+                    </Button>
+                  )}
+                </div>
                 {/* Add Continue button that's enabled only when an address is selected */}
                 <Button onClick={handleContinue} disabled={!selectedAddressId} className="flex items-center gap-2">
                   Continue
@@ -205,10 +213,15 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
         ) : (
             <div className="mt-6">
               <AddressForm onSubmit={handleAddressSubmit} addressType="shipping" initialAddress={null} />
-              <div className="mt-4">
+              <div className="mt-4 flex gap-2">
                 <Button variant="outline" onClick={() => setShowNewAddressForm(false)}>
                   Cancel
                 </Button>
+                {onExit && (
+                  <Button variant="outline" onClick={onExit}>
+                    Exit
+                  </Button>
+                )}
               </div>
             </div>
         )}

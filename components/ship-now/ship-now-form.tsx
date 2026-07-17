@@ -252,6 +252,8 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
   const [isPriorityDelivery, setIsPriorityDelivery] = useState(false)
   const [draftOrder, setDraftOrder] = useState<OrderResponse | null>(null)
   const [hasDraftChanges, setHasDraftChanges] = useState(false)
+  const [packageAddingIndex, setPackageAddingIndex] = useState<number | null>(null)
+  const [hasDraftChangesBeforePackageAdd, setHasDraftChangesBeforePackageAdd] = useState<boolean | null>(null)
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [isResumingPayment, setIsResumingPayment] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
@@ -298,9 +300,13 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
   // Get current package
   const currentPackage = order.packages[currentPackageIndex]
+  const canExitPackageAdd = packageAddingIndex === currentPackageIndex && order.packages.length > 1
 
   // Handle adding a new package
   const handleAddPackage = () => {
+    const newPackageIndex = order.packages.length
+
+    setHasDraftChangesBeforePackageAdd(hasDraftChanges)
     setOrder((prev) => ({
       ...prev,
       packages: [
@@ -309,8 +315,23 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       ],
     }))
     setHasDraftChanges(true)
-    setCurrentPackageIndex(order.packages.length)
+    setPackageAddingIndex(newPackageIndex)
+    setCurrentPackageIndex(newPackageIndex)
     setCurrentStep("PACKAGE_DETAILS")
+  }
+
+  const handleExitAddPackage = () => {
+    if (packageAddingIndex === null || order.packages.length <= 1) return
+
+    setOrder((prev) => ({
+      ...prev,
+      packages: prev.packages.filter((_, index) => index !== packageAddingIndex),
+    }))
+    setCurrentPackageIndex(Math.max(0, packageAddingIndex - 1))
+    setPackageAddingIndex(null)
+    setHasDraftChanges(hasDraftChangesBeforePackageAdd ?? true)
+    setHasDraftChangesBeforePackageAdd(null)
+    setCurrentStep("ADD_MORE")
   }
 
   // Handle updating a package
@@ -463,6 +484,12 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       if (packageIndex < currentIndex) return currentIndex - 1
       return currentIndex
     })
+    setPackageAddingIndex((addingIndex) => {
+      if (addingIndex === null || addingIndex === packageIndex) return null
+      if (packageIndex < addingIndex) return addingIndex - 1
+      return addingIndex
+    })
+    setHasDraftChangesBeforePackageAdd((previous) => (packageAddingIndex === packageIndex ? null : previous))
     setHasDraftChanges(markDraftChanged)
   }
 
@@ -520,6 +547,8 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     setIsPriorityDelivery(false)
     setDraftOrder(null)
     setHasDraftChanges(false)
+    setPackageAddingIndex(null)
+    setHasDraftChangesBeforePackageAdd(null)
     setError(null)
     setCurrentStep("PACKAGE_DETAILS")
   }
@@ -574,16 +603,22 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
   // Handle continuing to add more or review
   const handleContinueAfterDropoff = () => {
+    setPackageAddingIndex(null)
+    setHasDraftChangesBeforePackageAdd(null)
     setCurrentStep("ADD_MORE")
   }
 
   // Handle skipping add more and going to review
   const handleGoToReview = () => {
+    setPackageAddingIndex(null)
+    setHasDraftChangesBeforePackageAdd(null)
     setCurrentStep("REVIEW")
   }
 
   // Handle editing a package from the review step
   const handleEditPackage = (packageIndex: number) => {
+    setPackageAddingIndex(null)
+    setHasDraftChangesBeforePackageAdd(null)
     setCurrentPackageIndex(packageIndex)
     setCurrentStep("PACKAGE_DETAILS")
   }
@@ -619,6 +654,8 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
   // Handle editing pickup address from review step
   const handleEditPickupAddress = () => {
+    setPackageAddingIndex(null)
+    setHasDraftChangesBeforePackageAdd(null)
     setCurrentStep("PICKUP_ADDRESS")
   }
 
@@ -749,6 +786,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
                       package={currentPackage}
                       onUpdatePackage={handleUpdatePackage}
                       onNext={handleNextStep}
+                      onExit={canExitPackageAdd ? handleExitAddPackage : undefined}
                       canProceed={canProceed()}
                   />
                 </>
@@ -776,6 +814,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
                       onSelectAddress={handleSetDropoffAddress}
                       onNext={handleContinueAfterDropoff}
                       onBack={handlePrevStep}
+                      onExit={canExitPackageAdd ? handleExitAddPackage : undefined}
                   />
                 </>
             )}
