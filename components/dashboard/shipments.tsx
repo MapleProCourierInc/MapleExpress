@@ -35,10 +35,10 @@ import {
   MapPin,
   Package,
   Plus,
-  Route,
   Search,
   Tag,
   Truck,
+  UserCheck,
 } from "lucide-react";
 import { format, isToday } from "date-fns";
 
@@ -61,9 +61,9 @@ const SHIPMENT_ORDER_STATUSES = [
 
 const TRACKING_STEPS = [
   { label: "Order", icon: CheckCircle },
+  { label: "Driver Assigned", icon: UserCheck },
   { label: "Pickup", icon: Truck },
-  { label: "Transit", icon: Route },
-  { label: "Delivery", icon: Home },
+  { label: "Delivered", icon: Home },
 ];
 
 function getSortParams(
@@ -315,8 +315,12 @@ function stepProgress(item: OrderItem) {
   const status = (latestItemStatus(item) || "").toLowerCase();
 
   if (["delivered", "partial_complete"].includes(status)) return 3;
-  if (["in_transit", "drop_off_failed", "end_of_day"].includes(status)) return 2;
-  if (["assigned", "picked_up", "pickup_failed"].includes(status)) return 1;
+  if (
+    ["picked_up", "in_transit", "drop_off_failed", "end_of_day", "pickup_failed"].includes(status)
+  ) {
+    return 2;
+  }
+  if (status === "assigned") return 1;
   return 0;
 }
 
@@ -401,7 +405,11 @@ function ProgressStepper({ item }: { item: OrderItem }) {
             >
               <Icon className="h-4 w-4" />
             </div>
-            <span className={`text-[10px] font-bold uppercase ${complete ? "text-slate-950" : "text-slate-500"}`}>
+            <span
+              className={`text-center text-[10px] font-bold uppercase leading-tight ${
+                complete ? "text-slate-950" : "text-slate-500"
+              }`}
+            >
               {step.label}
             </span>
           </div>
@@ -836,7 +844,7 @@ export function Shipments() {
           <div className="grid grid-cols-3 gap-2 border-b border-slate-200 bg-slate-50 p-3">
             {([
               ["all", "All", filterCounts.all],
-              ["active", "In Transit", filterCounts.active],
+              ["active", "Active", filterCounts.active],
               ["exceptions", "Exceptions", filterCounts.exceptions],
             ] as const).map(([value, label, count]) => (
               <button
