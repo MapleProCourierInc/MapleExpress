@@ -1,0 +1,2954 @@
+openapi: 3.0.3
+info:
+  title: Pricing Payment MS API
+  version: 1.0.0
+  description: |
+    OpenAPI contract for `pricing-payment-ms`.
+
+    This service manages:
+    - Pricing model CRUD
+    - Courier quote calculation
+    - Moneris payment initiation/finalization
+    - Refund intake/admin review/Moneris refund processing
+    - Internal payment persistence CRUD
+
+    Base context path in Spring is `/pricingpayment`.
+servers:
+  - url: http://localhost:8084/pricingpayment
+    description: Local profile default
+  - url: http://localhost:8080/pricingpayment
+    description: Docker profile default
+
+tags:
+  - name: Pricing
+  - name: Pricing V2
+  - name: Moneris
+  - name: Payments
+  - name: Internal Payments
+  - name: Admin Refunds
+
+paths:
+  /api/v2/pricing:
+    post:
+      tags: [Pricing V2]
+      summary: Create pricing V2
+      description: |
+        Creates a new configurable pricing record in `pricing_v2`.
+
+        Only `admin_super` and `admin_limited` users can create pricing.
+        Active creates expire any previous active/latest record for the same
+        `pricingType + ownerId + zoneCode` scope and increment the version.
+        `GLOBAL` pricing ignores `ownerId`; `CUSTOMER_SPECIFIC` pricing requires it.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreatePricingV2Request'
+      responses:
+        '201':
+          description: Pricing V2 record created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingV2Response'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+    get:
+      tags: [Pricing V2]
+      summary: Get pricing V2
+      description: |
+        Admin users can list pricing records with optional filters.
+
+        Client users receive only their applicable pricing for the requested zone:
+        active `CUSTOMER_SPECIFIC` pricing for their JWT `sub`, falling back to
+        active `GLOBAL` pricing. If `zoneCode` is omitted, `GLOBAL` is used.
+
+        Drivers and unknown groups receive `403`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - name: pricingType
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PricingV2PricingType'
+        - name: ownerId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Admin filter only. Clients cannot fetch arbitrary owner pricing.
+        - name: zoneCode
+          in: query
+          required: false
+          schema:
+            type: string
+            example: GLOBAL
+        - name: status
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/PricingV2Status'
+        - name: isLatest
+          in: query
+          required: false
+          schema:
+            type: boolean
+        - name: page
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: size
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+      responses:
+        '200':
+          description: Pricing V2 records returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingV2PageResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /api/v2/pricing/applicable:
+    get:
+      tags: [Pricing V2]
+      summary: Get applicable pricing V2 for user
+      description: |
+        Admin-only endpoint that returns the pricing record that would be applied
+        automatically if the specified user requested a V2 quote.
+
+        Selection uses the same fallback order as V2 quote calculation:
+        active latest `CUSTOMER_SPECIFIC` pricing for `userId + zoneCode`,
+        then active latest `GLOBAL` pricing for `zoneCode`, then active latest
+        `GLOBAL` pricing for the default `GLOBAL` zone. If `zoneCode` is omitted,
+        `GLOBAL` is used.
+
+        Client, driver, and unknown roles receive `403`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - name: userId
+          in: query
+          required: true
+          schema:
+            type: string
+          description: User id to evaluate applicable pricing for.
+        - name: zoneCode
+          in: query
+          required: false
+          schema:
+            type: string
+            example: GLOBAL
+          description: Quote zone to evaluate. Defaults to `GLOBAL`.
+      responses:
+        '200':
+          description: Applicable Pricing V2 record returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingV2Response'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /api/v2/pricing/{pricingId}:
+    get:
+      tags: [Pricing V2]
+      summary: Get pricing V2 by id
+      description: |
+        Admin-only endpoint that returns a V2 pricing record by id.
+
+        Client, driver, and unknown roles receive `403`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: pricingId
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Pricing V2 record id.
+      responses:
+        '200':
+          description: Pricing V2 record returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingV2Response'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /api/v2/pricing/quote:
+    post:
+      tags: [Pricing V2]
+      summary: Calculate pricing V2 quote
+      description: |
+        Calculates a flexible V2 courier quote using `PricingEntityV2`.
+
+        Client users are quoted using active customer-specific pricing for their JWT
+        `sub`, falling back to active global pricing. Admin users can optionally
+        provide `pricingId` to force a specific pricing model. Drivers and unknown
+        groups receive `403`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingV2QuoteRequest'
+            example:
+              dimensions:
+                length: 50
+                width: 40
+                height: 30
+                unit: CM
+              weight: 6
+              weightUnit: KG
+              distanceKm: 20
+              zoneCode: GLOBAL
+              rushPriorityRequested: true
+      responses:
+        '200':
+          description: Quote calculated. Business-limit responses set `customQuoteRequired=true`.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingV2QuoteResponse'
+              example:
+                pricingModelId: Pricing_2
+                pricingModelVersion: 2
+                pricingTypeApplied: GLOBAL
+                ownerIdApplied: null
+                zoneCode: GLOBAL
+                currency: CAD
+                customQuoteRequired: false
+                customQuoteReason: null
+                charges:
+                  Large Parcel Base Charge: 19.99
+                  Distance Charge 10-25 KM: 10.00
+                  Rush / Priority Fee: 5.00
+                  HST: 5.25
+                  Subtotal: 34.99
+                  Total: 40.24
+                calculationContext:
+                  actualWeightKg: 6.00
+                  dimensionalWeightKg: 12.00
+                  chargeableWeightKg: 12.00
+                  dimensionSumCm: 120.00
+                  distanceKm: 20.00
+                  selectedPackageSlabCode: LARGE_PARCEL
+                  selectedPackageDisplayName: Large Parcel
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /api/v2/pricing/{pricingId}/activate:
+    post:
+      tags: [Pricing V2]
+      summary: Activate pricing V2
+      description: |
+        Admin-only endpoint that activates an existing V2 pricing record by id.
+
+        Any previous active/latest pricing for the same
+        `pricingType + ownerId + zoneCode` scope is marked `EXPIRED`,
+        changed to `isLatest=false`, and assigned an `effectiveTo` timestamp.
+        The selected pricing record becomes `ACTIVE` and `isLatest=true`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: pricingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pricing V2 record activated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingV2Response'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /pricing:
+    get:
+      tags: [Pricing]
+      summary: List pricing models
+      description: Returns all pricing models, optionally filtered.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - name: isLatest
+          in: query
+          schema:
+            type: boolean
+        - name: createdAfter
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: expiredBefore
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Pricing models returned.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PricingModel'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+    post:
+      tags: [Pricing]
+      summary: Create pricing model
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PricingModel'
+      responses:
+        '201':
+          description: Pricing model created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingModel'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+
+  /pricing/calculateQuote:
+    post:
+      tags: [Pricing]
+      summary: Calculate quote
+      description: |
+        Calculates a quote using the pricing model flagged as `isLatest=true`.
+        Discount and priority surcharge rules are applied when present.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/QuoteRequest'
+      responses:
+        '200':
+          description: Quote calculated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/QuoteResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /pricing/{pricingId}:
+    get:
+      tags: [Pricing]
+      summary: Get pricing model by id
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PricingIdPath'
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+      responses:
+        '200':
+          description: Pricing model returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingModel'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+    patch:
+      tags: [Pricing]
+      summary: Partially update pricing model
+      description: |
+        Applies JsonPath-style operations (`add`, `replace`, `remove`) on persisted pricing model JSON.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PricingIdPath'
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                $ref: '#/components/schemas/PatchElement'
+      responses:
+        '200':
+          description: Updated pricing model.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PricingModel'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+    delete:
+      tags: [Pricing]
+      summary: Delete pricing model
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/PricingIdPath'
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+      responses:
+        '204':
+          description: Deleted.
+        '401':
+          $ref: '#/components/responses/Error401'
+        '404':
+          $ref: '#/components/responses/Error404'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /moneris/initiate:
+    post:
+      tags: [Moneris]
+      summary: Initiate Moneris payment
+      description: Creates a generalized payment intent for Moneris checkout and returns the ticketId for frontend redirect/embedded checkout.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiatePaymentRequest'
+      responses:
+        '200':
+          description: Ticket generated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InitiatePaymentResponse'
+        '400':
+          description: Moneris business error.
+        '500':
+          description: Unexpected server error.
+
+  /moneris/finalize:
+    post:
+      tags: [Moneris]
+      summary: Finalize Moneris payment
+      description: |
+        Fetches Moneris receipt by ticket, updates payment status, and emits
+        `PAYMENT_STATUS_UPDATED` Kafka event.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FinalizePaymentRequest'
+      responses:
+        '200':
+          description: Finalized.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonerisFinalizeResponse'
+              examples:
+                success:
+                  value:
+                    paymentId: PaymentId_123
+                    ticketId: moneris-ticket-abc
+                    status: SUCCESSFUL
+                    success: true
+                    finalized: true
+                    message: Payment completed successfully.
+                    failureReason: null
+                    amount: 100.00
+                    currency: CAD
+                    paymentMethodType: CARD_ONLINE
+                    paymentProvider: MONERIS
+                    shippingOrderId: ShippingOrder_1
+                    invoiceId: null
+                    billingAccountId: null
+                    monerisResponseCode: "027"
+                    monerisResponseMessage: Approved
+                    transactionId: mock-txn-001
+                    referenceNumber: mock-ref-333
+                    approvalCode: APPROVED
+                    transactionTimestamp: "2025-05-31 12:00:00"
+                    crypt_type: "7"
+        '400':
+          description: Moneris business error.
+        '404':
+          description: Payment not found by ticket.
+
+
+  /api/v2/admin/refunds:
+    get:
+      tags: [Admin Refunds]
+      summary: Search embedded payment refunds
+      description: |
+        Admin-only search for refund candidates embedded inside payment documents.
+        Filtering, sorting, counting, and pagination are performed with MongoDB aggregation.
+
+        Defaults: `page=0`, `size=20`, `status=PENDING_APPROVAL` when omitted, `sortBy=requestedAt`,
+        `sortDirection=DESC`. Maximum page size is `100`.
+
+        Allowed `sortBy` values: `requestedAt`, `reviewedAt`, `completedAt`,
+        `proposedAmount`, `approvedAmount`, `processedAmount`, `status`,
+        `trackingNumber`, `shippingOrderId`, `paymentMethodType`.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: refundId
+          in: query
+          schema: { type: string }
+        - name: paymentId
+          in: query
+          schema: { type: string }
+        - name: shippingOrderId
+          in: query
+          schema: { type: string }
+        - name: trackingNumber
+          in: query
+          schema: { type: string }
+        - name: payerUserId
+          in: query
+          schema: { type: string }
+        - name: status
+          in: query
+          style: form
+          explode: false
+          schema:
+            type: array
+            items: { $ref: '#/components/schemas/RefundStatus' }
+          example: [PENDING_APPROVAL, PROCESSING]
+          description: Comma-separated refund statuses, for example `status=PENDING_APPROVAL,PROCESSING`. Defaults to `PENDING_APPROVAL` when omitted.
+        - name: workflowType
+          in: query
+          schema: { $ref: '#/components/schemas/RefundWorkflowType' }
+        - name: reasonCode
+          in: query
+          schema: { $ref: '#/components/schemas/RefundReasonCode' }
+        - name: destination
+          in: query
+          schema: { $ref: '#/components/schemas/RefundDestination' }
+        - name: paymentMethodType
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentMethodType' }
+          description: Distinguishes `CARD_ONLINE` from `POSTPAY_BILLING_ACCOUNT`.
+        - name: paymentProvider
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentProvider' }
+        - name: paymentStatus
+          in: query
+          schema: { $ref: '#/components/schemas/PaymentStatus' }
+        - name: currency
+          in: query
+          schema: { type: string, example: CAD }
+        - name: pricingId
+          in: query
+          schema: { type: string, example: Pricing_1 }
+          description: V2 pricing record used to calculate tax for system-generated priority refunds.
+        - name: requestedFrom
+          in: query
+          schema: { type: string, format: date-time }
+        - name: requestedTo
+          in: query
+          schema: { type: string, format: date-time }
+        - name: reviewedFrom
+          in: query
+          schema: { type: string, format: date-time }
+        - name: reviewedTo
+          in: query
+          schema: { type: string, format: date-time }
+        - name: processedFrom
+          in: query
+          schema: { type: string, format: date-time }
+        - name: processedTo
+          in: query
+          schema: { type: string, format: date-time }
+        - name: minProposedAmount
+          in: query
+          schema: { type: number, multipleOf: 0.01 }
+        - name: maxProposedAmount
+          in: query
+          schema: { type: number, multipleOf: 0.01 }
+        - name: minApprovedAmount
+          in: query
+          schema: { type: number, multipleOf: 0.01 }
+        - name: maxApprovedAmount
+          in: query
+          schema: { type: number, multipleOf: 0.01 }
+        - name: requestingActorType
+          in: query
+          schema: { $ref: '#/components/schemas/CreatedByType' }
+        - name: reviewingAdminId
+          in: query
+          schema: { type: string }
+        - name: policyCode
+          in: query
+          schema: { type: string, example: PRIORITY_DELIVERY_2_HOUR_GUARANTEE }
+        - name: policyVersion
+          in: query
+          schema: { type: string, example: v1 }
+        - name: gatewayExecutionBlocked
+          in: query
+          schema: { type: boolean }
+        - name: search
+          in: query
+          schema: { type: string }
+          description: Case-insensitive free-text search across practical refund and payment identifiers.
+        - name: page
+          in: query
+          schema: { type: integer, minimum: 0, default: 0 }
+        - name: size
+          in: query
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            default: requestedAt
+            enum: [requestedAt, reviewedAt, completedAt, proposedAmount, approvedAmount, processedAmount, status, trackingNumber, shippingOrderId, paymentMethodType]
+        - name: sortDirection
+          in: query
+          schema:
+            type: string
+            default: DESC
+            enum: [ASC, DESC]
+      responses:
+        '200':
+          description: Refund page returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundSearchResponse'
+              examples:
+                priorityCardRefund:
+                  summary: System-generated package-level CARD_ONLINE refund candidate
+                  value:
+                    page: 0
+                    size: 20
+                    totalElements: 1
+                    totalPages: 1
+                    sortBy: requestedAt
+                    sortDirection: DESC
+                    content:
+                      - paymentId: Payment_1
+                        refundId: Refund_1
+                        shippingOrderId: ShippingOrder_1
+                        trackingNumber: MAPLEXZPVT909R
+                        payerUserId: User_1
+                        reasonCode: PRIORITY_DELIVERY_SLA_BREACH
+                        status: PENDING_APPROVAL
+                        workflowType: SYSTEM_REVIEW_REQUIRED
+                        destination: MONERIS_ORIGINAL_CARD
+                        paymentMethodType: CARD_ONLINE
+                        paymentProvider: MONERIS
+                        proposedAmount: 11.50
+                        approvedAmount: null
+                        processedAmount: null
+                        currency: CAD
+                        pricingId: Pricing_1
+                        policyCode: PRIORITY_DELIVERY_2_HOUR_GUARANTEE
+                        policyVersion: v1
+                        approvalAllowed: true
+                        rejectionAllowed: true
+                        refundBranchImplemented: true
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '500':
+          $ref: '#/components/responses/Error500'
+
+  /api/v2/admin/refunds/{paymentId}/{refundId}:
+    get:
+      tags: [Admin Refunds]
+      summary: Get refund detail
+      description: |
+        Admin-only detail view for one embedded refund. Returns audit history,
+        non-sensitive Moneris attempt details, pricing/tax references, and SLA evidence.
+        Raw Moneris gateway payloads and credentials are not returned.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: paymentId
+          in: path
+          required: true
+          schema: { type: string }
+        - name: refundId
+          in: path
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Refund detail returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundDetailResponse'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+        '404':
+          $ref: '#/components/responses/Error404'
+
+  /api/v2/admin/refunds/approvals:
+    post:
+      tags: [Admin Refunds]
+      summary: Approve refund candidates in batch
+      description: |
+        Admin-only batch approval. Each item is processed independently and returns
+        its own outcome. For `CARD_ONLINE` payments, approval immediately claims
+        the refund, calls Moneris, persists the attempt/receipt, and updates the
+        embedded refund summary. For `POSTPAY_BILLING_ACCOUNT`, approval publishes
+        `BillingRefundCreditPostedEvent` to the configured `billingRefundCreditPosted`
+        topic, records billing-credit details on the embedded refund, and does not
+        call Moneris.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchApprovalRequest'
+      responses:
+        '200':
+          description: Per-item approval outcomes returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchActionResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+
+  /api/v2/admin/refunds/rejections:
+    post:
+      tags: [Admin Refunds]
+      summary: Reject refund candidates in batch
+      description: |
+        Admin-only batch rejection for pending candidates. Rejection never calls
+        Moneris and applies to both `CARD_ONLINE` and `POSTPAY_BILLING_ACCOUNT`
+        candidates. Rejected amounts are released from the embedded refund summary.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BatchRejectionRequest'
+      responses:
+        '200':
+          description: Per-item rejection outcomes returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BatchActionResponse'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+
+  /api/v2/admin/refunds/manual:
+    post:
+      tags: [Admin Refunds]
+      summary: Initiate manual admin refund
+      description: |
+        Admin-only manual refund against an existing payment. Use the `Idempotency-Key`
+        header or request `idempotencyKey`; the same key for the same payment returns
+        the existing refund state and must not resubmit Moneris.
+
+        Manual `CARD_ONLINE` refunds are created as `ADMIN_IMMEDIATE`, approved by
+        the authenticated admin, and processed through Moneris immediately.
+        Manual `POSTPAY_BILLING_ACCOUNT` refunds are created as `ADMIN_IMMEDIATE`,
+        approved by the authenticated admin, and publish `BillingRefundCreditPostedEvent`
+        to the configured `billingRefundCreditPosted` topic. Moneris is not called.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - name: Idempotency-Key
+          in: header
+          required: false
+          schema: { type: string }
+          description: Idempotency key for manual refund creation and Moneris submission.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ManualRefundRequest'
+      responses:
+        '200':
+          description: Manual refund outcome returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RefundActionResult'
+        '400':
+          $ref: '#/components/responses/Error400'
+        '401':
+          $ref: '#/components/responses/Error401'
+        '403':
+          $ref: '#/components/responses/Error403'
+
+  /internal/payments/{paymentId}:
+    get:
+      tags: [Internal Payments]
+      summary: Get payment by id for internal services
+      operationId: getPaymentByIdForInternalUse
+      description: |
+        Service-to-service endpoint for trusted internal consumers such as document-generator-ms.
+        The Spring context path is `/pricingpayment`, so the full local URL is `/pricingpayment/internal/payments/{paymentId}`.
+        This endpoint does not require a Cognito Bearer token, but it is protected by `X-Internal-Service-Secret`.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - name: paymentId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+      responses:
+        '200':
+          description: Payment entity returned for internal service consumers.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEntity'
+        '401':
+          description: Missing or invalid internal service credentials.
+        '404':
+          description: Payment not found.
+
+  /payments/checkout:
+    post:
+      tags: [Payments]
+      summary: Checkout shipping-order payment
+      description: |
+        Orchestrates shipping-order checkout. The backend resolves authenticated user pay-later eligibility via usermanagement-profile-ms.
+        Cognito `cognito:groups` (`client_individual` / `client_organization`) determines whether individual or organization profile endpoint is called.
+        If pay-later is eligible (`ACTIVE` + `MONTHLY_INVOICE` + `billingAccountId`), the payment is posted to billing account.
+        Otherwise, Moneris checkout is initiated and ticketId is returned.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentCheckoutRequest'
+      responses:
+        '200':
+          description: Checkout orchestration response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentCheckoutResponse'
+              examples:
+                monerisFlow:
+                  summary: Moneris checkout flow selected
+                  value:
+                    paymentId: PaymentId_123
+                    shippingOrderId: ShippingOrder_1
+                    checkoutFlow: MONERIS
+                    status: PENDING_USER_ACTION
+                    paymentMethodType: CARD_ONLINE
+                    paymentProvider: MONERIS
+                    ticketId: moneris-ticket-abc
+                    billingAccountId: null
+                    amount: 100.0
+                    currency: CAD
+                    message: Moneris checkout initiated
+                postpayFlow:
+                  summary: Billing account postpay flow selected
+                  value:
+                    paymentId: PaymentId_456
+                    shippingOrderId: ShippingOrder_2
+                    checkoutFlow: POSTPAY_BILLING_ACCOUNT
+                    status: POSTED_TO_BILLING_ACCOUNT
+                    paymentMethodType: POSTPAY_BILLING_ACCOUNT
+                    paymentProvider: null
+                    ticketId: null
+                    billingAccountId: BillingAccount_4
+                    amount: 89.99
+                    currency: CAD
+                    message: Payment posted to billing account
+        '400':
+          description: Invalid checkout payload or Moneris business failure.
+        '401':
+          description: User identity missing/unresolved from JWT.
+        '502':
+          description: Billing posting failed.
+
+  /payments:
+    get:
+      tags: [Payments]
+      summary: List all payments
+      responses:
+        '200':
+          description: Payment list.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PaymentEntity'
+
+    post:
+      tags: [Payments]
+      summary: Create payment directly
+      description: Internal CRUD endpoint for generalized payment records (shipping order, invoice, billing account, manual requests).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentEntity'
+      responses:
+        '201':
+          description: Created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEntity'
+
+  /payments/{id}:
+    get:
+      tags: [Payments]
+      summary: Get payment by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Payment returned.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEntity'
+        '404':
+          description: Payment not found.
+
+    put:
+      tags: [Payments]
+      summary: Replace payment by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentEntity'
+      responses:
+        '200':
+          description: Updated payment.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentEntity'
+        '404':
+          description: Payment not found.
+
+    delete:
+      tags: [Payments]
+      summary: Delete payment by id
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Deleted.
+        '404':
+          description: Payment not found.
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalServiceSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+
+  parameters:
+    AuthorizationHeader:
+      name: Authorization
+      in: header
+      required: true
+      schema:
+        type: string
+      description: Bearer token.
+    AcceptHeader:
+      name: Accept
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json
+    ContentTypeHeader:
+      name: Content-Type
+      in: header
+      required: true
+      schema:
+        type: string
+        default: application/json
+    PricingIdPath:
+      name: pricingId
+      in: path
+      required: true
+      schema:
+        type: string
+    InternalServiceSecretHeader:
+      name: X-Internal-Service-Secret
+      in: header
+      required: true
+      schema:
+        type: string
+        format: password
+      description: Shared internal service secret supplied from environment configuration.
+
+  responses:
+    Error400:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error401:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error403:
+      description: Forbidden
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error404:
+      description: Not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    Error500:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+
+  schemas:
+    CreatePricingV2Request:
+      type: object
+      required: [name, pricingType, zoneCode, currency, packageSlabs, distancePricing, dimensionalWeight, chargeableWeight]
+      properties:
+        name: { type: string, example: Standard Global Pricing }
+        description: { type: string, nullable: true }
+        status:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2Status'
+          nullable: true
+          description: Defaults to ACTIVE. Send DRAFT to save without activating.
+        pricingType: { $ref: '#/components/schemas/PricingV2PricingType' }
+        ownerId:
+          type: string
+          nullable: true
+          description: Required for CUSTOMER_SPECIFIC pricing; ignored for GLOBAL pricing.
+          example: abc-123
+        zoneCode: { type: string, example: GLOBAL }
+        zoneDisplayName: { type: string, nullable: true, example: Global }
+        currency: { type: string, example: CAD }
+        effectiveFrom: { type: string, format: date-time, nullable: true }
+        effectiveTo: { type: string, format: date-time, nullable: true }
+        dimensionalWeight: { $ref: '#/components/schemas/PricingV2DimensionalWeightConfig' }
+        chargeableWeight: { $ref: '#/components/schemas/PricingV2ChargeableWeightConfig' }
+        packageSlabs:
+          type: array
+          minItems: 1
+          items: { $ref: '#/components/schemas/PricingV2PackageSlab' }
+        distancePricing: { $ref: '#/components/schemas/PricingV2DistancePricingConfig' }
+        surcharges:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/PricingV2SurchargeRule' }
+        taxes:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/PricingV2TaxRule' }
+        customQuoteRules:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2CustomQuoteRules'
+          nullable: true
+        rounding:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2RoundingConfig'
+          nullable: true
+
+    PricingV2Response:
+      type: object
+      properties:
+        id: { type: string, example: 665c84ef2fdc0d3b0fc7f9a1 }
+        name: { type: string, example: Standard Global Pricing }
+        description: { type: string, nullable: true }
+        version: { type: integer, example: 2 }
+        status: { $ref: '#/components/schemas/PricingV2Status' }
+        isLatest: { type: boolean }
+        pricingType: { $ref: '#/components/schemas/PricingV2PricingType' }
+        ownerId: { type: string, nullable: true, example: abc-123 }
+        zoneCode: { type: string, example: GLOBAL }
+        zoneDisplayName: { type: string, nullable: true, example: Global }
+        currency: { type: string, example: CAD }
+        effectiveFrom: { type: string, format: date-time, nullable: true }
+        effectiveTo: { type: string, format: date-time, nullable: true }
+        dimensionalWeight: { $ref: '#/components/schemas/PricingV2DimensionalWeightConfig' }
+        chargeableWeight: { $ref: '#/components/schemas/PricingV2ChargeableWeightConfig' }
+        packageSlabs:
+          type: array
+          items: { $ref: '#/components/schemas/PricingV2PackageSlab' }
+        distancePricing: { $ref: '#/components/schemas/PricingV2DistancePricingConfig' }
+        surcharges:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/PricingV2SurchargeRule' }
+        taxes:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/PricingV2TaxRule' }
+        customQuoteRules:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2CustomQuoteRules'
+          nullable: true
+        rounding:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2RoundingConfig'
+          nullable: true
+        audit:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2AuditInfo'
+          nullable: true
+
+    PricingV2PageResponse:
+      type: object
+      description: Spring `Page<PricingV2Response>` response.
+      properties:
+        content:
+          type: array
+          items: { $ref: '#/components/schemas/PricingV2Response' }
+        totalElements: { type: integer, format: int64, example: 42 }
+        totalPages: { type: integer, example: 3 }
+        size: { type: integer, example: 20 }
+        number: { type: integer, example: 0 }
+        numberOfElements: { type: integer, example: 20 }
+        first: { type: boolean }
+        last: { type: boolean }
+        empty: { type: boolean }
+        sort: { $ref: '#/components/schemas/PageSort' }
+        pageable: { $ref: '#/components/schemas/Pageable' }
+
+    PricingV2QuoteRequest:
+      type: object
+      required: [dimensions, weight, distanceKm]
+      properties:
+        dimensions: { $ref: '#/components/schemas/PricingV2QuoteDimensions' }
+        weight:
+          type: number
+          minimum: 0.000001
+          example: 6
+        weightUnit:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2WeightUnit'
+          nullable: true
+          default: KG
+        distanceKm:
+          type: number
+          minimum: 0
+          example: 20
+        zoneCode:
+          type: string
+          nullable: true
+          default: GLOBAL
+          example: GLOBAL
+        serviceType:
+          type: string
+          nullable: true
+        rushPriorityRequested:
+          type: boolean
+          nullable: true
+          default: false
+          description: Applies the RUSH_PRIORITY surcharge when explicitly set to true.
+        pricingId:
+          type: string
+          nullable: true
+          description: Admin-only override to force a specific pricing model.
+
+    PricingV2QuoteDimensions:
+      type: object
+      required: [length, width, height]
+      properties:
+        length:
+          type: number
+          minimum: 0.000001
+          example: 50
+        width:
+          type: number
+          minimum: 0.000001
+          example: 40
+        height:
+          type: number
+          minimum: 0.000001
+          example: 30
+        unit:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2QuoteDimensionUnit'
+          nullable: true
+          default: CM
+
+    PricingV2QuoteResponse:
+      type: object
+      properties:
+        pricingModelId: { type: string, example: Pricing_2 }
+        pricingModelVersion: { type: integer, example: 2 }
+        pricingTypeApplied: { $ref: '#/components/schemas/PricingV2PricingType' }
+        ownerIdApplied: { type: string, nullable: true, example: abc-123 }
+        zoneCode: { type: string, example: GLOBAL }
+        currency: { type: string, example: CAD }
+        customQuoteRequired: { type: boolean, example: false }
+        customQuoteReason: { type: string, nullable: true }
+        charges:
+          type: object
+          description: Ordered charge map. Keys are customer-facing display names from the pricing model.
+          additionalProperties:
+            type: number
+          example:
+            Large Parcel Base Charge: 19.99
+            Distance Charge 10-25 KM: 10.00
+            Rush / Priority Fee: 5.00
+            HST: 5.25
+            Subtotal: 34.99
+            Total: 40.24
+        calculationContext:
+          type: object
+          additionalProperties: true
+          example:
+            actualWeightKg: 6.00
+            dimensionalWeightKg: 12.00
+            chargeableWeightKg: 12.00
+            dimensionSumCm: 120.00
+            distanceKm: 20.00
+            selectedPackageSlabCode: LARGE_PARCEL
+            selectedPackageDisplayName: Large Parcel
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    PricingV2Status:
+      type: string
+      enum: [DRAFT, ACTIVE, EXPIRED, ARCHIVED]
+
+    PricingV2PricingType:
+      type: string
+      enum: [GLOBAL, CUSTOMER_SPECIFIC]
+
+    PricingV2DimensionUnit:
+      type: string
+      enum: [CM, INCH]
+
+    PricingV2QuoteDimensionUnit:
+      type: string
+      enum: [CM, INCH]
+
+    PricingV2WeightUnit:
+      type: string
+      enum: [KG]
+
+    PricingV2ChargeableWeightCalculationType:
+      type: string
+      enum: [MAX_OF_ACTUAL_AND_DIMENSIONAL]
+
+    PricingV2RateCalculationType:
+      type: string
+      enum: [FLAT, PER_KM, PERCENTAGE]
+
+    PricingV2TaxCalculationType:
+      type: string
+      enum: [PERCENTAGE]
+
+    PricingV2SurchargeTriggerType:
+      type: string
+      enum: [ALWAYS, SERVICE_TYPE, TIME_WINDOW, CUSTOMER_TYPE]
+
+    PricingV2PercentageBase:
+      type: string
+      enum: [SUBTOTAL, BASE_PACKAGE_PRICE, DISTANCE_CHARGE, PRE_TAX_TOTAL]
+
+    PricingV2DimensionalWeightConfig:
+      type: object
+      properties:
+        enabled: { type: boolean, example: true }
+        displayName: { type: string, nullable: true, example: Dimensional Weight }
+        unit: { $ref: '#/components/schemas/PricingV2DimensionUnit' }
+        divisor:
+          type: number
+          description: Decimal value stored as Mongo Decimal128.
+          example: 5000
+        roundingScale: { type: integer, nullable: true, example: 2 }
+        roundingMode: { type: string, nullable: true, example: CEILING }
+
+    PricingV2ChargeableWeightConfig:
+      type: object
+      properties:
+        enabled: { type: boolean, example: true }
+        displayName: { type: string, nullable: true, example: Chargeable Weight }
+        calculationType: { $ref: '#/components/schemas/PricingV2ChargeableWeightCalculationType' }
+
+    PricingV2PackageSlab:
+      type: object
+      properties:
+        slabCode: { type: string, example: SMALL }
+        displayName: { type: string, nullable: true, example: Small Package }
+        enabled: { type: boolean, example: true }
+        tierOrder: { type: integer, example: 1 }
+        minChargeableWeightKgExclusive: { type: number, nullable: true, example: null }
+        maxChargeableWeightKg: { type: number, nullable: true, example: 5 }
+        minDimensionSumCmExclusive: { type: number, nullable: true, example: null }
+        maxDimensionSumCm: { type: number, nullable: true, example: 45 }
+        basePrice: { type: number, example: 9.99 }
+
+    PricingV2DistancePricingConfig:
+      type: object
+      properties:
+        enabled: { type: boolean, example: true }
+        displayName: { type: string, nullable: true, example: Distance Pricing }
+        includedDistanceKm: { type: number, nullable: true, example: 10 }
+        distanceSlabs:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/PricingV2DistanceSlab' }
+
+    PricingV2DistanceSlab:
+      type: object
+      properties:
+        slabCode: { type: string, example: DISTANCE_10_25 }
+        displayName: { type: string, nullable: true, example: Distance Charge 10-25 KM }
+        enabled: { type: boolean, example: true }
+        fromKmExclusive: { type: number, nullable: true, example: 10 }
+        toKmInclusive: { type: number, nullable: true, example: 25 }
+        calculationType: { $ref: '#/components/schemas/PricingV2RateCalculationType' }
+        rate: { type: number, nullable: true, example: 0.75 }
+
+    PricingV2SurchargeRule:
+      type: object
+      properties:
+        surchargeCode: { type: string, example: RUSH_PRIORITY }
+        displayName: { type: string, nullable: true, example: Rush / Priority Fee }
+        description: { type: string, nullable: true }
+        enabled: { type: boolean, example: true }
+        triggerType: { $ref: '#/components/schemas/PricingV2SurchargeTriggerType' }
+        triggerValue: { type: string, nullable: true, example: RUSH_PRIORITY }
+        startTime: { type: string, nullable: true, example: '17:00:00' }
+        endTime: { type: string, nullable: true, example: '21:00:00' }
+        timezone:
+          type: string
+          nullable: true
+          example: America/Halifax
+          description: Retained for persisted configuration. TIME_WINDOW surcharges are evaluated using current America/Halifax system time.
+        calculationType: { $ref: '#/components/schemas/PricingV2RateCalculationType' }
+        amount: { type: number, nullable: true, example: 5.00 }
+        percentage: { type: number, nullable: true, example: 5.00 }
+        percentageBase:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2PercentageBase'
+          nullable: true
+
+    PricingV2TaxRule:
+      type: object
+      properties:
+        taxCode: { type: string, example: HST }
+        displayName: { type: string, nullable: true, example: HST }
+        enabled: { type: boolean, example: true }
+        calculationType:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2TaxCalculationType'
+          description: Taxes currently support percentage calculation only.
+        percentage: { type: number, nullable: true, example: 15.00 }
+        percentageBase:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2PercentageBase'
+          nullable: true
+
+    PricingV2CustomQuoteRules:
+      type: object
+      properties:
+        enabled: { type: boolean, example: true }
+        maxStandardDistanceKm: { type: number, nullable: true, example: 50 }
+        distanceExceededMessage: { type: string, nullable: true }
+
+    PricingV2RoundingConfig:
+      type: object
+      properties:
+        moneyScale: { type: integer, nullable: true, example: 2 }
+        moneyRoundingMode: { type: string, nullable: true, example: HALF_UP }
+        measurementScale: { type: integer, nullable: true, example: 2 }
+        measurementRoundingMode: { type: string, nullable: true, example: CEILING }
+
+    PricingV2AuditInfo:
+      type: object
+      properties:
+        createdBy: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedBy: { type: string, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+
+    PageSort:
+      type: object
+      properties:
+        empty: { type: boolean }
+        sorted: { type: boolean }
+        unsorted: { type: boolean }
+
+    Pageable:
+      type: object
+      properties:
+        pageNumber: { type: integer }
+        pageSize: { type: integer }
+        offset: { type: integer, format: int64 }
+        paged: { type: boolean }
+        unpaged: { type: boolean }
+        sort: { $ref: '#/components/schemas/PageSort' }
+
+    PricingModel:
+      type: object
+      required: [pricingId, basePrice, distanceCharge, weightCharge, dimensionalWeightCharge, prioritySurcharge, taxes, isLatest, createdOn, expiredOn]
+      properties:
+        pricingId: { type: string, example: Pricing_1 }
+        basePrice: { type: number, format: double, example: 9.99 }
+        distanceCharge: { $ref: '#/components/schemas/PricingModelDistanceCharge' }
+        weightCharge: { $ref: '#/components/schemas/PricingModelWeightCharge' }
+        dimensionalWeightCharge: { $ref: '#/components/schemas/PricingModelDimensionalWeightCharge' }
+        prioritySurcharge: { $ref: '#/components/schemas/PricingModelPrioritySurcharge' }
+        taxes:
+          type: array
+          items: { $ref: '#/components/schemas/PricingModelTaxes' }
+        isLatest: { type: boolean }
+        createdOn: { type: string, format: date-time }
+        expiredOn: { type: string, format: date-time, nullable: true }
+
+    PricingModelDistanceCharge:
+      type: object
+      required: [ratePerKm]
+      properties:
+        ratePerKm: { type: number, format: double, example: 0.75 }
+
+    PricingModelWeightCharge:
+      type: object
+      required: [ratePerKg]
+      properties:
+        ratePerKg: { type: number, format: double, example: 1.5 }
+
+    PricingModelDimensionalWeightCharge:
+      type: object
+      required: [ratePerKg, conversionFactor, unit]
+      properties:
+        ratePerKg: { type: number, format: double, example: 1.2 }
+        conversionFactor: { type: number, format: double, example: 5000 }
+        unit: { type: string, example: cm3/kg }
+
+    PricingModelPrioritySurcharge:
+      type: object
+      required: [calculationMethod, surcharge]
+      properties:
+        calculationMethod:
+          type: string
+          enum: [percentage, flat, Percentage, Flat]
+        surcharge: { type: number, format: double, example: 5 }
+
+    PricingModelTaxes:
+      type: object
+      required: [taxRate, taxType]
+      properties:
+        taxRate: { type: number, format: double, example: 5 }
+        taxType: { type: string, example: GST }
+
+    QuoteRequest:
+      type: object
+      required: [dimensions, weight, distance, priority, discount]
+      properties:
+        dimensions: { $ref: '#/components/schemas/QuoteRequestDimensions' }
+        weight: { type: number, format: double, example: 2.5 }
+        distance:
+          type: number
+          format: double
+          description: Value consumed as meters in current implementation (despite model description saying kilometers).
+          example: 12500
+        priority: { type: boolean }
+        discount:
+          oneOf:
+            - $ref: '#/components/schemas/Discount'
+            - type: 'null'
+        pricingId:
+          type: string
+          nullable: true
+          description: Present in DTO but not used by quote service; latest pricing model is always selected.
+
+    QuoteRequestDimensions:
+      type: object
+      required: [length, width, height]
+      properties:
+        length: { type: number, format: double, example: 30 }
+        width: { type: number, format: double, example: 20 }
+        height: { type: number, format: double, example: 10 }
+
+    Discount:
+      type: object
+      required: [calculationMethod, amount, discountType]
+      properties:
+        calculationMethod:
+          type: string
+          enum: [percentage, flat, Percentage, Flat]
+        amount: { type: number, format: double, example: 10 }
+        discountType: { type: string, example: Corporate Discount }
+
+    QuoteResponse:
+      type: object
+      required: [basePrice, distanceCharge, weightCharge, dimensionalWeightCharge, prioritySurcharge, taxes, discount, totalAmount, pricingId]
+      properties:
+        basePrice: { type: number, format: double }
+        distanceCharge: { type: number, format: double }
+        weightCharge: { type: number, format: double, nullable: true }
+        dimensionalWeightCharge: { type: number, format: double, nullable: true }
+        prioritySurcharge: { type: number, format: double, nullable: true }
+        taxes:
+          type: array
+          items: { $ref: '#/components/schemas/QuoteResponseTaxes' }
+        discount: { type: number, format: double, nullable: true }
+        totalAmount: { type: number, format: double }
+        pricingId: { type: string }
+
+    QuoteResponseTaxes:
+      type: object
+      required: [amount, taxType]
+      properties:
+        amount: { type: number, format: double }
+        taxType: { type: string, example: GST }
+
+    PatchElement:
+      type: object
+      required: [operation, path, value]
+      properties:
+        operation:
+          type: string
+          enum: [add, replace, remove]
+        path:
+          type: string
+          example: $.basePrice
+        value:
+          type: number
+          format: double
+          nullable: true
+
+    InitiatePaymentRequest:
+      type: object
+      required: [payerUserId, paymentCategory, paymentForType, amount, currency, billingAddress]
+      properties:
+        payerUserId: { type: string }
+        paymentCategory: { $ref: '#/components/schemas/PaymentCategory' }
+        paymentForType: { $ref: '#/components/schemas/PaymentForType' }
+        paymentForId: { type: string, nullable: true }
+        shippingOrderId: { type: string, nullable: true }
+        invoiceId: { type: string, nullable: true }
+        billingAccountId: { type: string, nullable: true }
+        amount: { type: number, format: double, minimum: 0.01 }
+        currency: { type: string, example: CAD }
+        billingAddress: { $ref: '#/components/schemas/Address' }
+        description: { type: string, nullable: true }
+        internalNotes: { type: string, nullable: true }
+        createdByType: { $ref: '#/components/schemas/CreatedByType' }
+        createdById: { type: string, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    InitiatePaymentResponse:
+      type: object
+      required: [paymentId, ticketId, status, paymentMethodType, paymentProvider, paymentCategory, paymentForType, amount, currency]
+      properties:
+        paymentId: { type: string }
+        ticketId: { type: string }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        paymentMethodType: { $ref: '#/components/schemas/PaymentMethodType' }
+        paymentProvider: { $ref: '#/components/schemas/PaymentProvider' }
+        paymentCategory: { $ref: '#/components/schemas/PaymentCategory' }
+        paymentForType: { $ref: '#/components/schemas/PaymentForType' }
+        paymentForId: { type: string, nullable: true }
+        amount: { type: number, format: double }
+        currency: { type: string }
+        expiresAt: { type: string, format: date-time, nullable: true }
+
+    FinalizePaymentRequest:
+      type: object
+      required: [ticketId]
+      properties:
+        ticketId: { type: string }
+
+    MonerisFinalizeResponse:
+      type: object
+      required: [paymentId, status, success, finalized, message, amount, currency]
+      properties:
+        paymentId: { type: string }
+        ticketId: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        success: { type: boolean }
+        finalized: { type: boolean }
+        message: { type: string }
+        failureReason: { type: string, nullable: true }
+        amount: { type: number, format: double }
+        currency: { type: string }
+        paymentMethodType:
+          allOf:
+            - $ref: '#/components/schemas/PaymentMethodType'
+          nullable: true
+        paymentProvider:
+          allOf:
+            - $ref: '#/components/schemas/PaymentProvider'
+          nullable: true
+        shippingOrderId: { type: string, nullable: true }
+        invoiceId: { type: string, nullable: true }
+        billingAccountId: { type: string, nullable: true }
+        monerisResponseCode: { type: string, nullable: true }
+        monerisResponseMessage: { type: string, nullable: true }
+        transactionId: { type: string, nullable: true }
+        referenceNumber: { type: string, nullable: true }
+        approvalCode: { type: string, nullable: true }
+        transactionTimestamp: { type: string, nullable: true }
+        crypt_type:
+          type: string
+          nullable: true
+          description: Moneris crypt_type value, also known as ecommerceIndicator or eci. Mapped from `response.receipt.cc.eci`.
+
+
+
+    InternalPaymentResponse:
+      type: object
+      description: Shared payment DTO returned to trusted internal service consumers.
+      properties:
+        paymentId: { type: string }
+        userId: { type: string, nullable: true }
+        shippingOrderId: { type: string, nullable: true }
+        amount: { type: number, format: double, nullable: true }
+        currency: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        failureReason: { type: string, nullable: true }
+        paymentGateway: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time, nullable: true }
+        updatedAt: { type: string, format: date-time, nullable: true }
+        billingAddress:
+          allOf:
+            - $ref: '#/components/schemas/Address'
+          nullable: true
+        gatewayDetails:
+          allOf:
+            - $ref: '#/components/schemas/GatewayDetails'
+          nullable: true
+
+    PaymentCheckoutRequest:
+      type: object
+      required: [shippingOrderId, amount, currency, billingAddress]
+      properties:
+        shippingOrderId: { type: string }
+        amount: { type: number, format: double, minimum: 0.01 }
+        currency: { type: string, example: CAD }
+        billingAddress: { $ref: '#/components/schemas/Address' }
+        description: { type: string, nullable: true }
+        idempotencyKey: { type: string, nullable: true }
+
+    PaymentCheckoutResponse:
+      type: object
+      required: [paymentId, shippingOrderId, checkoutFlow, status, paymentMethodType, amount, currency, message]
+      properties:
+        paymentId: { type: string }
+        shippingOrderId: { type: string }
+        checkoutFlow:
+          type: string
+          enum: [MONERIS, POSTPAY_BILLING_ACCOUNT]
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        paymentMethodType: { $ref: '#/components/schemas/PaymentMethodType' }
+        paymentProvider:
+          allOf:
+            - $ref: '#/components/schemas/PaymentProvider'
+          nullable: true
+        ticketId: { type: string, nullable: true }
+        billingAccountId: { type: string, nullable: true }
+        amount: { type: number, format: double }
+        currency: { type: string }
+        message: { type: string }
+
+    PaymentEntity:
+      type: object
+      required: [payerUserId, paymentCategory, paymentForType, status, amount, currency]
+      properties:
+        paymentId: { type: string }
+        version:
+          type: integer
+          format: int64
+          nullable: true
+          description: Mongo optimistic-locking version for the embedded payment document.
+        payerUserId: { type: string }
+        paymentCategory: { $ref: '#/components/schemas/PaymentCategory' }
+        paymentForType: { $ref: '#/components/schemas/PaymentForType' }
+        paymentForId: { type: string, nullable: true }
+        shippingOrderId: { type: string, nullable: true }
+        invoiceId: { type: string, nullable: true }
+        billingAccountId: { type: string, nullable: true }
+        status: { $ref: '#/components/schemas/PaymentStatus' }
+        paymentMethodType: { $ref: '#/components/schemas/PaymentMethodType' }
+        paymentProvider:
+          allOf:
+            - $ref: '#/components/schemas/PaymentProvider'
+          nullable: true
+        amount: { type: number, format: double }
+        amountPaid: { type: number, format: double, nullable: true }
+        amountRemaining: { type: number, format: double, nullable: true }
+        currency: { type: string, example: CAD }
+        description: { type: string, nullable: true }
+        internalNotes: { type: string, nullable: true }
+        billingAddress: { $ref: '#/components/schemas/Address' }
+        gatewayDetails:
+          allOf:
+            - $ref: '#/components/schemas/GatewayDetails'
+          nullable: true
+        refundSummary:
+          $ref: '#/components/schemas/RefundSummary'
+        refunds:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundRecord'
+        failureReason: { type: string, nullable: true }
+        createdByType:
+          allOf:
+            - $ref: '#/components/schemas/CreatedByType'
+          nullable: true
+        createdById: { type: string, nullable: true }
+        expiresAt: { type: string, format: date-time, nullable: true }
+        settledAt: { type: string, format: date-time, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+        idempotencyKey: { type: string, nullable: true }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: string, format: date-time }
+
+    PaymentCategory:
+      type: string
+      enum: [SHIPPING_ORDER, INVOICE_SETTLEMENT, MANUAL_ADMIN_REQUEST, BILLING_ACCOUNT_ADJUSTMENT, OTHER]
+
+    PaymentForType:
+      type: string
+      enum: [SHIPPING_ORDER, INVOICE, BILLING_ACCOUNT, MANUAL, OTHER]
+
+    PaymentMethodType:
+      type: string
+      enum: [CARD_ONLINE, POSTPAY_BILLING_ACCOUNT, PAYMENT_LINK, MANUAL_SETTLEMENT]
+
+    PaymentProvider:
+      type: string
+      enum: [MONERIS]
+
+    PaymentStatus:
+      type: string
+      enum: [PENDING_USER_ACTION, SUCCESSFUL, FAILED, POSTED_TO_BILLING_ACCOUNT, PARTIALLY_PAID, SETTLED, CANCELLED, EXPIRED]
+
+    CreatedByType:
+      type: string
+      enum: [SYSTEM, USER, ADMIN]
+
+    RefundWorkflowType:
+      type: string
+      description: Workflow that created and controls a refund record.
+      enum: [SYSTEM_REVIEW_REQUIRED, ADMIN_IMMEDIATE, EXTERNAL_RECONCILIATION]
+
+    RefundDestination:
+      type: string
+      description: Destination used to return value to the customer or billing account.
+      enum: [MONERIS_ORIGINAL_CARD, BILLING_ACCOUNT_CREDIT]
+
+    RefundReasonCode:
+      type: string
+      description: High-level reason a refund or billing credit was created.
+      enum:
+        - PRIORITY_DELIVERY_SLA_BREACH
+        - ORDER_CANCELLED
+        - SERVICE_NOT_PROVIDED
+        - DUPLICATE_CHARGE
+        - OVERCHARGE
+        - CUSTOMER_SERVICE_ADJUSTMENT
+        - ADMIN_ADJUSTMENT
+        - OTHER
+
+    RefundStatus:
+      type: string
+      description: Lifecycle status for an individual refund record.
+      enum: [PENDING_APPROVAL, SCHEDULED, PROCESSING, SUCCEEDED, DECLINED, FAILED, UNKNOWN, REJECTED, CANCELLED]
+
+    RefundOverallStatus:
+      type: string
+      description: Aggregate refund state for the full payment.
+      enum: [NONE, PENDING, PARTIALLY_REFUNDED, FULLY_REFUNDED, BLOCKED_UNKNOWN]
+
+    RefundTriggerType:
+      type: string
+      description: Source that caused the refund candidate or refund record.
+      enum: [SYSTEM_POLICY_EVENT, ADMIN_MANUAL_REQUEST, EXTERNAL_MONERIS_PORTAL, BILLING_RECONCILIATION, OTHER]
+
+    RefundAuditEventType:
+      type: string
+      description: Type of audit event recorded against a refund.
+      enum:
+        - CREATED
+        - AMOUNT_CHANGED
+        - APPROVED
+        - REJECTED
+        - SCHEDULED
+        - PROCESSING_STARTED
+        - GATEWAY_SUBMITTED
+        - GATEWAY_APPROVED
+        - GATEWAY_DECLINED
+        - GATEWAY_UNKNOWN
+        - STATUS_CHECK_PERFORMED
+        - BILLING_CREDIT_CREATED
+        - RECONCILED
+        - CANCELLED
+
+    MonerisAttemptType:
+      type: string
+      description: Type of Moneris refund gateway attempt.
+      enum: [REFUND_SUBMISSION, STATUS_CHECK]
+
+    MonerisAttemptOutcome:
+      type: string
+      description: Result category recorded for a Moneris refund attempt.
+      enum: [APPROVED, DECLINED, UNKNOWN, TECHNICAL_FAILURE]
+
+    MonerisEnvironment:
+      type: string
+      description: Moneris environment used for a refund attempt.
+      enum: [QA, PRODUCTION]
+
+    GatewayDetails:
+      type: object
+      properties:
+        ticketId: { type: string, nullable: true }
+        receipt:
+          allOf:
+            - $ref: '#/components/schemas/MonerisReceipt'
+          nullable: true
+
+    MonerisReceipt:
+      type: object
+      properties:
+        transactionId: { type: string }
+        approvalCode: { type: string }
+        orderId:
+          type: string
+          deprecated: true
+          description: Legacy schema name for the Mongo field; Java JSON responses use monerisOrderId.
+        monerisOrderId: { type: string, description: Moneris order id value returned by the Java API model }
+        referenceNumber: { type: string }
+        amount: { type: number, format: double }
+        statusResult: { type: string, description: Moneris result code; `a` means approved }
+        responseCode: { type: string }
+        transactionTimestamp: { type: string }
+        paymentToken: { type: string }
+        cardType: { type: string }
+        maskedCard: { type: string }
+        avsResultCode: { type: string }
+        cvdResultCode: { type: string }
+        isoResponseCode: { type: string }
+        transactionType: { type: string }
+        crypt_type:
+          type: string
+          description: Moneris crypt_type value, also known as ecommerceIndicator or eci. Mapped from `response.receipt.cc.eci`.
+        ecommerceIndicator:
+          type: string
+          description: >
+            Moneris ecommerce indicator returned as receipt.cc.eci.
+            It is later used as the refund crypt_type.
+          example: "7"
+        rawResponse: { type: string }
+
+    RefundSummary:
+      type: object
+      description: Aggregate refund totals embedded in a payment document.
+      properties:
+        refundableAmountAvailable:
+          type: number
+          multipleOf: 0.01
+          description: Amount from the original payment still available for a new refund or billing-account credit.
+          example: 75.00
+        refundAmountReserved:
+          type: number
+          multipleOf: 0.01
+          description: Amount reserved by refund records waiting for approval, scheduling, processing, or reconciliation.
+          example: 25.00
+        refundAmountSucceeded:
+          type: number
+          multipleOf: 0.01
+          description: Amount already refunded to the card or credited to a postpay billing account.
+          example: 10.00
+        status:
+          $ref: '#/components/schemas/RefundOverallStatus'
+        activeGatewayRefundId:
+          type: string
+          nullable: true
+          description: Refund currently being processed through Moneris.
+          example: Refund_8f5d2d7a
+        gatewayExecutionBlocked:
+          type: boolean
+          description: True when an ambiguous Moneris result should block further gateway execution until reconciliation.
+          example: false
+
+    RefundRecord:
+      type: object
+      description: Embedded refund or billing-credit record for a payment.
+      properties:
+        refundId:
+          type: string
+          example: Refund_8f5d2d7a
+        idempotencyKey:
+          type: string
+          nullable: true
+          description: Deduplicates automatic and admin-created refund requests.
+          example: priority-sla:ShippingOrder_123:v1
+        shippingOrderId:
+          type: string
+          nullable: true
+          description: Shipping order containing the package for which this refund was created.
+          example: ShippingOrder_123
+        trackingNumber:
+          type: string
+          nullable: true
+          description: >
+            Customer-facing package tracking number. Nullable for refunds that apply
+            to an entire payment rather than one specific package.
+          example: MX123456789CA
+        workflowType:
+          $ref: '#/components/schemas/RefundWorkflowType'
+        destination:
+          $ref: '#/components/schemas/RefundDestination'
+        status:
+          $ref: '#/components/schemas/RefundStatus'
+        reasonCode:
+          $ref: '#/components/schemas/RefundReasonCode'
+        customerFacingReason:
+          type: string
+          nullable: true
+          description: Safe explanation that may later be shown to the customer.
+          example: Priority delivery guarantee refund.
+        internalReason:
+          type: string
+          nullable: true
+          description: Internal explanation for administrators and support staff.
+          example: Delivery completed after 2-hour SLA.
+        trigger:
+          $ref: '#/components/schemas/RefundTriggerContext'
+        proposedAmount:
+          $ref: '#/components/schemas/RefundAmountSnapshot'
+        approvedAmount:
+          $ref: '#/components/schemas/RefundAmountSnapshot'
+        processedAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          description: Amount confirmed as processed by Moneris or billing.
+          example: 25.00
+        currency:
+          type: string
+          example: CAD
+        scheduledReleaseAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: Earliest time at which an approved refund may later be processed.
+        requestedBy:
+          $ref: '#/components/schemas/RefundActor'
+        requestedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewedBy:
+          $ref: '#/components/schemas/RefundActor'
+        reviewedAt:
+          type: string
+          format: date-time
+          nullable: true
+        reviewNotes:
+          type: string
+          nullable: true
+          example: Approved after SLA review.
+        rejectionReason:
+          type: string
+          nullable: true
+          example: Order did not breach refund policy.
+        processingStartedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        replacesRefundId:
+          type: string
+          nullable: true
+          description: Optional reference to an earlier rejected, cancelled, or superseded refund.
+          example: Refund_old_123
+        moneris:
+          $ref: '#/components/schemas/MonerisRefundDetails'
+        billingCredit:
+          $ref: '#/components/schemas/BillingCreditDetails'
+        refundReceiptDocumentId:
+          type: string
+          nullable: true
+          example: Document_RefundReceipt_123
+        creditNoteDocumentId:
+          type: string
+          nullable: true
+          example: Document_CreditNote_123
+        auditTrail:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundAuditEvent'
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    RefundAmountSnapshot:
+      type: object
+      description: Snapshot of a proposed, approved, or processed refund amount.
+      properties:
+        subtotal:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          description: Refund amount before tax.
+          example: 22.12
+        taxAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          description: Tax being reversed as part of the refund.
+          example: 2.88
+        totalAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          description: subtotal + taxAmount.
+          example: 25.00
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundLineItem'
+        pricingModelId:
+          type: string
+          nullable: true
+          description: Optional reference to the pricing snapshot used to calculate the refund.
+          example: PricingV2_123
+        pricingModelVersion:
+          type: integer
+          format: int32
+          nullable: true
+          example: 4
+        calculationSource:
+          type: string
+          nullable: true
+          description: Source used to determine the amount.
+          example: ACCEPTED_PRICING_SNAPSHOT
+
+    RefundLineItem:
+      type: object
+      description: Individual amount line within a refund snapshot.
+      properties:
+        code:
+          type: string
+          description: Refund line code such as PRIORITY_FEE, SHIPPING_FEE, TAX, or SERVICE_ADJUSTMENT.
+          example: PRIORITY_FEE
+        description:
+          type: string
+          nullable: true
+          example: Priority delivery fee reversal
+        amount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 22.12
+        taxAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 2.88
+        totalAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 25.00
+
+    RefundTriggerContext:
+      type: object
+      description: Context explaining what created or detected the refund candidate.
+      properties:
+        sourceEventId:
+          type: string
+          nullable: true
+          description: Kafka event ID, admin request ID, reconciliation reference, or another source-level identifier.
+          example: event-01HTZQAJX3G
+        sourceType:
+          $ref: '#/components/schemas/RefundTriggerType'
+        sourceReferenceId:
+          type: string
+          nullable: true
+          description: ShippingOrderId, InvoiceId, support ticket ID, Moneris portal reference, etc.
+          example: ShippingOrder_123
+        shippingOrderId:
+          type: string
+          nullable: true
+          description: Shipping order associated with the refund trigger, when package-specific.
+          example: ShippingOrder_123
+        trackingNumber:
+          type: string
+          nullable: true
+          description: Customer-facing package tracking number associated with the refund trigger.
+          example: MX123456789CA
+        policyCode:
+          type: string
+          nullable: true
+          example: PRIORITY_DELIVERY_2_HOUR_GUARANTEE
+        policyVersion:
+          type: string
+          nullable: true
+          description: Version of the policy that caused the refund candidate.
+          example: "2026-07"
+        detectedAt:
+          type: string
+          format: date-time
+          nullable: true
+        evidence:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: Evidence used to explain why the refund was created, such as committedDeliveryAt, actualCompletedAt, breachSeconds, and shippingOrderId.
+
+    RefundActor:
+      type: object
+      description: Actor responsible for a refund action.
+      properties:
+        actorType:
+          $ref: '#/components/schemas/CreatedByType'
+        actorId:
+          type: string
+          nullable: true
+          example: admin-user-123
+        displayNameSnapshot:
+          type: string
+          nullable: true
+          description: Snapshot of the actor's display name at the time of the action.
+          example: Alex Admin
+
+    RefundAuditEvent:
+      type: object
+      description: Audit event embedded in a refund record.
+      properties:
+        auditEventId:
+          type: string
+          example: RefundAudit_123
+        eventType:
+          $ref: '#/components/schemas/RefundAuditEventType'
+        previousStatus:
+          $ref: '#/components/schemas/RefundStatus'
+        newStatus:
+          $ref: '#/components/schemas/RefundStatus'
+        actor:
+          $ref: '#/components/schemas/RefundActor'
+        occurredAt:
+          type: string
+          format: date-time
+          nullable: true
+        previousAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 20.00
+        newAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 25.00
+        notes:
+          type: string
+          nullable: true
+          example: Approved adjusted amount.
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    MonerisRefundDetails:
+      type: object
+      description: Moneris refund details embedded in an individual refund record. Credentials and full card data must not be stored here.
+      properties:
+        originalOrderId:
+          type: string
+          nullable: true
+          description: Original Moneris Purchase order ID.
+          example: PaymentId_123
+        originalTransactionNumber:
+          type: string
+          nullable: true
+          description: Original successful Purchase transaction number.
+          example: "660123456789"
+        ecommerceIndicator:
+          type: string
+          nullable: true
+          description: Original Checkout ECI later used as Refund crypt_type.
+          example: "7"
+        processingCountryCode:
+          type: string
+          nullable: true
+          description: Processing country code, normally CA.
+          example: CA
+        environment:
+          $ref: '#/components/schemas/MonerisEnvironment'
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonerisRefundAttempt'
+
+    MonerisRefundAttempt:
+      type: object
+      description: Individual Moneris refund submission or status-check attempt.
+      properties:
+        attemptId:
+          type: string
+          example: MonerisRefundAttempt_001
+        sequence:
+          type: integer
+          format: int32
+          nullable: true
+          example: 1
+        attemptType:
+          $ref: '#/components/schemas/MonerisAttemptType'
+        outcome:
+          $ref: '#/components/schemas/MonerisAttemptOutcome'
+        startedAt:
+          type: string
+          format: date-time
+          nullable: true
+        completedAt:
+          type: string
+          format: date-time
+          nullable: true
+        request:
+          $ref: '#/components/schemas/MonerisRefundRequestSnapshot'
+        receipt:
+          $ref: '#/components/schemas/MonerisRefundReceipt'
+        transportErrorType:
+          type: string
+          nullable: true
+          description: Exception or transport-level failure type. Do not store credentials or sensitive request contents.
+          example: SocketTimeoutException
+        transportErrorMessage:
+          type: string
+          nullable: true
+          description: Sanitized exception or transport-level failure message.
+          example: Timed out while contacting Moneris.
+
+    MonerisRefundRequestSnapshot:
+      type: object
+      description: Sanitized Moneris refund request snapshot.
+      properties:
+        orderId:
+          type: string
+          nullable: true
+          description: Original Moneris order ID.
+          example: PaymentId_123
+        originalTransactionNumber:
+          type: string
+          nullable: true
+          description: Refers to the original successful Purchase transaction.
+          example: "660123456789"
+        amount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 25.00
+        ecommerceIndicator:
+          type: string
+          nullable: true
+          description: Refund crypt_type.
+          example: "7"
+        statusCheck:
+          type: boolean
+          description: False for normal submission; true for Moneris Status Check.
+          example: false
+
+    MonerisRefundReceipt:
+      type: object
+      description: Sanitized Moneris receipt data returned for a refund or refund status check.
+      properties:
+        cardType:
+          type: string
+          nullable: true
+          example: V
+        transactionAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 25.00
+        refundTransactionNumber:
+          type: string
+          nullable: true
+          description: Transaction number generated for the refund transaction; this is not the original Purchase transaction number.
+          example: "670987654321"
+        receiptId:
+          type: string
+          nullable: true
+          example: receipt-123
+        transactionType:
+          type: string
+          nullable: true
+          example: refund
+        referenceNumber:
+          type: string
+          nullable: true
+          example: "660123456789010010"
+        responseCode:
+          type: string
+          nullable: true
+          example: "027"
+        isoResponseCode:
+          type: string
+          nullable: true
+          example: "01"
+        bankTotals:
+          type: string
+          nullable: true
+        message:
+          type: string
+          nullable: true
+          example: Approved
+        authorizationCode:
+          type: string
+          nullable: true
+          example: APPROVED
+        complete:
+          type: string
+          nullable: true
+          description: Stored exactly as returned by Moneris.
+          example: "true"
+        timedOut:
+          type: string
+          nullable: true
+          description: Stored exactly as returned by Moneris.
+          example: "false"
+        transactionDate:
+          type: string
+          nullable: true
+          example: "2026-07-20"
+        transactionTime:
+          type: string
+          nullable: true
+          example: "16:42:00"
+        ticket:
+          type: string
+          nullable: true
+          example: moneris-ticket-abc
+        sourcePanLast4:
+          type: string
+          nullable: true
+          description: Last four digits only; do not store a full card number.
+          example: "5637"
+        rawResponse:
+          type: string
+          nullable: true
+          description: >
+            Optional sanitized serialized response. It must not contain Store ID,
+            API token, full card number, CVV, or unredacted credential-bearing XML.
+
+    BillingCreditDetails:
+      type: object
+      description: Billing-account credit details for postpay customers.
+      properties:
+        billingAccountId:
+          type: string
+          nullable: true
+          example: BillingAccount_123
+        billingAdjustmentId:
+          type: string
+          nullable: true
+          example: BillingAdjustment_456
+        creditedAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 25.00
+        creditedAt:
+          type: string
+          format: date-time
+          nullable: true
+
+    RefundActionOutcome:
+      type: string
+      description: Per-item outcome for admin refund operations.
+      enum:
+        - REFUNDED_SUCCESSFULLY
+        - REJECTED
+        - MONERIS_DECLINED
+        - MONERIS_RESULT_UNKNOWN
+        - PROCESSING_FAILED
+        - BILLING_REFUND_CREDIT_EVENT_PUBLISHED
+        - POSTPAY_BILLING_ACCOUNT_CREDIT_NOT_IMPLEMENTED
+        - ALREADY_PROCESSED
+        - INVALID_STATE
+        - PAYMENT_NOT_FOUND
+        - REFUND_NOT_FOUND
+        - VALIDATION_FAILURE
+        - AMOUNT_EXCEEDS_REFUNDABLE_BALANCE
+        - MISSING_MONERIS_DETAILS
+        - CONCURRENCY_CONFLICT
+        - UNSUPPORTED_PAYMENT_METHOD
+
+    RefundSearchResponse:
+      type: object
+      description: Paginated admin refund search response.
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundListItemResponse'
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 42 }
+        totalPages: { type: integer, example: 3 }
+        sortBy:
+          type: string
+          example: requestedAt
+        sortDirection:
+          type: string
+          enum: [ASC, DESC]
+          example: DESC
+
+    RefundListItemResponse:
+      type: object
+      description: Compact refund row for the admin dashboard.
+      properties:
+        paymentId: { type: string, example: Payment_1 }
+        refundId: { type: string, example: Refund_1 }
+        shippingOrderId: { type: string, nullable: true, example: ShippingOrder_1 }
+        trackingNumber:
+          type: string
+          nullable: true
+          description: Canonical package reference for package-level priority refunds.
+          example: MAPLEXZPVT909R
+        payerUserId: { type: string, example: User_1 }
+        reasonCode: { $ref: '#/components/schemas/RefundReasonCode' }
+        status: { $ref: '#/components/schemas/RefundStatus' }
+        workflowType: { $ref: '#/components/schemas/RefundWorkflowType' }
+        destination: { $ref: '#/components/schemas/RefundDestination' }
+        paymentMethodType: { $ref: '#/components/schemas/PaymentMethodType' }
+        paymentProvider: { $ref: '#/components/schemas/PaymentProvider' }
+        paymentStatus: { $ref: '#/components/schemas/PaymentStatus' }
+        proposedAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 11.50
+        approvedAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 11.50
+        processedAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          example: 11.50
+        currency: { type: string, example: CAD }
+        pricingId:
+          type: string
+          nullable: true
+          description: V2 pricing record used to calculate refundable tax.
+          example: Pricing_1
+        requestedAt: { type: string, format: date-time, nullable: true }
+        reviewedAt: { type: string, format: date-time, nullable: true }
+        reviewingAdminId: { type: string, nullable: true, example: admin-1 }
+        completedAt: { type: string, format: date-time, nullable: true }
+        monerisResponseCode: { type: string, nullable: true, example: "027" }
+        monerisMessage: { type: string, nullable: true, example: Approved }
+        policyCode: { type: string, nullable: true, example: PRIORITY_DELIVERY_2_HOUR_GUARANTEE }
+        policyVersion: { type: string, nullable: true, example: v1 }
+        approvalAllowed: { type: boolean, example: true }
+        rejectionAllowed: { type: boolean, example: true }
+        refundBranchImplemented:
+          type: boolean
+          description: True for supported card refunds and postpay billing-credit event publication.
+          example: true
+        gatewayExecutionBlocked:
+          type: boolean
+          description: True when an unknown Moneris result blocks further gateway execution.
+          example: false
+
+    RefundDetailResponse:
+      type: object
+      description: Admin refund detail without secrets or raw gateway payloads.
+      properties:
+        summary: { $ref: '#/components/schemas/RefundListItemResponse' }
+        customerFacingReason: { type: string, nullable: true }
+        internalReason: { type: string, nullable: true }
+        rejectionReason: { type: string, nullable: true }
+        reviewNotes: { type: string, nullable: true }
+        proposedAmount: { $ref: '#/components/schemas/RefundAmountResponse' }
+        approvedAmount: { $ref: '#/components/schemas/RefundAmountResponse' }
+        trigger: { $ref: '#/components/schemas/RefundTriggerResponse' }
+        requestedBy: { $ref: '#/components/schemas/RefundActorResponse' }
+        reviewedBy: { $ref: '#/components/schemas/RefundActorResponse' }
+        processingStartedAt: { type: string, format: date-time, nullable: true }
+        moneris: { $ref: '#/components/schemas/MonerisRefundDetailsResponse' }
+        billingCredit: { $ref: '#/components/schemas/BillingCreditDetailsResponse' }
+        refundReceiptDocumentId: { type: string, nullable: true }
+        creditNoteDocumentId: { type: string, nullable: true }
+        auditTrail:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundAuditEventResponse'
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    RefundAmountResponse:
+      type: object
+      properties:
+        subtotal:
+          type: number
+          multipleOf: 0.01
+          example: 10.00
+        taxAmount:
+          type: number
+          multipleOf: 0.01
+          description: For priority SLA refunds, calculated from the V2 pricing record referenced by `pricingId`.
+          example: 1.50
+        totalAmount:
+          type: number
+          multipleOf: 0.01
+          example: 11.50
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundLineItem'
+        pricingModelId: { type: string, nullable: true, example: Pricing_1 }
+        pricingModelVersion: { type: integer, nullable: true, example: 3 }
+        calculationSource: { type: string, nullable: true, example: ACCEPTED_PRICING_SNAPSHOT }
+
+    RefundTriggerResponse:
+      type: object
+      properties:
+        sourceEventId: { type: string, nullable: true, example: event-01HTZQAJX3G }
+        sourceType: { $ref: '#/components/schemas/RefundTriggerType' }
+        sourceReferenceId: { type: string, nullable: true, example: ShippingOrder_1 }
+        shippingOrderId: { type: string, nullable: true, example: ShippingOrder_1 }
+        trackingNumber: { type: string, nullable: true, example: MAPLEXZPVT909R }
+        policyCode: { type: string, nullable: true, example: PRIORITY_DELIVERY_2_HOUR_GUARANTEE }
+        policyVersion: { type: string, nullable: true, example: v1 }
+        detectedAt: { type: string, format: date-time, nullable: true }
+        evidence:
+          type: object
+          additionalProperties: true
+          nullable: true
+          description: SLA evidence such as committedDeliveryAt, actualCompletedAt, breachSeconds, shippingOrderId, and trackingNumber.
+
+    RefundActorResponse:
+      type: object
+      properties:
+        actorType: { $ref: '#/components/schemas/CreatedByType' }
+        actorId: { type: string, nullable: true, example: admin-1 }
+        displayNameSnapshot: { type: string, nullable: true, example: Admin One }
+
+    RefundAuditEventResponse:
+      type: object
+      properties:
+        auditEventId: { type: string, example: RefundAudit_1 }
+        eventType: { $ref: '#/components/schemas/RefundAuditEventType' }
+        previousStatus: { $ref: '#/components/schemas/RefundStatus' }
+        newStatus: { $ref: '#/components/schemas/RefundStatus' }
+        actor: { $ref: '#/components/schemas/RefundActorResponse' }
+        occurredAt: { type: string, format: date-time, nullable: true }
+        previousAmount: { type: number, multipleOf: 0.01, nullable: true }
+        newAmount: { type: number, multipleOf: 0.01, nullable: true }
+        notes: { type: string, nullable: true }
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    MonerisRefundDetailsResponse:
+      type: object
+      description: Non-sensitive Moneris refund detail view.
+      properties:
+        originalOrderId: { type: string, nullable: true, example: Payment_1 }
+        originalTransactionNumber:
+          type: string
+          nullable: true
+          description: Original successful Purchase transaction number.
+          example: purchase-txn-1
+        ecommerceIndicator:
+          type: string
+          nullable: true
+          description: Original Checkout ECI used as refund crypt_type.
+          example: "7"
+        processingCountryCode: { type: string, nullable: true, example: CA }
+        environment: { $ref: '#/components/schemas/MonerisEnvironment' }
+        attempts:
+          type: array
+          items:
+            $ref: '#/components/schemas/MonerisRefundAttemptResponse'
+
+    MonerisRefundAttemptResponse:
+      type: object
+      properties:
+        attemptId: { type: string, example: MonerisRefundAttempt_1 }
+        sequence: { type: integer, example: 1 }
+        attemptType: { $ref: '#/components/schemas/MonerisAttemptType' }
+        outcome: { $ref: '#/components/schemas/MonerisAttemptOutcome' }
+        startedAt: { type: string, format: date-time, nullable: true }
+        completedAt: { type: string, format: date-time, nullable: true }
+        request: { $ref: '#/components/schemas/MonerisRefundRequestSnapshot' }
+        receipt: { $ref: '#/components/schemas/MonerisRefundReceiptResponse' }
+        transportErrorType: { type: string, nullable: true, example: SocketTimeoutException }
+        transportErrorMessage:
+          type: string
+          nullable: true
+          description: Sanitized transport error. Does not include credentials or request XML.
+
+    MonerisRefundReceiptResponse:
+      type: object
+      description: Sanitized Moneris refund receipt. Does not expose rawResponse.
+      properties:
+        cardType: { type: string, nullable: true, example: V }
+        transactionAmount: { type: number, multipleOf: 0.01, nullable: true, example: 11.50 }
+        refundTransactionNumber:
+          type: string
+          nullable: true
+          description: Refund transaction number generated by Moneris; not the original Purchase transaction number.
+          example: refund-txn-1
+        receiptId: { type: string, nullable: true }
+        transactionType: { type: string, nullable: true, example: refund }
+        referenceNumber: { type: string, nullable: true, example: ref-1 }
+        responseCode: { type: string, nullable: true, example: "027" }
+        isoResponseCode: { type: string, nullable: true, example: "01" }
+        bankTotals: { type: string, nullable: true }
+        message: { type: string, nullable: true, example: Approved }
+        authorizationCode: { type: string, nullable: true, example: APPROVED }
+        complete: { type: string, nullable: true, example: "true" }
+        timedOut: { type: string, nullable: true, example: "false" }
+        transactionDate: { type: string, nullable: true, example: "2026-07-21" }
+        transactionTime: { type: string, nullable: true, example: "16:42:00" }
+        ticket: { type: string, nullable: true }
+        sourcePanLast4:
+          type: string
+          nullable: true
+          description: Last four digits only.
+          example: "5637"
+
+    BillingCreditDetailsResponse:
+      type: object
+      description: Postpay billing-credit event publication details stored on the embedded refund.
+      properties:
+        billingAccountId: { type: string, nullable: true, example: BillingAccount_1 }
+        billingAdjustmentId: { type: string, nullable: true }
+        creditedAmount: { type: number, multipleOf: 0.01, nullable: true }
+        creditedAt: { type: string, format: date-time, nullable: true }
+
+    BatchApprovalRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ApprovalItem'
+      example:
+        items:
+          - paymentId: Payment_1
+            refundId: Refund_1
+            approvedTotalAmount: 11.50
+            reviewNotes: Approved after SLA review.
+
+    ApprovalItem:
+      type: object
+      required: [paymentId, refundId]
+      properties:
+        paymentId: { type: string, example: Payment_1 }
+        refundId: { type: string, example: Refund_1 }
+        approvedTotalAmount:
+          type: number
+          multipleOf: 0.01
+          nullable: true
+          description: Optional admin override. When omitted, the proposed total amount is approved.
+          example: 11.50
+        reviewNotes: { type: string, nullable: true, example: Approved after SLA review. }
+
+    BatchRejectionRequest:
+      type: object
+      required: [items]
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/RejectionItem'
+        rejectionReason:
+          type: string
+          nullable: true
+          description: Batch-level reason used when an item does not provide its own reason.
+          example: Order did not breach refund policy.
+        reviewNotes: { type: string, nullable: true }
+
+    RejectionItem:
+      type: object
+      required: [paymentId, refundId]
+      properties:
+        paymentId: { type: string, example: Payment_1 }
+        refundId: { type: string, example: Refund_1 }
+        rejectionReason: { type: string, nullable: true, example: Order did not breach refund policy. }
+        reviewNotes: { type: string, nullable: true }
+
+    BatchActionResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RefundActionResult'
+
+    RefundActionResult:
+      type: object
+      properties:
+        paymentId: { type: string, nullable: true, example: Payment_1 }
+        refundId: { type: string, nullable: true, example: Refund_1 }
+        outcome: { $ref: '#/components/schemas/RefundActionOutcome' }
+        status: { $ref: '#/components/schemas/RefundStatus' }
+        message: { type: string, nullable: true, example: Refund processed successfully }
+        approvedAmount: { type: number, multipleOf: 0.01, nullable: true, example: 11.50 }
+        processedAmount: { type: number, multipleOf: 0.01, nullable: true, example: 11.50 }
+        monerisResponseCode: { type: string, nullable: true, example: "027" }
+        monerisReferenceNumber: { type: string, nullable: true, example: ref-1 }
+
+    ManualRefundRequest:
+      type: object
+      required: [paymentId, amount]
+      description: |
+        Manual admin refund request. Gateway identifiers, Moneris credentials,
+        card data, payment method overrides, and reviewing admin IDs are resolved
+        from persisted payment data and the authenticated JWT, not from this body.
+      properties:
+        paymentId: { type: string, example: Payment_1 }
+        amount:
+          type: number
+          multipleOf: 0.01
+          example: 5.00
+        currency: { type: string, nullable: true, example: CAD }
+        reasonCode: { $ref: '#/components/schemas/RefundReasonCode' }
+        customerFacingReason: { type: string, nullable: true, example: Courtesy refund. }
+        internalReason: { type: string, nullable: true, example: Admin adjustment approved by support. }
+        trackingNumber:
+          type: string
+          nullable: true
+          description: Optional package tracking number when the manual refund is package-specific.
+          example: MAPLEXZPVT909R
+        shippingOrderId: { type: string, nullable: true, example: ShippingOrder_1 }
+        idempotencyKey:
+          type: string
+          nullable: true
+          description: Optional body idempotency key; `Idempotency-Key` header takes precedence when present.
+          example: manual-refund:Payment_1:case-123
+        metadata:
+          type: object
+          additionalProperties: true
+          nullable: true
+
+    Address:
+      type: object
+      properties:
+        fullName: { type: string }
+        company: { type: string }
+        streetAddress: { type: string }
+        addressLine2: { type: string }
+        city: { type: string }
+        province: { type: string }
+        postalCode: { type: string }
+        country: { type: string }
+        phoneNumber: { type: string }
+        deliveryInstructions: { type: string }
+
+    ErrorResponse:
+      type: object
+      required: [status, message, errors]
+      properties:
+        status: { type: string, example: error }
+        message: { type: string, example: An error occurred }
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorResponseErrors'
+
+    ErrorResponseErrors:
+      type: object
+      required: [field, message]
+      properties:
+        field: { type: string }
+        message: { type: string }
