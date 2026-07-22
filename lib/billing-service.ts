@@ -82,6 +82,53 @@ export interface BillingPayment {
   appliedToLabel?: string | null
 }
 
+export interface BillingRefundCreditLineItem {
+  code?: string | null
+  description?: string | null
+  amount?: number | null
+  taxAmount?: number | null
+  totalAmount?: number | null
+}
+
+export interface BillingRefundCredit {
+  billingRefundCreditId: string
+  externalRefundId?: string | null
+  sourcePaymentId?: string | null
+  sourceReferenceType?: string | null
+  sourceReferenceId?: string | null
+  shippingOrderId?: string | null
+  trackingNumber?: string | null
+  reasonCode?: string | null
+  customerFacingReason?: string | null
+  subtotal?: number | null
+  taxAmount?: number | null
+  totalAmount?: number | null
+  appliedToUnbilledSubtotal?: number | null
+  appliedToUnbilledTaxAmount?: number | null
+  appliedToUnbilledTotalAmount?: number | null
+  movedToCreditBalanceAmount?: number | null
+  currency?: string | null
+  status?: string | null
+  lineItems?: BillingRefundCreditLineItem[]
+  invoiceId?: string | null
+  invoicedAt?: string | null
+  issuedAt?: string | null
+}
+
+export interface BillingCreditLedgerEntry {
+  billingCreditLedgerId: string
+  entryType?: string | null
+  sourceType?: string | null
+  sourceId?: string | null
+  invoiceId?: string | null
+  relatedRefundCreditId?: string | null
+  amount?: number | null
+  balanceAfter?: number | null
+  currency?: string | null
+  customerFacingReason?: string | null
+  occurredAt?: string | null
+}
+
 export interface BillingActions {
   canPayBalance: boolean
   canPayLatestInvoice: boolean
@@ -97,6 +144,8 @@ export interface BillingDashboardResponse {
   recentInvoices: BillingInvoice[]
   recentUnbilledCharges: BillingUnbilledCharge[]
   recentPayments: BillingPayment[]
+  recentRefundCredits: BillingRefundCredit[]
+  recentCreditLedgerEntries: BillingCreditLedgerEntry[]
   actions: BillingActions
 }
 
@@ -119,6 +168,8 @@ export interface BillingPageParams {
   sortBy?: string
   sortDir?: "asc" | "desc"
   status?: string
+  entryType?: string
+  sourceType?: string
   fromDate?: string
   toDate?: string
 }
@@ -149,6 +200,8 @@ function pageParams(params: BillingPageParams) {
   if (params.sortBy) search.set("sortBy", params.sortBy)
   if (params.sortDir) search.set("sortDir", params.sortDir)
   if (params.status) search.set("status", params.status)
+  if (params.entryType) search.set("entryType", params.entryType)
+  if (params.sourceType) search.set("sourceType", params.sourceType)
   if (params.fromDate) search.set("fromDate", params.fromDate)
   if (params.toDate) search.set("toDate", params.toDate)
 
@@ -208,7 +261,7 @@ export async function getBillingDashboard(): Promise<BillingDashboardResponse> {
       balanceDue: data?.summary?.balanceDue ?? 0,
       currentUnbilledAmount: data?.summary?.currentUnbilledAmount ?? 0,
       creditBalance: data?.summary?.creditBalance ?? 0,
-      totalPayableNow: data?.summary?.totalPayableNow ?? 0,
+      totalPayableNow: data?.summary?.totalPayableNow ?? data?.summary?.balanceDue ?? 0,
       currency: data?.summary?.currency ?? "CAD",
       hasOutstandingBalance: Boolean(data?.summary?.hasOutstandingBalance),
       hasUnbilledCharges: Boolean(data?.summary?.hasUnbilledCharges),
@@ -219,6 +272,8 @@ export async function getBillingDashboard(): Promise<BillingDashboardResponse> {
     recentInvoices: Array.isArray(data?.recentInvoices) ? data.recentInvoices : [],
     recentUnbilledCharges: Array.isArray(data?.recentUnbilledCharges) ? data.recentUnbilledCharges : [],
     recentPayments: Array.isArray(data?.recentPayments) ? data.recentPayments : [],
+    recentRefundCredits: Array.isArray(data?.recentRefundCredits) ? data.recentRefundCredits : [],
+    recentCreditLedgerEntries: Array.isArray(data?.recentCreditLedgerEntries) ? data.recentCreditLedgerEntries : [],
     actions: {
       canPayBalance: Boolean(data?.actions?.canPayBalance),
       canPayLatestInvoice: Boolean(data?.actions?.canPayLatestInvoice),
@@ -273,6 +328,38 @@ export async function getClientBillingPayments(
   )
 
   return readPage<BillingPayment>(response, "paymentDate")
+}
+
+export async function getClientRefundCredits(
+  params: BillingPageParams = {},
+): Promise<BillingPageResponse<BillingRefundCredit>> {
+  const response = await apiFetch(
+    `/api/billing/refund-credits?${pageParams({ sortBy: "issuedAt", sortDir: "desc", ...params })}`,
+    {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  return readPage<BillingRefundCredit>(response, "issuedAt")
+}
+
+export async function getClientCreditBalanceLedger(
+  params: BillingPageParams = {},
+): Promise<BillingPageResponse<BillingCreditLedgerEntry>> {
+  const response = await apiFetch(
+    `/api/billing/credit-balance-ledger?${pageParams({ sortBy: "occurredAt", sortDir: "desc", ...params })}`,
+    {
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    },
+  )
+
+  return readPage<BillingCreditLedgerEntry>(response, "occurredAt")
 }
 
 export async function initiateBillingBalancePayment(

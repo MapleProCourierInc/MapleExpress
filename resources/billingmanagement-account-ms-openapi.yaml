@@ -1,0 +1,1608 @@
+openapi: 3.0.3
+info:
+  title: Billing Management Account MS API
+  version: 1.2.0
+  description: Customer/client postpaid billing account CRUD API. BillingAccount is account summary/config only; charges, refund credits, credit-balance ledger entries, invoices, and payments are separate MongoDB documents.
+paths:
+  /billingmanagement/billing-account:
+    post:
+      summary: Create customer billing account
+      tags: [Billing Account]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingAccount'
+      responses:
+        '201':
+          description: Created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingAccount'
+    get:
+      summary: List customer billing accounts
+      tags: [Billing Account]
+      parameters:
+        - in: query
+          name: ownerId
+          schema: { type: string }
+        - in: query
+          name: ownerType
+          schema: { type: string, enum: [INDIVIDUAL, ORGANIZATION] }
+        - in: query
+          name: billingMode
+          schema: { type: string, example: POSTPAID_INVOICE }
+        - in: query
+          name: status
+          schema: { type: string, example: ACTIVE }
+        - in: query
+          name: email
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BillingAccount'
+  /billingmanagement/billing-account/{billingAccountId}:
+    get:
+      summary: Get billing account by id
+      tags: [Billing Account]
+      parameters:
+        - in: path
+          name: billingAccountId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: OK
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingAccount'
+    put:
+      summary: Replace billing account by id
+      tags: [Billing Account]
+      parameters:
+        - in: path
+          name: billingAccountId
+          required: true
+          schema: { type: string }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BillingAccount'
+      responses:
+        '200':
+          description: Updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingAccount'
+    patch:
+      summary: Patch billing account by id
+      tags: [Billing Account]
+      parameters:
+        - in: path
+          name: billingAccountId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Updated
+    delete:
+      summary: Delete billing account by id
+      tags: [Billing Account]
+      parameters:
+        - in: path
+          name: billingAccountId
+          required: true
+          schema: { type: string }
+      responses:
+        '204':
+          description: Deleted
+  /billingmanagement/billing-account/orders/shipping-charge:
+    post:
+      summary: Post shipping order charge to billing account
+      deprecated: true
+      tags: [Billing Account]
+      description: |
+        Deprecated direct posting API retained for compatibility.
+        Creates an `UNBILLED` BillingAccountCharge ledger entry in `billing_account_charges`.
+        It no longer appends to `BillingAccount.orders`.
+        Preferred flow: Billing MS consumes `OrderStatusChangeNotification` where
+        `newStatus` is `CONFIRMED` and `paymentStatus` is `POSTED_TO_BILLING_ACCOUNT`.
+        JWT `sub` must match billingAccount.ownerId.
+        Billing account must be `ACTIVE` and `POSTPAID_INVOICE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostShippingOrderChargeRequest'
+            example:
+              billingAccountId: ACC_A1B2C3D4
+              paymentId: PAY_20260310_0002
+              shippingOrderId: SO_10002
+              amount: 89.50
+              currency: CAD
+              orderDateTime: '2026-03-10T23:30:00Z'
+              orderStatus: CONFIRMED
+              orderStatusReason: Shipping order charge added to monthly billing account
+              taxes:
+                - taxType: GST
+                  taxRate: 5
+                  amount: 4.26
+              notes: Posted from pricing-payment-ms checkout flow
+      responses:
+        '200':
+          description: Charge posted or already posted idempotent response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostShippingOrderChargeResponse'
+        '400':
+          description: Invalid request or billing account not eligible
+        '401':
+          description: Unauthorized
+        '403':
+          description: Billing account ownership mismatch
+        '404':
+          description: Billing account not found
+  /billingmanagement/billing-account/payments:
+    post:
+      summary: Post payment received to billing account
+      tags: [Billing Account]
+      description: |
+        Records payment activity toward billing account and updates outstanding dues.
+        JWT `sub` must match billingAccount.ownerId.
+        Billing account must be `ACTIVE`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PostBillingAccountPaymentRequest'
+            examples:
+              invoicePayment:
+                summary: Invoice payment
+                value:
+                  billingAccountId: ACC_A1B2C3D4
+                  paymentId: PAY_20260310_0003
+                  amount: 500.00
+                  currency: CAD
+                  paymentDateTime: '2026-03-10T23:40:05Z'
+                  paymentStatus: SUCCESSFUL
+                  paymentMethodType: CARD_ONLINE
+                  paymentProvider: MONERIS
+                  referenceType: INVOICE
+                  referenceId: INV_2026_0031
+                  invoiceId: INV_2026_0031
+                  notes: Customer paid March invoice online
+              midCyclePayment:
+                summary: Mid-cycle billing account payment
+                value:
+                  billingAccountId: ACC_A1B2C3D4
+                  paymentId: PAY_20260312_0005
+                  amount: 200.00
+                  currency: CAD
+                  paymentStatus: SUCCESSFUL
+                  paymentMethodType: CARD_ONLINE
+                  paymentProvider: MONERIS
+                  referenceType: BILLING_ACCOUNT
+                  referenceId: ACC_A1B2C3D4
+                  notes: Mid-cycle account payment
+              manualPayment:
+                summary: Manual payment record
+                value:
+                  billingAccountId: ACC_A1B2C3D4
+                  paymentId: PAY_MANUAL_001
+                  amount: 150.00
+                  currency: CAD
+                  paymentStatus: SETTLED
+                  paymentMethodType: MANUAL_SETTLEMENT
+                  referenceType: MANUAL
+                  referenceId: MANUAL_20260312_01
+                  notes: Offline bank transfer confirmed by admin
+      responses:
+        '200':
+          description: Payment posted or idempotently accepted as already posted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PostBillingAccountPaymentResponse'
+        '400':
+          description: Invalid request or billing account not eligible
+        '401':
+          description: Unauthorized
+        '403':
+          description: Billing account ownership mismatch
+        '404':
+          description: Billing account not found
+        '409':
+          description: Overpayment conflict
+  /billingmanagement/invoices/generate-monthly:
+    post:
+      summary: Generate monthly invoices
+      tags: [Invoice]
+      description: |
+        Generates one invoice per billing account from `UNBILLED` billing account charges and `UNBILLED` refund credits in the target calendar month.
+        Generation starts from charges, not from ACTIVE billing accounts, so old postpay charges are still invoiced even if an account is now prepaid or disabled.
+        Refund credits are rendered as negative invoice line items and reduce current-period totals.
+        Credit balance is auto-applied to the new invoice and a `CREDIT_BALANCE` BillingPayment record is created when credit is used.
+        Previous unpaid balances are stored separately as `previousBalance` and are not duplicated as invoice line items.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateMonthlyInvoicesRequest'
+      responses:
+        '200':
+          description: Monthly invoice generation completed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyInvoiceGenerationResult'
+  /billingmanagement/internal/invoices/{invoiceId}:
+    get:
+      summary: Internal invoice detail lookup
+      tags: [Invoice]
+      description: Internal endpoint for document-generator-ms to retrieve full invoice data by invoiceId.
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema: { type: string }
+      responses:
+        '200':
+          description: Invoice details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingInvoice'
+        '404':
+          description: Invoice not found
+  /billingmanagement/client/billing-dashboard:
+    get:
+      summary: Get client billing dashboard
+      tags: [Client Billing Dashboard]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the authenticated customer's initial billing dashboard payload. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
+
+        The response includes billing account summary, dashboard totals, latest invoice, recent 5 invoices, recent 5 unbilled charges, recent 5 payments, recent 5 refund credits, recent 5 credit ledger entries, and frontend action flags.
+
+        Full invoice line items are not returned by this master dashboard API. Presigned invoice document URLs are generated best-effort using existing `invoiceS3Key` values. If URL generation fails for an invoice, that invoice returns `invoiceDocumentStatus=UNAVAILABLE` while the dashboard response still succeeds.
+
+        If no billing account exists for the authenticated user, the API returns HTTP 200 with an empty dashboard and `actions.hasBillingAccount=false`.
+      responses:
+        '200':
+          description: Client billing dashboard returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ClientBillingDashboardResponse'
+              examples:
+                withAvailableInvoice:
+                  summary: Dashboard with latest invoice URL
+                  value:
+                    billingAccount:
+                      billingAccountId: ACC_A1B2C3D4
+                      billingMode: POSTPAID_INVOICE
+                      ownerId: 2c2d0598-a071-703b-d126-f071becab620
+                      ownerType: INDIVIDUAL
+                      status: ACTIVE
+                      email: customer@example.com
+                      billingCycle: MONTHLY
+                      currency: CAD
+                      lastBilledDate: '2026-06-01T01:00:00Z'
+                      nextBillingDate: '2026-07-01T01:00:00Z'
+                    summary:
+                      balanceDue: 550.00
+                      currentUnbilledAmount: 74.25
+                      creditBalance: 0.00
+                      totalPayableNow: 550.00
+                      currency: CAD
+                      hasOutstandingBalance: true
+                      hasUnbilledCharges: true
+                      hasCredit: false
+                      balanceStatusLabel: Payment due
+                    latestInvoice:
+                      invoiceId: INVOICE_MDR7F8G
+                      invoiceNumber: INVOICE_MDR7F8G
+                      invoiceS3Key: documents/owners/2c2d0598/monthly-invoices/INVOICE_MDR7F8G-v1.pdf
+                      invoiceDocumentUrl: https://presigned-url-example
+                      invoiceDocumentStatus: AVAILABLE
+                      billingPeriodStart: '2026-05-01T00:00:00Z'
+                      billingPeriodEnd: '2026-06-01T00:00:00Z'
+                      previousBalance: 200.00
+                      newChargesAmount: 428.57
+                      subtotal: 428.57
+                      taxAmount: 21.43
+                      totalAmount: 450.00
+                      creditApplied: 100.00
+                      amountPaid: 100.00
+                      amountDue: 350.00
+                      totalAccountBalanceDue: 550.00
+                      currency: CAD
+                      status: PARTIALLY_PAID
+                      generatedAt: '2026-06-01T01:00:00Z'
+                      dueDate: '2026-06-15T23:59:59Z'
+                      paidAt: null
+                      lineItemCount: 8
+                      downloadable: true
+                      payable: true
+                      overdue: false
+                    recentInvoices:
+                      - invoiceId: INVOICE_MDR7F8G
+                        invoiceNumber: INVOICE_MDR7F8G
+                        invoiceS3Key: documents/owners/2c2d0598/monthly-invoices/INVOICE_MDR7F8G-v1.pdf
+                        invoiceDocumentUrl: https://presigned-url-example
+                        invoiceDocumentStatus: AVAILABLE
+                        billingPeriodStart: '2026-05-01T00:00:00Z'
+                        billingPeriodEnd: '2026-06-01T00:00:00Z'
+                        previousBalance: 200.00
+                        newChargesAmount: 428.57
+                        subtotal: 428.57
+                        taxAmount: 21.43
+                        totalAmount: 450.00
+                        creditApplied: 100.00
+                        amountPaid: 100.00
+                        amountDue: 350.00
+                        totalAccountBalanceDue: 550.00
+                        currency: CAD
+                        status: PARTIALLY_PAID
+                        generatedAt: '2026-06-01T01:00:00Z'
+                        dueDate: '2026-06-15T23:59:59Z'
+                        paidAt: null
+                        lineItemCount: 8
+                        downloadable: true
+                        payable: true
+                        overdue: false
+                      - invoiceId: INVOICE_OLD
+                        invoiceNumber: INVOICE_OLD
+                        invoiceS3Key: null
+                        invoiceDocumentUrl: null
+                        invoiceDocumentStatus: NOT_GENERATED
+                        amountDue: 0.00
+                        currency: CAD
+                        status: PAID
+                        lineItemCount: 3
+                        downloadable: false
+                        payable: false
+                        overdue: false
+                      - invoiceId: INVOICE_UNAVAILABLE
+                        invoiceNumber: INVOICE_UNAVAILABLE
+                        invoiceS3Key: documents/invoices/INVOICE_UNAVAILABLE.pdf
+                        invoiceDocumentUrl: null
+                        invoiceDocumentStatus: UNAVAILABLE
+                        amountDue: 25.00
+                        currency: CAD
+                        status: GENERATED
+                        lineItemCount: 1
+                        downloadable: false
+                        payable: true
+                        overdue: false
+                    recentUnbilledCharges:
+                      - chargeId: CHG_1
+                        shippingOrderId: SO_10002
+                        paymentId: PAY_20260310_0002
+                        chargeType: SHIPPING_ORDER
+                        status: UNBILLED
+                        amount: 70.00
+                        taxAmount: 4.25
+                        totalAmount: 74.25
+                        currency: CAD
+                        orderDateTime: '2026-06-20T10:00:00Z'
+                        postedAt: '2026-06-20T10:05:00Z'
+                        description: Shipping order SO_10002
+                    recentPayments:
+                      - billingPaymentId: BPAY_1
+                        invoiceId: INVOICE_MDR7F8G
+                        externalPaymentId: PAY_20260610_0001
+                        amount: 100.00
+                        currency: CAD
+                        paymentMethod: MONERIS
+                        status: SUCCESSFUL
+                        paymentDate: '2026-06-10T12:00:00Z'
+                        notes: Customer payment
+                        appliedToLabel: Applied to invoice INVOICE_MDR7F8G
+                    recentRefundCredits:
+                      - billingRefundCreditId: BRC_550e8400-e29b-41d4-a716-446655440000
+                        externalRefundId: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea
+                        sourcePaymentId: PaymentId_92fe689a-23e5-45e0-92da-57b9c87a742b
+                        sourceReferenceType: SHIPPING_ORDER
+                        sourceReferenceId: ShippingOrder_BXIU29ND
+                        shippingOrderId: ShippingOrder_BXIU29ND
+                        trackingNumber: MAPLEX4M2TD0YI
+                        reasonCode: PRIORITY_DELIVERY_SLA_BREACH
+                        customerFacingReason: Priority delivery guarantee refund for tracking number MAPLEX4M2TD0YI.
+                        subtotal: 5.00
+                        taxAmount: 0.75
+                        totalAmount: 5.75
+                        appliedToUnbilledSubtotal: 5.00
+                        appliedToUnbilledTaxAmount: 0.75
+                        appliedToUnbilledTotalAmount: 5.75
+                        movedToCreditBalanceAmount: 0.00
+                        currency: CAD
+                        status: UNBILLED
+                        lineItems:
+                          - code: PRIORITY_FEE
+                            description: Priority delivery fee refund for tracking number MAPLEX4M2TD0YI
+                            amount: 5.00
+                            taxAmount: 0.75
+                            totalAmount: 5.75
+                        invoiceId: null
+                        invoicedAt: null
+                        issuedAt: '2026-06-20T10:10:00Z'
+                    recentCreditLedgerEntries:
+                      - billingCreditLedgerId: BCLED_550e8400-e29b-41d4-a716-446655440000
+                        entryType: CREDIT_CREATED
+                        sourceType: REFUND_EXCESS
+                        sourceId: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea
+                        invoiceId: null
+                        relatedRefundCreditId: BRC_550e8400-e29b-41d4-a716-446655440000
+                        amount: 3.25
+                        balanceAfter: 23.25
+                        currency: CAD
+                        customerFacingReason: Priority delivery guarantee refund for tracking number MAPLEX4M2TD0YI.
+                        occurredAt: '2026-06-20T10:10:00Z'
+                    actions:
+                      canPayBalance: true
+                      canPayLatestInvoice: true
+                      canDownloadLatestInvoice: true
+                      hasBillingAccount: true
+                      payBalanceLabel: Pay balance
+                noBillingAccount:
+                  summary: Empty dashboard when billing account is absent
+                  value:
+                    billingAccount: null
+                    summary:
+                      balanceDue: 0
+                      currentUnbilledAmount: 0
+                      creditBalance: 0
+                      totalPayableNow: 0
+                      currency: CAD
+                      hasOutstandingBalance: false
+                      hasUnbilledCharges: false
+                      hasCredit: false
+                      balanceStatusLabel: No billing account
+                    latestInvoice: null
+                    recentInvoices: []
+                    recentUnbilledCharges: []
+                    recentPayments: []
+                    recentRefundCredits: []
+                    recentCreditLedgerEntries: []
+                    actions:
+                      canPayBalance: false
+                      canPayLatestInvoice: false
+                      canDownloadLatestInvoice: false
+                      hasBillingAccount: false
+                      payBalanceLabel: null
+        '401':
+          description: Unauthorized
+        '500':
+          description: Unexpected server failure
+  /billingmanagement/client/invoices:
+    get:
+      summary: Get client invoices
+      tags: [Client Billing]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated invoice summary list for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
+
+        Full invoice line items are not returned. `lineItemCount` is returned instead. Presigned invoice document URLs are generated best-effort from `invoiceS3Key`; if generation fails, the response still succeeds and that invoice has `invoiceDocumentStatus=UNAVAILABLE`.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - in: query
+          name: sortBy
+          schema: { type: string, default: generatedAt, enum: [generatedAt, dueDate, billingPeriodStart, amountDue, totalAmount, status] }
+        - $ref: '#/components/parameters/SortDirParam'
+        - in: query
+          name: status
+          schema: { type: string, example: GENERATED }
+        - in: query
+          name: fromDate
+          description: ISO-8601 date-time. Filters generatedAt >= fromDate.
+          schema: { type: string, format: date-time, example: '2026-05-01T00:00:00Z' }
+        - in: query
+          name: toDate
+          description: ISO-8601 date-time. Filters generatedAt <= toDate.
+          schema: { type: string, format: date-time, example: '2026-05-31T23:59:59Z' }
+      responses:
+        '200':
+          description: Client invoice page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedClientInvoiceSummaryResponse'
+              example:
+                content:
+                  - invoiceId: INVOICE_MDR7F8G
+                    invoiceNumber: INVOICE_MDR7F8G
+                    invoiceDocumentUrl: https://presigned-url-example
+                    invoiceDocumentStatus: AVAILABLE
+                    billingPeriodStart: '2026-05-01T00:00:00Z'
+                    billingPeriodEnd: '2026-06-01T00:00:00Z'
+                    previousBalance: 200.00
+                    newChargesAmount: 428.57
+                    subtotal: 428.57
+                    taxAmount: 21.43
+                    totalAmount: 450.00
+                    creditApplied: 100.00
+                    amountPaid: 100.00
+                    amountDue: 350.00
+                    totalAccountBalanceDue: 550.00
+                    currency: CAD
+                    status: PARTIALLY_PAID
+                    generatedAt: '2026-06-01T01:00:00Z'
+                    dueDate: '2026-06-15T23:59:59Z'
+                    sentAt: '2026-06-01T02:00:00Z'
+                    paidAt: null
+                    lineItemCount: 8
+                    downloadable: true
+                    payable: true
+                    overdue: false
+                  - invoiceId: INVOICE_NO_DOC
+                    invoiceNumber: INVOICE_NO_DOC
+                    invoiceDocumentUrl: null
+                    invoiceDocumentStatus: NOT_GENERATED
+                    amountDue: 0.00
+                    currency: CAD
+                    status: PAID
+                    lineItemCount: 3
+                    downloadable: false
+                    payable: false
+                    overdue: false
+                  - invoiceId: INVOICE_UNAVAILABLE
+                    invoiceNumber: INVOICE_UNAVAILABLE
+                    invoiceDocumentUrl: null
+                    invoiceDocumentStatus: UNAVAILABLE
+                    amountDue: 25.00
+                    currency: CAD
+                    status: GENERATED
+                    lineItemCount: 1
+                    downloadable: false
+                    payable: true
+                    overdue: false
+                page: 0
+                size: 20
+                totalElements: 3
+                totalPages: 1
+                first: true
+                last: true
+                numberOfElements: 3
+                sortBy: generatedAt
+                sortDir: desc
+        '401':
+          description: Unauthorized
+        '500':
+          description: Unexpected server failure
+  /billingmanagement/client/unbilled-charges:
+    get:
+      summary: Get client unbilled charges
+      tags: [Client Billing]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated list of only `UNBILLED` charges for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - in: query
+          name: sortBy
+          schema: { type: string, default: postedAt, enum: [postedAt, orderDateTime, totalAmount, amount, taxAmount] }
+        - $ref: '#/components/parameters/SortDirParam'
+        - in: query
+          name: fromDate
+          description: ISO-8601 date-time. Filters postedAt >= fromDate.
+          schema: { type: string, format: date-time, example: '2026-05-01T00:00:00Z' }
+        - in: query
+          name: toDate
+          description: ISO-8601 date-time. Filters postedAt <= toDate.
+          schema: { type: string, format: date-time, example: '2026-05-31T23:59:59Z' }
+      responses:
+        '200':
+          description: Client unbilled charge page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedClientUnbilledChargeResponse'
+              example:
+                content:
+                  - chargeId: CHG_1
+                    shippingOrderId: SO_10002
+                    paymentId: PAY_20260310_0002
+                    chargeType: SHIPPING_ORDER
+                    status: UNBILLED
+                    amount: 70.00
+                    taxAmount: 4.25
+                    totalAmount: 74.25
+                    currency: CAD
+                    orderDateTime: '2026-06-20T10:00:00Z'
+                    postedAt: '2026-06-20T10:05:00Z'
+                    description: Shipping order SO_10002
+                page: 0
+                size: 20
+                totalElements: 1
+                totalPages: 1
+                first: true
+                last: true
+                numberOfElements: 1
+                sortBy: postedAt
+                sortDir: desc
+        '401':
+          description: Unauthorized
+        '500':
+          description: Unexpected server failure
+  /billingmanagement/client/billing-payments:
+    get:
+      summary: Get client billing payments
+      tags: [Client Billing]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated billing payment list for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`. Sensitive gateway/card details are not returned.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - in: query
+          name: sortBy
+          schema: { type: string, default: paymentDate, enum: [paymentDate, amount, status, paymentMethod] }
+        - $ref: '#/components/parameters/SortDirParam'
+        - in: query
+          name: status
+          schema: { type: string, example: SUCCESSFUL }
+        - in: query
+          name: fromDate
+          description: ISO-8601 date-time. Filters paymentDate >= fromDate.
+          schema: { type: string, format: date-time, example: '2026-05-01T00:00:00Z' }
+        - in: query
+          name: toDate
+          description: ISO-8601 date-time. Filters paymentDate <= toDate.
+          schema: { type: string, format: date-time, example: '2026-05-31T23:59:59Z' }
+      responses:
+        '200':
+          description: Client billing payment page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedClientBillingPaymentResponse'
+              example:
+                content:
+                  - billingPaymentId: BPAY_1
+                    invoiceId: INVOICE_MDR7F8G
+                    externalPaymentId: PAY_20260610_0001
+                    amount: 100.00
+                    currency: CAD
+                    paymentMethod: MONERIS
+                    status: SUCCESSFUL
+                    paymentDate: '2026-06-10T12:00:00Z'
+                    notes: Customer payment
+                    appliedToLabel: Applied to invoice INVOICE_MDR7F8G
+                  - billingPaymentId: BPAY_2
+                    invoiceId: null
+                    externalPaymentId: CREDIT_INVOICE_MDR7F8G
+                    amount: 50.00
+                    currency: CAD
+                    paymentMethod: CREDIT_BALANCE
+                    status: SUCCESSFUL
+                    paymentDate: '2026-06-01T01:00:00Z'
+                    notes: Credit applied during invoice generation
+                    appliedToLabel: Credit applied
+                page: 0
+                size: 20
+                totalElements: 2
+                totalPages: 1
+                first: true
+                last: true
+                numberOfElements: 2
+                sortBy: paymentDate
+                sortDir: desc
+        '401':
+          description: Unauthorized
+        '500':
+          description: Unexpected server failure
+  /billingmanagement/client/refund-credits:
+    get:
+      summary: Get client refund credits
+      tags: [Client Billing]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated refund credit list for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
+
+        Refund credits are posted from pricing-payment-ms, reduce current unbilled balance first, and move any excess to the account credit balance.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - in: query
+          name: sortBy
+          schema: { type: string, default: issuedAt, enum: [issuedAt, totalAmount, status, reasonCode, trackingNumber] }
+        - $ref: '#/components/parameters/SortDirParam'
+        - in: query
+          name: status
+          schema: { type: string, enum: [UNBILLED, INVOICED, CREDIT_BALANCE_ONLY], example: UNBILLED }
+        - in: query
+          name: fromDate
+          description: ISO-8601 date-time. Filters issuedAt >= fromDate.
+          schema: { type: string, format: date-time, example: '2026-05-01T00:00:00Z' }
+        - in: query
+          name: toDate
+          description: ISO-8601 date-time. Filters issuedAt <= toDate.
+          schema: { type: string, format: date-time, example: '2026-05-31T23:59:59Z' }
+      responses:
+        '200':
+          description: Client refund credit page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedClientBillingRefundCreditResponse'
+              example:
+                content:
+                  - billingRefundCreditId: BRC_550e8400-e29b-41d4-a716-446655440000
+                    externalRefundId: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea
+                    sourcePaymentId: PaymentId_92fe689a-23e5-45e0-92da-57b9c87a742b
+                    sourceReferenceType: SHIPPING_ORDER
+                    sourceReferenceId: ShippingOrder_BXIU29ND
+                    shippingOrderId: ShippingOrder_BXIU29ND
+                    trackingNumber: MAPLEX4M2TD0YI
+                    reasonCode: PRIORITY_DELIVERY_SLA_BREACH
+                    customerFacingReason: Priority delivery guarantee refund for tracking number MAPLEX4M2TD0YI.
+                    subtotal: 5.00
+                    taxAmount: 0.75
+                    totalAmount: 5.75
+                    appliedToUnbilledSubtotal: 5.00
+                    appliedToUnbilledTaxAmount: 0.75
+                    appliedToUnbilledTotalAmount: 5.75
+                    movedToCreditBalanceAmount: 0.00
+                    currency: CAD
+                    status: UNBILLED
+                    lineItems:
+                      - code: PRIORITY_FEE
+                        description: Priority delivery fee refund for tracking number MAPLEX4M2TD0YI
+                        amount: 5.00
+                        taxAmount: 0.75
+                        totalAmount: 5.75
+                    invoiceId: null
+                    invoicedAt: null
+                    issuedAt: '2026-05-20T10:10:00Z'
+                page: 0
+                size: 20
+                totalElements: 1
+                totalPages: 1
+                first: true
+                last: true
+                numberOfElements: 1
+                sortBy: issuedAt
+                sortDir: desc
+        '401':
+          description: Unauthorized
+        '500':
+          description: Unexpected server failure
+  /billingmanagement/client/credit-balance-ledger:
+    get:
+      summary: Get client credit balance ledger
+      tags: [Client Billing]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns a paginated credit balance ledger for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
+
+        Ledger amounts are signed: positive entries create credit balance, negative entries consume credit balance.
+      parameters:
+        - $ref: '#/components/parameters/PageParam'
+        - $ref: '#/components/parameters/SizeParam'
+        - in: query
+          name: sortBy
+          schema: { type: string, default: occurredAt, enum: [occurredAt, amount, balanceAfter, entryType, sourceType] }
+        - $ref: '#/components/parameters/SortDirParam'
+        - in: query
+          name: entryType
+          schema: { type: string, enum: [CREDIT_CREATED, CREDIT_APPLIED], example: CREDIT_CREATED }
+        - in: query
+          name: sourceType
+          schema: { type: string, enum: [OVERPAYMENT, REFUND_EXCESS, CREDIT_BALANCE, PROMOTIONAL_VOUCHER, MANUAL_CREDIT], example: REFUND_EXCESS }
+        - in: query
+          name: fromDate
+          description: ISO-8601 date-time. Filters occurredAt >= fromDate.
+          schema: { type: string, format: date-time, example: '2026-05-01T00:00:00Z' }
+        - in: query
+          name: toDate
+          description: ISO-8601 date-time. Filters occurredAt <= toDate.
+          schema: { type: string, format: date-time, example: '2026-05-31T23:59:59Z' }
+      responses:
+        '200':
+          description: Client credit balance ledger page returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedClientCreditBalanceLedgerResponse'
+              example:
+                content:
+                  - billingCreditLedgerId: BCLED_550e8400-e29b-41d4-a716-446655440000
+                    entryType: CREDIT_CREATED
+                    sourceType: REFUND_EXCESS
+                    sourceId: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea
+                    invoiceId: null
+                    relatedRefundCreditId: BRC_550e8400-e29b-41d4-a716-446655440000
+                    amount: 3.25
+                    balanceAfter: 23.25
+                    currency: CAD
+                    customerFacingReason: Priority delivery guarantee refund for tracking number MAPLEX4M2TD0YI.
+                    occurredAt: '2026-05-20T10:10:00Z'
+                  - billingCreditLedgerId: BCLED_660e8400-e29b-41d4-a716-446655440000
+                    entryType: CREDIT_APPLIED
+                    sourceType: CREDIT_BALANCE
+                    sourceId: INVOICE_MDR7F8G
+                    invoiceId: INVOICE_MDR7F8G
+                    relatedRefundCreditId: null
+                    amount: -3.25
+                    balanceAfter: 0.00
+                    currency: CAD
+                    customerFacingReason: Credit balance applied to invoice INVOICE_MDR7F8G
+                    occurredAt: '2026-06-01T01:00:00Z'
+                page: 0
+                size: 20
+                totalElements: 2
+                totalPages: 1
+                first: true
+                last: true
+                numberOfElements: 2
+                sortBy: occurredAt
+                sortDir: desc
+        '401':
+          description: Unauthorized
+        '500':
+          description: Unexpected server failure
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    PageParam:
+      in: query
+      name: page
+      schema: { type: integer, default: 0, minimum: 0 }
+    SizeParam:
+      in: query
+      name: size
+      description: Page size. Values above 100 are clamped to 100 by the service.
+      schema: { type: integer, default: 20, minimum: 1, maximum: 100 }
+    SortDirParam:
+      in: query
+      name: sortDir
+      schema: { type: string, default: desc, enum: [asc, desc] }
+  schemas:
+    ClientBillingDashboardResponse:
+      type: object
+      properties:
+        billingAccount:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/BillingAccountSummaryDto'
+        summary:
+          $ref: '#/components/schemas/BillingDashboardSummaryDto'
+        latestInvoice:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/InvoiceSummaryDto'
+        recentInvoices:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/InvoiceSummaryDto'
+        recentUnbilledCharges:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/UnbilledChargeDto'
+        recentPayments:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/BillingPaymentSummaryDto'
+        recentRefundCredits:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/ClientBillingRefundCreditDto'
+        recentCreditLedgerEntries:
+          type: array
+          maxItems: 5
+          items:
+            $ref: '#/components/schemas/ClientCreditBalanceLedgerDto'
+        actions:
+          $ref: '#/components/schemas/BillingDashboardActionsDto'
+    BillingAccountSummaryDto:
+      type: object
+      properties:
+        billingAccountId: { type: string, example: ACC_A1B2C3D4 }
+        billingMode: { type: string, example: POSTPAID_INVOICE }
+        ownerId: { type: string, example: 2c2d0598-a071-703b-d126-f071becab620 }
+        ownerType: { type: string, example: INDIVIDUAL }
+        status: { type: string, example: ACTIVE }
+        email: { type: string, format: email, example: customer@example.com }
+        billingCycle: { type: string, example: MONTHLY }
+        currency: { type: string, example: CAD }
+        lastBilledDate: { type: string, format: date-time, nullable: true }
+        nextBillingDate: { type: string, format: date-time, nullable: true }
+    BillingDashboardSummaryDto:
+      type: object
+      properties:
+        balanceDue: { type: number, format: decimal, example: 550.00 }
+        currentUnbilledAmount: { type: number, format: decimal, example: 74.25 }
+        creditBalance: { type: number, format: decimal, example: 0.00 }
+        totalPayableNow: { type: number, format: decimal, example: 550.00 }
+        currency: { type: string, example: CAD }
+        hasOutstandingBalance: { type: boolean, example: true }
+        hasUnbilledCharges: { type: boolean, example: true }
+        hasCredit: { type: boolean, example: false }
+        balanceStatusLabel:
+          type: string
+          example: Payment due
+          description: Payment due, Credit available, No payment due, or No billing account.
+    InvoiceSummaryDto:
+      type: object
+      description: Invoice summary for dashboard use. Full invoice line items are intentionally not returned.
+      properties:
+        invoiceId: { type: string, example: INVOICE_MDR7F8G }
+        invoiceNumber: { type: string, example: INVOICE_MDR7F8G }
+        invoiceS3Key:
+          type: string
+          nullable: true
+          description: Existing invoice document S3 key. Use invoiceDocumentUrl for download/view.
+        invoiceDocumentUrl:
+          type: string
+          nullable: true
+          description: Best-effort presigned invoice document URL.
+        invoiceDocumentStatus:
+          type: string
+          enum: [AVAILABLE, NOT_GENERATED, UNAVAILABLE]
+          description: UNAVAILABLE means a document key exists but presigned URL generation failed.
+        billingPeriodStart: { type: string, format: date-time, nullable: true }
+        billingPeriodEnd: { type: string, format: date-time, nullable: true }
+        previousBalance: { type: number, format: decimal }
+        newChargesAmount: { type: number, format: decimal }
+        subtotal: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        creditApplied: { type: number, format: decimal }
+        amountPaid: { type: number, format: decimal }
+        amountDue: { type: number, format: decimal }
+        totalAccountBalanceDue: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        status: { type: string, enum: [GENERATED, SENT, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED] }
+        generatedAt: { type: string, format: date-time, nullable: true }
+        dueDate: { type: string, format: date-time, nullable: true }
+        paidAt: { type: string, format: date-time, nullable: true }
+        lineItemCount: { type: integer, example: 8 }
+        downloadable: { type: boolean, example: true }
+        payable: { type: boolean, example: true }
+        overdue: { type: boolean, example: false }
+    UnbilledChargeDto:
+      type: object
+      properties:
+        chargeId: { type: string, example: CHG_1 }
+        shippingOrderId: { type: string, example: SO_10002 }
+        paymentId: { type: string, example: PAY_20260310_0002 }
+        chargeType: { type: string, example: SHIPPING_ORDER }
+        status: { type: string, enum: [UNBILLED] }
+        amount: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        orderDateTime: { type: string, format: date-time, nullable: true }
+        postedAt: { type: string, format: date-time, nullable: true }
+        description: { type: string, example: Shipping order SO_10002 }
+    BillingPaymentSummaryDto:
+      type: object
+      properties:
+        billingPaymentId: { type: string, example: BPAY_1 }
+        invoiceId: { type: string, nullable: true, example: INVOICE_MDR7F8G }
+        externalPaymentId: { type: string, example: PAY_20260610_0001 }
+        amount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        paymentMethod: { type: string, example: MONERIS }
+        status: { type: string, example: SUCCESSFUL }
+        paymentDate: { type: string, format: date-time, nullable: true }
+        notes: { type: string, nullable: true }
+        appliedToLabel: { type: string, example: Applied to invoice INVOICE_MDR7F8G }
+    BillingDashboardActionsDto:
+      type: object
+      properties:
+        canPayBalance: { type: boolean, example: true }
+        canPayLatestInvoice: { type: boolean, example: true }
+        canDownloadLatestInvoice: { type: boolean, example: true }
+        hasBillingAccount: { type: boolean, example: true }
+        payBalanceLabel: { type: string, nullable: true, example: Pay balance }
+    PagedClientInvoiceSummaryResponse:
+      type: object
+      description: Paginated client invoice summaries. Full invoice line items are intentionally not returned.
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientInvoiceSummaryDto'
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 45 }
+        totalPages: { type: integer, example: 3 }
+        first: { type: boolean, example: true }
+        last: { type: boolean, example: false }
+        numberOfElements: { type: integer, example: 20 }
+        sortBy: { type: string, example: generatedAt }
+        sortDir: { type: string, enum: [asc, desc], example: desc }
+    ClientInvoiceSummaryDto:
+      type: object
+      description: Client-facing invoice summary. The raw invoice line items and billingAccountId are intentionally not returned.
+      properties:
+        invoiceId: { type: string, example: INVOICE_MDR7F8G }
+        invoiceNumber: { type: string, example: INVOICE_MDR7F8G }
+        invoiceDocumentUrl:
+          type: string
+          nullable: true
+          description: Best-effort presigned invoice document URL.
+        invoiceDocumentStatus:
+          type: string
+          enum: [AVAILABLE, NOT_GENERATED, UNAVAILABLE]
+          description: UNAVAILABLE means a document key exists but presigned URL generation failed.
+        billingPeriodStart: { type: string, format: date-time, nullable: true }
+        billingPeriodEnd: { type: string, format: date-time, nullable: true }
+        previousBalance: { type: number, format: decimal }
+        newChargesAmount: { type: number, format: decimal }
+        subtotal: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        creditApplied: { type: number, format: decimal }
+        amountPaid: { type: number, format: decimal }
+        amountDue: { type: number, format: decimal }
+        totalAccountBalanceDue: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        status: { type: string, enum: [GENERATED, SENT, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED] }
+        generatedAt: { type: string, format: date-time, nullable: true }
+        dueDate: { type: string, format: date-time, nullable: true }
+        sentAt: { type: string, format: date-time, nullable: true }
+        paidAt: { type: string, format: date-time, nullable: true }
+        lineItemCount: { type: integer, example: 8 }
+        downloadable: { type: boolean, example: true }
+        payable: { type: boolean, example: true }
+        overdue: { type: boolean, example: false }
+    PagedClientUnbilledChargeResponse:
+      type: object
+      description: Paginated client unbilled charges. Only charges with status UNBILLED are returned.
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientUnbilledChargeDto'
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 8 }
+        totalPages: { type: integer, example: 1 }
+        first: { type: boolean, example: true }
+        last: { type: boolean, example: true }
+        numberOfElements: { type: integer, example: 8 }
+        sortBy: { type: string, example: postedAt }
+        sortDir: { type: string, enum: [asc, desc], example: desc }
+    ClientUnbilledChargeDto:
+      allOf:
+        - $ref: '#/components/schemas/UnbilledChargeDto'
+    PagedClientBillingPaymentResponse:
+      type: object
+      description: Paginated client billing payments. Sensitive gateway/card details are not returned.
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientBillingPaymentDto'
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 12 }
+        totalPages: { type: integer, example: 1 }
+        first: { type: boolean, example: true }
+        last: { type: boolean, example: true }
+        numberOfElements: { type: integer, example: 12 }
+        sortBy: { type: string, example: paymentDate }
+        sortDir: { type: string, enum: [asc, desc], example: desc }
+    ClientBillingPaymentDto:
+      allOf:
+        - $ref: '#/components/schemas/BillingPaymentSummaryDto'
+    PagedClientBillingRefundCreditResponse:
+      type: object
+      description: Paginated client refund credits. Account and owner identifiers are intentionally not returned.
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientBillingRefundCreditDto'
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 8 }
+        totalPages: { type: integer, example: 1 }
+        first: { type: boolean, example: true }
+        last: { type: boolean, example: true }
+        numberOfElements: { type: integer, example: 8 }
+        sortBy: { type: string, example: issuedAt }
+        sortDir: { type: string, enum: [asc, desc], example: desc }
+    ClientBillingRefundCreditDto:
+      type: object
+      description: Client-facing BillingRefundCredit projection. billingAccountId, ownerId, ownerType, and idempotencyKey are intentionally not returned.
+      properties:
+        billingRefundCreditId: { type: string, example: BRC_550e8400-e29b-41d4-a716-446655440000 }
+        externalRefundId: { type: string, example: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea }
+        sourcePaymentId: { type: string, example: PaymentId_92fe689a-23e5-45e0-92da-57b9c87a742b }
+        sourceReferenceType: { type: string, example: SHIPPING_ORDER }
+        sourceReferenceId: { type: string, example: ShippingOrder_BXIU29ND }
+        shippingOrderId: { type: string, example: ShippingOrder_BXIU29ND }
+        trackingNumber: { type: string, example: MAPLEX4M2TD0YI }
+        reasonCode: { type: string, example: PRIORITY_DELIVERY_SLA_BREACH }
+        customerFacingReason: { type: string, example: Priority delivery guarantee refund for tracking number MAPLEX4M2TD0YI. }
+        subtotal: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        appliedToUnbilledSubtotal: { type: number, format: decimal }
+        appliedToUnbilledTaxAmount: { type: number, format: decimal }
+        appliedToUnbilledTotalAmount: { type: number, format: decimal }
+        movedToCreditBalanceAmount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        status: { type: string, enum: [UNBILLED, INVOICED, CREDIT_BALANCE_ONLY] }
+        lineItems:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientBillingRefundCreditLineItemDto'
+        invoiceId: { type: string, nullable: true, example: INVOICE_MDR7F8G }
+        invoicedAt: { type: string, format: date-time, nullable: true }
+        issuedAt: { type: string, format: date-time }
+    ClientBillingRefundCreditLineItemDto:
+      type: object
+      properties:
+        code: { type: string, example: PRIORITY_FEE }
+        description: { type: string, example: Priority delivery fee refund for tracking number MAPLEX4M2TD0YI }
+        amount: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+    PagedClientCreditBalanceLedgerResponse:
+      type: object
+      description: "Paginated client credit balance ledger. Amounts are signed: positive creates credit balance, negative applies credit balance."
+      properties:
+        content:
+          type: array
+          items:
+            $ref: '#/components/schemas/ClientCreditBalanceLedgerDto'
+        page: { type: integer, example: 0 }
+        size: { type: integer, example: 20 }
+        totalElements: { type: integer, format: int64, example: 8 }
+        totalPages: { type: integer, example: 1 }
+        first: { type: boolean, example: true }
+        last: { type: boolean, example: true }
+        numberOfElements: { type: integer, example: 8 }
+        sortBy: { type: string, example: occurredAt }
+        sortDir: { type: string, enum: [asc, desc], example: desc }
+    ClientCreditBalanceLedgerDto:
+      type: object
+      description: Client-facing BillingCreditBalanceLedger projection. billingAccountId, owner fields, idempotencyKey, and internalNotes are intentionally not returned.
+      properties:
+        billingCreditLedgerId: { type: string, example: BCLED_550e8400-e29b-41d4-a716-446655440000 }
+        entryType: { type: string, enum: [CREDIT_CREATED, CREDIT_APPLIED] }
+        sourceType: { type: string, enum: [OVERPAYMENT, REFUND_EXCESS, CREDIT_BALANCE, PROMOTIONAL_VOUCHER, MANUAL_CREDIT] }
+        sourceId: { type: string, description: paymentId, refundId, voucherId, or invoiceId depending on sourceType. }
+        invoiceId: { type: string, nullable: true, example: INVOICE_MDR7F8G }
+        relatedRefundCreditId: { type: string, nullable: true, example: BRC_550e8400-e29b-41d4-a716-446655440000 }
+        amount:
+          type: number
+          format: decimal
+          description: Positive when credit is created, negative when credit is applied.
+        balanceAfter: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        customerFacingReason: { type: string }
+        occurredAt: { type: string, format: date-time }
+    BillingAccount:
+      type: object
+      required: [ownerId, ownerType, billingMode, billingCycle, status]
+      description: Account master/configuration and rolling billing summary only. Transaction history is stored in BillingAccountCharge, BillingInvoice, and BillingPayment documents.
+      properties:
+        billingAccountId:
+          type: string
+          example: ACC_A1B2C3D4
+        ownerId:
+          type: string
+          example: 6998bbe65fef7a493
+        ownerType:
+          type: string
+          enum: [INDIVIDUAL, ORGANIZATION]
+        billingMode:
+          type: string
+          example: POSTPAID_INVOICE
+        billingCycle:
+          type: string
+          example: MONTHLY
+        status:
+          type: string
+          example: ACTIVE
+        email:
+          type: string
+          format: email
+        currentUnbilledAmount:
+          type: number
+          format: decimal
+          example: 0
+        totalOutstandingAmount:
+          type: number
+          format: decimal
+          example: 0
+        creditBalance:
+          type: number
+          format: decimal
+          example: 0
+        currency:
+          type: string
+          example: CAD
+        lastBilledDate:
+          type: string
+          format: date-time
+        nextBillingDate:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+        lastUpdatedAt:
+          type: string
+          format: date-time
+    BillingAccountCharge:
+      type: object
+      description: Ledger entry for an order charge posted to a billing account.
+      properties:
+        chargeId: { type: string, example: CHG_8a17f }
+        billingAccountId: { type: string, example: ACC_A1B2C3D4 }
+        ownerId: { type: string }
+        ownerType: { type: string, enum: [INDIVIDUAL, ORGANIZATION] }
+        shippingOrderId: { type: string, example: SO_10002 }
+        paymentId: { type: string, example: PAY_20260310_0002 }
+        chargeType: { type: string, enum: [SHIPPING_ORDER, ADJUSTMENT, LATE_FEE, REFUND] }
+        status: { type: string, enum: [UNBILLED, INVOICED, CANCELLED, CREDITED] }
+        amount: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        taxes:
+          type: array
+          items: { $ref: '#/components/schemas/Tax' }
+        orderDateTime: { type: string, format: date-time }
+        postedAt: { type: string, format: date-time }
+        invoiceId: { type: string, nullable: true }
+        notes: { type: string }
+    BillingInvoice:
+      type: object
+      description: Monthly bill document. Line items are an immutable invoice-period snapshot of positive BillingAccountCharge rows and negative BillingRefundCredit rows.
+      properties:
+        invoiceId: { type: string }
+        invoiceNumber: { type: string }
+        invoiceS3Key:
+          type: string
+          nullable: true
+          description: S3 object key for the generated invoice PDF/document, populated by document-generator-ms after upload.
+        billingAccountId: { type: string }
+        ownerId: { type: string }
+        ownerType: { type: string }
+        billingPeriodStart: { type: string, format: date-time }
+        billingPeriodEnd: { type: string, format: date-time }
+        previousBalance:
+          type: number
+          format: decimal
+          description: Unpaid balance on the billing account before this invoice was generated.
+        newChargesAmount:
+          type: number
+          format: decimal
+          description: Net current-period activity after refund credits. Previous balance is not included in line items.
+        subtotal: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        creditApplied:
+          type: number
+          format: decimal
+          description: Credit balance auto-applied during invoice generation.
+        amountPaid: { type: number, format: decimal }
+        amountDue: { type: number, format: decimal }
+        totalAccountBalanceDue:
+          type: number
+          format: decimal
+          description: previousBalance plus current invoice amountDue.
+        currency: { type: string, example: CAD }
+        status: { type: string, enum: [GENERATED, SENT, PARTIALLY_PAID, PAID, OVERDUE, CANCELLED] }
+        generatedAt: { type: string, format: date-time }
+        dueDate: { type: string, format: date-time }
+        sentAt: { type: string, format: date-time, nullable: true }
+        paidAt: { type: string, format: date-time, nullable: true }
+        lineItems:
+          type: array
+          items: { $ref: '#/components/schemas/InvoiceLineItem' }
+    InvoiceLineItem:
+      type: object
+      description: Invoice activity row. Charge rows are positive; refund-credit rows are negative.
+      properties:
+        lineItemType: { type: string, enum: [CHARGE, REFUND_CREDIT], example: REFUND_CREDIT }
+        sourceType: { type: string, enum: [BILLING_ACCOUNT_CHARGE, BILLING_REFUND_CREDIT], example: BILLING_REFUND_CREDIT }
+        sourceId: { type: string, description: Source document id or external refund id. }
+        chargeId: { type: string, description: Charge id for CHARGE rows or billingRefundCreditId for REFUND_CREDIT rows. }
+        shippingOrderId: { type: string }
+        paymentId: { type: string }
+        description: { type: string }
+        chargeDate: { type: string, format: date-time }
+        postedAt: { type: string, format: date-time }
+        amount: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        reasonCode: { type: string, nullable: true, example: PRIORITY_DELIVERY_SLA_BREACH }
+        trackingNumber: { type: string, nullable: true, example: MAPLEX4M2TD0YI }
+    GenerateMonthlyInvoicesRequest:
+      type: object
+      properties:
+        year:
+          type: integer
+          example: 2026
+        month:
+          type: integer
+          minimum: 1
+          maximum: 12
+          example: 1
+    MonthlyInvoiceGenerationResult:
+      type: object
+      properties:
+        targetMonth: { type: string, example: '2026-01' }
+        periodStart: { type: string, format: date-time }
+        periodEnd: { type: string, format: date-time }
+        totalUnbilledChargesFound: { type: integer }
+        totalUnbilledRefundCreditsFound: { type: integer }
+        billingAccountsProcessed: { type: integer }
+        invoicesGenerated: { type: integer }
+        accountsSkipped: { type: integer }
+        skippedReasons:
+          type: array
+          items: { type: string }
+        generatedInvoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/GeneratedInvoiceSummary'
+    GeneratedInvoiceSummary:
+      type: object
+      properties:
+        invoiceId: { type: string, example: INVOICE_MDR7F8G }
+        billingAccountId: { type: string }
+        totalAmount: { type: number, format: decimal }
+        creditApplied: { type: number, format: decimal }
+        amountDue: { type: number, format: decimal }
+        totalAccountBalanceDue: { type: number, format: decimal }
+        lineItemCount: { type: integer }
+    BillingPayment:
+      type: object
+      description: Payment made against an invoice or billing account. Stored separately from BillingAccount.
+      properties:
+        billingPaymentId: { type: string }
+        billingAccountId: { type: string }
+        invoiceId: { type: string, nullable: true }
+        ownerId: { type: string }
+        ownerType: { type: string }
+        amount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        paymentMethod: { type: string, enum: [MONERIS, CASH, BANK_TRANSFER, MANUAL_ADJUSTMENT, CREDIT_BALANCE] }
+        status: { type: string, enum: [PENDING, SUCCESSFUL, FAILED, CANCELLED, REFUNDED] }
+        externalPaymentId: { type: string }
+        paymentDate: { type: string, format: date-time }
+        notes: { type: string }
+    BillingRefundCredit:
+      type: object
+      description: Refund credit posted from pricing-payment-ms. It reduces current unbilled balance first; only excess becomes account credit balance.
+      properties:
+        billingRefundCreditId: { type: string, example: BRC_550e8400-e29b-41d4-a716-446655440000 }
+        externalRefundId: { type: string, example: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea }
+        idempotencyKey: { type: string, example: priority-sla:MAPLEX4M2TD0YI:v1 }
+        sourcePaymentId: { type: string, example: PaymentId_92fe689a-23e5-45e0-92da-57b9c87a742b }
+        billingAccountId: { type: string, example: BillingAccount_4 }
+        ownerId: { type: string }
+        ownerType: { type: string, enum: [INDIVIDUAL, ORGANIZATION] }
+        sourceReferenceType: { type: string, example: SHIPPING_ORDER }
+        sourceReferenceId: { type: string, example: ShippingOrder_BXIU29ND }
+        shippingOrderId: { type: string, example: ShippingOrder_BXIU29ND }
+        trackingNumber: { type: string, example: MAPLEX4M2TD0YI }
+        reasonCode: { type: string, example: PRIORITY_DELIVERY_SLA_BREACH }
+        customerFacingReason: { type: string, example: Priority delivery guarantee refund for tracking number MAPLEX4M2TD0YI. }
+        subtotal: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+        appliedToUnbilledSubtotal: { type: number, format: decimal }
+        appliedToUnbilledTaxAmount: { type: number, format: decimal }
+        appliedToUnbilledTotalAmount: { type: number, format: decimal }
+        movedToCreditBalanceAmount: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        status: { type: string, enum: [UNBILLED, INVOICED, CREDIT_BALANCE_ONLY] }
+        lineItems:
+          type: array
+          items: { $ref: '#/components/schemas/BillingRefundCreditLineItem' }
+        invoiceId: { type: string, nullable: true }
+        invoicedAt: { type: string, format: date-time, nullable: true }
+        issuedAt: { type: string, format: date-time }
+    BillingRefundCreditLineItem:
+      type: object
+      properties:
+        code: { type: string, example: PRIORITY_FEE }
+        description: { type: string, example: Priority delivery fee refund for tracking number MAPLEX4M2TD0YI }
+        amount: { type: number, format: decimal }
+        taxAmount: { type: number, format: decimal }
+        totalAmount: { type: number, format: decimal }
+    BillingCreditBalanceLedger:
+      type: object
+      description: Audit ledger explaining how BillingAccount.creditBalance was created or consumed.
+      properties:
+        billingCreditLedgerId: { type: string, example: BCLED_550e8400-e29b-41d4-a716-446655440000 }
+        billingAccountId: { type: string, example: BillingAccount_4 }
+        ownerId: { type: string }
+        ownerType: { type: string, enum: [INDIVIDUAL, ORGANIZATION] }
+        entryType: { type: string, enum: [CREDIT_CREATED, CREDIT_APPLIED] }
+        sourceType: { type: string, enum: [OVERPAYMENT, REFUND_EXCESS, CREDIT_BALANCE, PROMOTIONAL_VOUCHER, MANUAL_CREDIT] }
+        sourceId: { type: string, description: paymentId, refundId, voucherId, or invoiceId depending on sourceType. }
+        idempotencyKey: { type: string }
+        invoiceId: { type: string, nullable: true }
+        relatedRefundCreditId: { type: string, nullable: true }
+        amount:
+          type: number
+          format: decimal
+          description: Positive when credit is created, negative when credit is applied.
+        balanceAfter: { type: number, format: decimal }
+        currency: { type: string, example: CAD }
+        customerFacingReason: { type: string }
+        internalNotes: { type: string }
+        occurredAt: { type: string, format: date-time }
+    BillingRefundCreditPostedEvent:
+      type: object
+      description: Kafka event consumed from pricing-payment-ms on topic `billingRefundCreditPosted`.
+      properties:
+        header:
+          type: object
+          properties:
+            eventId: { type: string }
+            eventType: { type: string, example: BILLING_REFUND_CREDIT_POSTED }
+            eventVersion: { type: string, example: '1' }
+            occurredAt: { type: string, format: date-time }
+            correlationId: { type: string, example: Refund_a886fddd-80f1-4004-9414-9bc6d4aaa7ea }
+        payload:
+          type: object
+          properties:
+            refundId: { type: string }
+            idempotencyKey: { type: string }
+            sourcePaymentId: { type: string }
+            billingAccountId: { type: string }
+            ownerId: { type: string }
+            ownerType: { type: string }
+            sourceReferenceType: { type: string, example: SHIPPING_ORDER }
+            sourceReferenceId: { type: string }
+            shippingOrderId: { type: string }
+            trackingNumber: { type: string }
+            reasonCode: { type: string }
+            customerFacingReason: { type: string }
+            subtotal: { type: number, format: decimal }
+            taxAmount: { type: number, format: decimal }
+            totalAmount: { type: number, format: decimal }
+            currency: { type: string, example: CAD }
+            lineItems:
+              type: array
+              items: { $ref: '#/components/schemas/BillingRefundCreditLineItem' }
+            issuedAt: { type: string, format: date-time }
+    Order:
+      type: object
+      properties:
+        orderId: { type: string, example: SO_10002 }
+        paymentId: { type: string, example: PAY_20260310_0002 }
+        orderDateTime: { type: string, format: date-time }
+        orderStatus: { type: string, example: POSTED_TO_BILLING_ACCOUNT }
+        orderStatusReason: { type: string, example: Shipping order charge added to monthly billing account }
+        orderValue: { type: number, format: double, example: 89.50 }
+        taxes:
+          type: array
+          items: { $ref: '#/components/schemas/Tax' }
+    Tax:
+      type: object
+      properties:
+        taxType: { type: string, example: GST }
+        taxRate: { type: number, format: double, example: 5 }
+        amount: { type: number, format: double, example: 4.26 }
+    InvoiceHistory:
+      type: object
+      properties:
+        invoiceId: { type: string }
+        totalAmount: { type: number, format: double }
+        issueDate: { type: string, format: date-time }
+        dueDate: { type: string, format: date-time }
+        status: { type: string }
+    PaymentSummary:
+      type: object
+      properties:
+        paymentId: { type: string, example: PAY_20260310_0002 }
+        paymentDateTime: { type: string, format: date-time }
+        paymentStatus: { type: string, example: SETTLED }
+        paymentMethodType: { type: string, example: CARD_ONLINE }
+        paymentProvider: { type: string, example: MONERIS }
+        paymentAmount: { type: number, format: double, example: 89.50 }
+        currency: { type: string, example: CAD }
+        referenceType: { type: string, example: INVOICE }
+        referenceId: { type: string, example: INV_10001 }
+        notes: { type: string }
+    PostShippingOrderChargeRequest:
+      type: object
+      required: [billingAccountId, paymentId, shippingOrderId, amount, currency]
+      properties:
+        billingAccountId: { type: string }
+        paymentId: { type: string }
+        shippingOrderId: { type: string }
+        amount: { type: number, format: double }
+        currency: { type: string }
+        orderDateTime: { type: string, format: date-time }
+        orderStatus: { type: string }
+        orderStatusReason: { type: string }
+        taxes:
+          type: array
+          items: { $ref: '#/components/schemas/Tax' }
+        notes: { type: string }
+    PostShippingOrderChargeResponse:
+      type: object
+      properties:
+        billingAccountId: { type: string }
+        ownerId: { type: string }
+        shippingOrderId: { type: string }
+        paymentId: { type: string }
+        postingStatus: { type: string, example: POSTED }
+        totalAmountDue:
+          type: number
+          format: decimal
+          description: Compatibility field populated from BillingAccount.currentUnbilledAmount for shipping-charge posting responses.
+        currency: { type: string }
+        message: { type: string }
+        lastUpdatedAt: { type: string, format: date-time }
+        orderCount: { type: integer }
+    PostBillingAccountPaymentRequest:
+      type: object
+      required: [billingAccountId, paymentId, amount, currency, paymentStatus, paymentMethodType, referenceType]
+      properties:
+        billingAccountId: { type: string }
+        paymentId: { type: string }
+        amount: { type: number, format: double }
+        currency: { type: string, example: CAD }
+        paymentDateTime: { type: string, format: date-time }
+        paymentStatus: { type: string, enum: [SUCCESSFUL, SETTLED, PARTIALLY_PAID] }
+        paymentMethodType: { type: string, enum: [CARD_ONLINE, PAYMENT_LINK, MANUAL_SETTLEMENT, OTHER] }
+        paymentProvider: { type: string, example: MONERIS }
+        referenceType: { type: string, enum: [INVOICE, BILLING_ACCOUNT, MANUAL, OTHER] }
+        referenceId: { type: string }
+        invoiceId: { type: string }
+        notes: { type: string }
+    PostBillingAccountPaymentResponse:
+      type: object
+      properties:
+        billingAccountId: { type: string }
+        ownerId: { type: string }
+        paymentId: { type: string }
+        postingStatus: { type: string, example: POSTED }
+        referenceType: { type: string }
+        referenceId: { type: string }
+        invoiceId: { type: string }
+        amountApplied: { type: number, format: double }
+        currency: { type: string }
+        totalAmountDue: { type: number, format: double }
+        message: { type: string }
+        lastUpdatedAt: { type: string, format: date-time }
+        paymentCount: { type: integer }

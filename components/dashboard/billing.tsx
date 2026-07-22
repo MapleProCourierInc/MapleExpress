@@ -16,15 +16,19 @@ import {
   WalletCards,
 } from "lucide-react"
 import {
+  getClientCreditBalanceLedger,
   getClientBillingPayments,
   getClientInvoices,
+  getClientRefundCredits,
   getClientUnbilledCharges,
   getBillingDashboard,
   initiateBillingBalancePayment,
+  type BillingCreditLedgerEntry,
   type BillingPageResponse,
   type BillingDashboardResponse,
   type BillingInvoice,
   type BillingPayment,
+  type BillingRefundCredit,
   type BillingUnbilledCharge,
 } from "@/lib/billing-service"
 import {
@@ -38,7 +42,7 @@ import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 
 type StatusTone = "success" | "warning" | "danger" | "progress" | "neutral"
-type BillingTab = "overview" | "invoices" | "payments" | "unbilled"
+type BillingTab = "overview" | "invoices" | "payments" | "unbilled" | "refunds" | "credit-ledger"
 type BillingView = "dashboard" | "payment"
 type PaymentStep = "entry" | "initiating" | "checkout" | "finalizing" | "success" | "failed" | "cancelled" | "unknown"
 
@@ -111,6 +115,46 @@ function paymentTone(payment?: BillingPayment | null): StatusTone {
   if (status === "failed" || status === "declined") return "danger"
   if (status === "pending" || status === "processing") return "warning"
   return "neutral"
+}
+
+function refundCreditTone(credit?: BillingRefundCredit | null): StatusTone {
+  const status = (credit?.status || "").toLowerCase()
+  if (status === "invoiced") return "success"
+  if (status === "credit_balance_only") return "warning"
+  if (status === "unbilled") return "progress"
+  return "neutral"
+}
+
+function creditLedgerTone(entry?: BillingCreditLedgerEntry | null): StatusTone {
+  const entryType = (entry?.entryType || "").toLowerCase()
+  if (entryType === "credit_created") return "success"
+  if (entryType === "credit_applied") return "progress"
+  return "neutral"
+}
+
+function amountClass(value?: number | null) {
+  if (typeof value !== "number") return "text-slate-950"
+  if (value > 0) return "text-emerald-700"
+  if (value < 0) return "text-slate-700"
+  return "text-slate-950"
+}
+
+function hasAmount(value?: number | null) {
+  return typeof value === "number"
+}
+
+function refundCreditAllocation(credit: BillingRefundCredit, currency: string) {
+  const parts: string[] = []
+
+  if (hasAmount(credit.appliedToUnbilledTotalAmount)) {
+    parts.push(`Applied ${money(credit.appliedToUnbilledTotalAmount, currency)}`)
+  }
+
+  if (hasAmount(credit.movedToCreditBalanceAmount)) {
+    parts.push(`Credit ${money(credit.movedToCreditBalanceAmount, currency)}`)
+  }
+
+  return parts.join(" / ")
 }
 
 function statusBadge(label?: string | null, tone: StatusTone = "neutral") {
@@ -214,7 +258,7 @@ function OverviewPanelLoading({ title }: { title: string }) {
 }
 
 function BillingDashboardLoading() {
-  const tabs = ["Overview", "Invoices", "Unbilled", "Payments"]
+  const tabs = ["Overview", "Invoices", "Unbilled", "Payments", "Refunds", "Credit Ledger"]
 
   return (
     <div aria-busy="true" className="space-y-6">
@@ -307,6 +351,8 @@ function BillingDashboardLoading() {
           <OverviewPanelLoading title="Last 5 Invoices" />
           <OverviewPanelLoading title="Last 5 Unbilled Charges" />
           <OverviewPanelLoading title="Last 5 Payments" />
+          <OverviewPanelLoading title="Last 5 Refund Credits" />
+          <OverviewPanelLoading title="Last 5 Credit Ledger Entries" />
         </div>
       </div>
     </div>
@@ -428,6 +474,53 @@ function PaymentRow({ payment }: { payment: BillingPayment }) {
   )
 }
 
+function RefundCreditRow({ credit }: { credit: BillingRefundCredit }) {
+  const currency = credit.currency || "CAD"
+  const allocation = refundCreditAllocation(credit, currency)
+
+  return (
+    <div className="grid gap-3 border-b border-slate-100 px-4 py-4 last:border-b-0 md:grid-cols-[minmax(0,1.6fr)_1fr_1fr_1fr] md:items-center">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">
+          {credit.customerFacingReason || humanize(credit.reasonCode)}
+        </p>
+        <p className="mt-1 truncate font-mono text-xs text-slate-500">
+          {credit.trackingNumber || credit.shippingOrderId || credit.billingRefundCreditId}
+        </p>
+      </div>
+      <div>{statusBadge(credit.status, refundCreditTone(credit))}</div>
+      <div className="text-sm text-slate-600">{formatDateTime(credit.issuedAt)}</div>
+      <div>
+        <p className="text-sm font-bold text-emerald-700">{money(credit.totalAmount, currency)}</p>
+        {allocation ? <p className="mt-1 text-xs text-slate-500">{allocation}</p> : null}
+      </div>
+    </div>
+  )
+}
+
+function CreditLedgerRow({ entry }: { entry: BillingCreditLedgerEntry }) {
+  const currency = entry.currency || "CAD"
+
+  return (
+    <div className="grid gap-3 border-b border-slate-100 px-4 py-4 last:border-b-0 md:grid-cols-[minmax(0,1.6fr)_1fr_1fr_1fr] md:items-center">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">
+          {entry.customerFacingReason || humanize(entry.sourceType)}
+        </p>
+        <p className="mt-1 truncate font-mono text-xs text-slate-500">
+          {entry.invoiceId || entry.sourceId || entry.billingCreditLedgerId}
+        </p>
+      </div>
+      <div>{statusBadge(entry.entryType, creditLedgerTone(entry))}</div>
+      <div className="text-sm text-slate-600">{formatDateTime(entry.occurredAt)}</div>
+      <div>
+        <p className={`text-sm font-bold ${amountClass(entry.amount)}`}>{money(entry.amount, currency)}</p>
+        <p className="mt-1 text-xs text-slate-500">Balance {money(entry.balanceAfter, currency)}</p>
+      </div>
+    </div>
+  )
+}
+
 function OverviewPanel({
   title,
   actionLabel,
@@ -506,6 +599,48 @@ function OverviewPaymentRow({ payment }: { payment: BillingPayment }) {
       </div>
       <span className="whitespace-nowrap font-mono text-sm font-bold text-slate-950">
         {money(payment.amount, currency)}
+      </span>
+    </div>
+  )
+}
+
+function OverviewRefundCreditRow({ credit }: { credit: BillingRefundCredit }) {
+  const currency = credit.currency || "CAD"
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">
+          {credit.customerFacingReason || humanize(credit.reasonCode)}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">{formatDate(credit.issuedAt)}</span>
+          {statusBadge(credit.status, refundCreditTone(credit))}
+        </div>
+      </div>
+      <span className="whitespace-nowrap font-mono text-sm font-bold text-emerald-700">
+        {money(credit.totalAmount, currency)}
+      </span>
+    </div>
+  )
+}
+
+function OverviewCreditLedgerRow({ entry }: { entry: BillingCreditLedgerEntry }) {
+  const currency = entry.currency || "CAD"
+
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-3 px-4 py-3">
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-slate-950">
+          {entry.customerFacingReason || humanize(entry.sourceType)}
+        </p>
+        <div className="mt-1 flex flex-wrap items-center gap-2">
+          <span className="text-xs text-slate-500">{formatDate(entry.occurredAt)}</span>
+          {statusBadge(entry.entryType, creditLedgerTone(entry))}
+        </div>
+      </div>
+      <span className={`whitespace-nowrap font-mono text-sm font-bold ${amountClass(entry.amount)}`}>
+        {money(entry.amount, currency)}
       </span>
     </div>
   )
@@ -681,7 +816,7 @@ function BillingPaymentView({
   onBack: () => void
   onSuccess: () => Promise<void>
 }) {
-  const balanceDue = dashboard.summary.balanceDue
+  const balanceDue = dashboard.summary.totalPayableNow > 0 ? dashboard.summary.totalPayableNow : dashboard.summary.balanceDue
   const currency = dashboard.summary.currency || dashboard.billingAccount?.currency || "CAD"
   const billingAccountId = dashboard.billingAccount?.billingAccountId
   const [amountInput, setAmountInput] = useState(() => (balanceDue > 0 ? balanceDue.toFixed(2) : ""))
@@ -1098,6 +1233,15 @@ export function Billing() {
   const [paymentsPageData, setPaymentsPageData] = useState<BillingPageResponse<BillingPayment> | null>(null)
   const [isPaymentsLoading, setIsPaymentsLoading] = useState(false)
   const [paymentsError, setPaymentsError] = useState<string | null>(null)
+  const [refundsPage, setRefundsPage] = useState(0)
+  const [refundsPageData, setRefundsPageData] = useState<BillingPageResponse<BillingRefundCredit> | null>(null)
+  const [isRefundsLoading, setIsRefundsLoading] = useState(false)
+  const [refundsError, setRefundsError] = useState<string | null>(null)
+  const [creditLedgerPage, setCreditLedgerPage] = useState(0)
+  const [creditLedgerPageData, setCreditLedgerPageData] =
+    useState<BillingPageResponse<BillingCreditLedgerEntry> | null>(null)
+  const [isCreditLedgerLoading, setIsCreditLedgerLoading] = useState(false)
+  const [creditLedgerError, setCreditLedgerError] = useState<string | null>(null)
   const billingView: BillingView = searchParams.get("billingView") === "payment" ? "payment" : "dashboard"
 
   const navigateBillingView = (view: BillingView) => {
@@ -1223,11 +1367,69 @@ export function Billing() {
     }
   }, [activeTab, dashboard?.actions.hasBillingAccount, paymentsPage])
 
+  useEffect(() => {
+    if (activeTab !== "refunds" || !dashboard?.actions.hasBillingAccount) return
+
+    let cancelled = false
+
+    async function loadRefundCredits() {
+      setIsRefundsLoading(true)
+      setRefundsError(null)
+
+      try {
+        const data = await getClientRefundCredits({ page: refundsPage, size: HISTORY_PAGE_SIZE })
+        if (!cancelled) setRefundsPageData(data)
+      } catch (err) {
+        if (!cancelled) setRefundsError(err instanceof Error ? err.message : "Failed to load refund credits.")
+      } finally {
+        if (!cancelled) setIsRefundsLoading(false)
+      }
+    }
+
+    loadRefundCredits()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, dashboard?.actions.hasBillingAccount, refundsPage])
+
+  useEffect(() => {
+    if (activeTab !== "credit-ledger" || !dashboard?.actions.hasBillingAccount) return
+
+    let cancelled = false
+
+    async function loadCreditLedger() {
+      setIsCreditLedgerLoading(true)
+      setCreditLedgerError(null)
+
+      try {
+        const data = await getClientCreditBalanceLedger({ page: creditLedgerPage, size: HISTORY_PAGE_SIZE })
+        if (!cancelled) setCreditLedgerPageData(data)
+      } catch (err) {
+        if (!cancelled) setCreditLedgerError(err instanceof Error ? err.message : "Failed to load credit ledger.")
+      } finally {
+        if (!cancelled) setIsCreditLedgerLoading(false)
+      }
+    }
+
+    loadCreditLedger()
+
+    return () => {
+      cancelled = true
+    }
+  }, [activeTab, dashboard?.actions.hasBillingAccount, creditLedgerPage])
+
   const currency = dashboard?.summary.currency || dashboard?.billingAccount?.currency || "CAD"
   const latestInvoice = dashboard?.latestInvoice ?? null
   const invoiceHistory = invoicePageData?.content ?? dashboard?.recentInvoices ?? []
   const unbilledHistory = unbilledPageData?.content ?? dashboard?.recentUnbilledCharges ?? []
   const paymentHistory = paymentsPageData?.content ?? dashboard?.recentPayments ?? []
+  const refundHistory = refundsPageData?.content ?? dashboard?.recentRefundCredits ?? []
+  const creditLedgerHistory = creditLedgerPageData?.content ?? dashboard?.recentCreditLedgerEntries ?? []
+  const payableNow =
+    (dashboard?.summary.totalPayableNow ?? 0) > 0
+      ? dashboard?.summary.totalPayableNow ?? 0
+      : dashboard?.summary.balanceDue ?? 0
   const selectedInvoice =
     invoiceHistory.find((invoice) => invoice.invoiceId === selectedInvoiceId) ||
     invoiceHistory[0] ||
@@ -1300,10 +1502,22 @@ export function Billing() {
       count: unbilledPageData?.totalElements ?? dashboard.recentUnbilledCharges.length,
     },
     { value: "payments", label: "Payments", count: paymentsPageData?.totalElements ?? dashboard.recentPayments.length },
+    {
+      value: "refunds",
+      label: "Refund Credits",
+      count: refundsPageData?.totalElements ?? dashboard.recentRefundCredits.length,
+    },
+    {
+      value: "credit-ledger",
+      label: "Credit Ledger",
+      count: creditLedgerPageData?.totalElements ?? dashboard.recentCreditLedgerEntries.length,
+    },
   ]
   const overviewInvoices = dashboard.recentInvoices.slice(0, 5)
   const overviewUnbilledCharges = dashboard.recentUnbilledCharges.slice(0, 5)
   const overviewPayments = dashboard.recentPayments.slice(0, 5)
+  const overviewRefundCredits = dashboard.recentRefundCredits.slice(0, 5)
+  const overviewCreditLedgerEntries = dashboard.recentCreditLedgerEntries.slice(0, 5)
 
   return (
     <div className="space-y-6">
@@ -1338,21 +1552,21 @@ export function Billing() {
             <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
               <StatCard
                 action={
-                  dashboard.actions.canPayBalance && dashboard.summary.balanceDue > 0 ? (
+                  dashboard.actions.canPayBalance && payableNow > 0 ? (
                     <button
                       className="inline-flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800"
                       onClick={() => navigateBillingView("payment")}
                       type="button"
                     >
-                      Pay Balance
+                      {dashboard.actions.payBalanceLabel || "Pay Balance"}
                     </button>
                   ) : undefined
                 }
                 emphasized={dashboard.summary.hasOutstandingBalance}
                 helper={dashboard.summary.balanceStatusLabel || undefined}
                 icon={<WalletCards className="h-5 w-5" />}
-                label="Total Balance Due"
-                value={money(dashboard.summary.balanceDue, currency)}
+                label="Total Payable Now"
+                value={money(payableNow, currency)}
               />
               <StatCard
                 action={
@@ -1482,6 +1696,30 @@ export function Billing() {
                   <OverviewEmptyRow message="No payments available." />
                 )}
               </OverviewPanel>
+
+              <OverviewPanel actionLabel="All refunds" onAction={() => setActiveTab("refunds")} title="Last 5 Refund Credits">
+                {overviewRefundCredits.length ? (
+                  overviewRefundCredits.map((credit) => (
+                    <OverviewRefundCreditRow key={credit.billingRefundCreditId} credit={credit} />
+                  ))
+                ) : (
+                  <OverviewEmptyRow message="No refund credits available." />
+                )}
+              </OverviewPanel>
+
+              <OverviewPanel
+                actionLabel="Full ledger"
+                onAction={() => setActiveTab("credit-ledger")}
+                title="Last 5 Credit Ledger Entries"
+              >
+                {overviewCreditLedgerEntries.length ? (
+                  overviewCreditLedgerEntries.map((entry) => (
+                    <OverviewCreditLedgerRow key={entry.billingCreditLedgerId} entry={entry} />
+                  ))
+                ) : (
+                  <OverviewEmptyRow message="No credit ledger entries available." />
+                )}
+              </OverviewPanel>
             </div>
           </div>
         ) : null}
@@ -1534,7 +1772,7 @@ export function Billing() {
 
         {activeTab === "unbilled" ? (
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-5">
               <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950">
                 <CalendarClock className="h-5 w-5 text-red-700" />
                 Unbilled Charges
@@ -1569,7 +1807,7 @@ export function Billing() {
 
         {activeTab === "payments" ? (
           <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
-            <div className="flex items-center justify-between border-b border-slate-200 bg-white p-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-5">
               <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950">
                 <CheckCircle2 className="h-5 w-5 text-emerald-700" />
                 Payments
@@ -1598,6 +1836,80 @@ export function Billing() {
               page={paymentsPageData?.page ?? paymentsPage}
               totalElements={paymentsPageData?.totalElements ?? paymentHistory.length}
               totalPages={paymentsPageData?.totalPages ?? (paymentHistory.length ? 1 : 0)}
+            />
+          </section>
+        ) : null}
+
+        {activeTab === "refunds" ? (
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-5">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950">
+                <Banknote className="h-5 w-5 text-emerald-700" />
+                Refund Credits
+              </h2>
+              <span className="text-xs font-medium text-slate-500">
+                {refundsPageData?.totalElements ?? refundHistory.length} total
+              </span>
+            </div>
+            {isRefundsLoading ? (
+              <TableLoading />
+            ) : refundsError ? (
+              <HistoryError message={refundsError} />
+            ) : refundHistory.length ? (
+              <div className="divide-y divide-slate-200">
+                {refundHistory.map((credit) => (
+                  <RefundCreditRow key={credit.billingRefundCreditId} credit={credit} />
+                ))}
+              </div>
+            ) : (
+              <div className="p-5">
+                <EmptyPanel message="No refund credits available." />
+              </div>
+            )}
+            <PaginationFooter
+              isLoading={isRefundsLoading}
+              onNext={() => setRefundsPage((prev) => prev + 1)}
+              onPrevious={() => setRefundsPage((prev) => Math.max(0, prev - 1))}
+              page={refundsPageData?.page ?? refundsPage}
+              totalElements={refundsPageData?.totalElements ?? refundHistory.length}
+              totalPages={refundsPageData?.totalPages ?? (refundHistory.length ? 1 : 0)}
+            />
+          </section>
+        ) : null}
+
+        {activeTab === "credit-ledger" ? (
+          <section className="overflow-hidden rounded-lg border border-slate-200 bg-white shadow-sm">
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 bg-white p-5">
+              <h2 className="flex items-center gap-2 text-base font-semibold text-slate-950">
+                <WalletCards className="h-5 w-5 text-red-700" />
+                Credit Balance Ledger
+              </h2>
+              <span className="font-mono text-sm font-bold text-slate-950">
+                Available {money(dashboard.summary.creditBalance, currency)}
+              </span>
+            </div>
+            {isCreditLedgerLoading ? (
+              <TableLoading />
+            ) : creditLedgerError ? (
+              <HistoryError message={creditLedgerError} />
+            ) : creditLedgerHistory.length ? (
+              <div className="divide-y divide-slate-200">
+                {creditLedgerHistory.map((entry) => (
+                  <CreditLedgerRow key={entry.billingCreditLedgerId} entry={entry} />
+                ))}
+              </div>
+            ) : (
+              <div className="p-5">
+                <EmptyPanel message="No credit ledger entries available." />
+              </div>
+            )}
+            <PaginationFooter
+              isLoading={isCreditLedgerLoading}
+              onNext={() => setCreditLedgerPage((prev) => prev + 1)}
+              onPrevious={() => setCreditLedgerPage((prev) => Math.max(0, prev - 1))}
+              page={creditLedgerPageData?.page ?? creditLedgerPage}
+              totalElements={creditLedgerPageData?.totalElements ?? creditLedgerHistory.length}
+              totalPages={creditLedgerPageData?.totalPages ?? (creditLedgerHistory.length ? 1 : 0)}
             />
           </section>
         ) : null}
