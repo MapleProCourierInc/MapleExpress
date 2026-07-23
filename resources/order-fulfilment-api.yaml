@@ -65,6 +65,46 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /v1/assignOrders:
+    post:
+      tags:
+        - Order Fulfilment
+      operationId: assignOrders
+      summary: Assign a driver to multiple order fulfilments
+      description: Assigns the same driver to all supplied order fulfilments and returns the updated order fulfilment documents.
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignOrdersDto'
+            example:
+              driverUserId: driver-user-1001
+              listOfOrderFulfilmentIds:
+                - OrderFulfilment_12345
+                - OrderFulfilment_67890
+              driverName: Jane Driver
+      responses:
+        '200':
+          description: Driver was assigned to all supplied order fulfilments successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /v1/orderFulfillments:
     get:
       tags:
@@ -433,6 +473,46 @@ paths:
           $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
+  /internal/v1/assignOrders:
+    post:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalAssignOrders
+      summary: Assign a driver to multiple order fulfilments using internal service authentication
+      description: Service-to-service variant of `/v1/assignOrders`. Business behavior and response body match the regular API.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssignOrdersDto'
+            example:
+              driverUserId: driver-user-1001
+              listOfOrderFulfilmentIds:
+                - OrderFulfilment_12345
+                - OrderFulfilment_67890
+              driverName: Jane Driver
+      responses:
+        '200':
+          description: Driver was assigned to all supplied order fulfilments successfully.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /internal/v1/orderFulfillments:
     get:
       tags:
@@ -534,6 +614,39 @@ paths:
           $ref: '#/components/responses/BadRequest'
         '401':
           $ref: '#/components/responses/UnauthorizedInternal'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /internal/v1/orderFulfillments/{orderFulfilmentId}:
+    get:
+      tags:
+        - Internal Order Fulfilment
+      operationId: internalGetOrderFulfillmentById
+      summary: Get an order fulfilment by ID using internal service authentication
+      description: Fetches the persisted order fulfilment document from the database by orderFulfilmentId.
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
+        - name: orderFulfilmentId
+          in: path
+          required: true
+          description: Order fulfilment identifier.
+          schema:
+            type: string
+          example: OrderFulfilment_12345
+      responses:
+        '200':
+          description: Order fulfilment document for the requested ID.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderFulfillment'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/UnauthorizedInternal'
+        '404':
+          $ref: '#/components/responses/NotFound'
         '500':
           $ref: '#/components/responses/InternalServerError'
   /internal/v1/updateOrderFulfilmentStatus/{orderFulfilmentId}:
@@ -889,6 +1002,21 @@ components:
         driverName:
           type: string
           description: Human-readable driver name.
+    AssignOrdersDto:
+      type: object
+      description: Request payload for assigning a driver to multiple order fulfilments.
+      properties:
+        driverUserId:
+          type: string
+          description: Driver user identifier to assign.
+        listOfOrderFulfilmentIds:
+          type: array
+          description: Order fulfilment identifiers to update.
+          items:
+            type: string
+        driverName:
+          type: string
+          description: Human-readable driver name.
     UpdateOrderFulfillmentStatusDto:
       type: object
       description: Request payload for updating order fulfilment status and adding tracking information.
@@ -1065,6 +1193,12 @@ components:
           $ref: '#/components/schemas/CustomerContact'
         itemDescription:
           type: string
+        isFragile:
+          type: boolean
+          description: Whether the source shipping order item is fragile.
+        priorityDelivery:
+          type: boolean
+          description: Whether the source shipping order is marked for priority delivery.
         packageDimensions:
           $ref: '#/components/schemas/PackageDimensions'
         pickup:

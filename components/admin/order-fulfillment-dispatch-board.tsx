@@ -1,12 +1,15 @@
 "use client"
 
-import { useEffect, useMemo, useRef, useState } from "react"
+import { useEffect, useMemo, useRef, useState, type KeyboardEvent } from "react"
 import { useRouter } from "next/navigation"
 import {
   AlertCircle,
   CalendarClock,
+  CheckCircle2,
+  CircleOff,
   Loader2,
   Mail,
+  Map as MapIcon,
   MapPin,
   Navigation,
   Package,
@@ -70,6 +73,18 @@ type DriverDistance = {
   source: "google" | "straight-line" | "unavailable" | "loading"
 }
 
+type ShippingOrderGroup = {
+  key: string
+  shippingOrderId: string
+  orders: OrderFulfillment[]
+}
+
+type DriverAssignmentAction = "assign" | "assigned" | "reassign" | "select"
+type DriverAssignmentPlan = {
+  action: DriverAssignmentAction
+  ordersToAssign: OrderFulfillment[]
+}
+
 function field(value: string | number | null | undefined) {
   if (value === null || value === undefined || value === "") return "-"
   return String(value)
@@ -113,6 +128,49 @@ function formatAddress(address?: FulfillmentAddress | null) {
 
 function orderKey(item: OrderFulfillment) {
   return item.id || item.trackingNumber || item.shippingOrderId || item.sourceOrderId || ""
+}
+
+function shippingOrderGroupKey(item: OrderFulfillment) {
+  return item.shippingOrderId ? `shipping-order:${item.shippingOrderId}` : `fulfillment:${orderKey(item)}`
+}
+
+function groupOrderFulfillments(orders: OrderFulfillment[]): ShippingOrderGroup[] {
+  const groups = new Map<string, ShippingOrderGroup>()
+
+  orders.forEach((order) => {
+    const key = shippingOrderGroupKey(order)
+    const existing = groups.get(key)
+    if (existing) {
+      existing.orders.push(order)
+      return
+    }
+
+    groups.set(key, {
+      key,
+      shippingOrderId: order.shippingOrderId || "No shipping order",
+      orders: [order],
+    })
+  })
+
+  return Array.from(groups.values())
+}
+
+function isFulfillmentAssigned(order: OrderFulfillment) {
+  return Boolean(order.assignedDriverUserId || order.assignedDriverName)
+}
+
+function normalizeComparable(value?: string | null) {
+  return String(value || "").trim().toLowerCase()
+}
+
+function isAssignedToDriver(order: OrderFulfillment, session: DriverSession) {
+  const assignedUserId = normalizeComparable(order.assignedDriverUserId)
+  const sessionUserId = normalizeComparable(session.userId)
+  if (assignedUserId && sessionUserId && assignedUserId === sessionUserId) return true
+
+  const assignedName = normalizeComparable(order.assignedDriverName)
+  const sessionName = normalizeComparable(session.driverNameSnapshot)
+  return Boolean(assignedName && sessionName && assignedName === sessionName)
 }
 
 function stopCoordinates(stop?: FulfillmentStopDetails | null): LatLngLiteral | null {
@@ -384,51 +442,137 @@ function buildPageHref(page: number, filters: OrderFulfillmentQuery) {
 }
 
 function OrderQueueCard({
-  order,
-  selected,
-  onSelect,
+  group,
+  selectedKeys,
+  mappedOrderKey,
+  onToggleGroup,
+  onTogglePackage,
+  onFocusMap,
 }: {
-  order: OrderFulfillment
-  selected: boolean
-  onSelect: () => void
+  group: ShippingOrderGroup
+  selectedKeys: Set<string>
+  mappedOrderKey: string
+  onToggleGroup: () => void
+  onTogglePackage: (order: OrderFulfillment) => void
+  onFocusMap: (order: OrderFulfillment) => void
 }) {
-  const isAssigned = Boolean(order.assignedDriverUserId || order.assignedDriverName)
+  const selectedCount = group.orders.filter((order) => selectedKeys.has(orderKey(order))).length
+  const assignedCount = group.orders.filter(isFulfillmentAssigned).length
+  const allSelected = selectedCount === group.orders.length
+  const primaryOrder = group.orders[0]
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== "Enter" && event.key !== " ") return
+    event.preventDefault()
+    onToggleGroup()
+  }
 
   return (
-    <button
-      type="button"
-      onClick={onSelect}
+    <article
+      role="button"
+      tabIndex={0}
+      onClick={onToggleGroup}
+      onKeyDown={handleKeyDown}
       className={`w-full rounded-md border p-3 text-left transition-colors ${
-        selected ? "border-primary bg-primary/5 shadow-sm" : "bg-background hover:bg-muted/40"
+        selectedCount ? "border-primary bg-primary/5 shadow-sm" : "bg-background hover:bg-muted/40"
       }`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">{field(order.trackingNumber)}</p>
-          <p className="mt-0.5 truncate text-xs text-muted-foreground">{field(order.shippingOrderId)}</p>
+      <div className="grid grid-cols-[112px_28px_minmax(0,1fr)] gap-0">
+        <div className="flex min-w-0 flex-col justify-between rounded-md border bg-background p-3">
+          <div className="min-w-0">
+            <p className="text-[11px] font-semibold uppercase text-muted-foreground">Shipping Order</p>
+            <p className="mt-1 break-words font-mono text-xs font-semibold leading-snug">{field(group.shippingOrderId)}</p>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            <Badge variant={allSelected ? "default" : "outline"} className="rounded-md text-[11px]">
+              {selectedCount}/{group.orders.length}
+            </Badge>
+            {assignedCount ? (
+              <Badge variant="secondary" className="rounded-md text-[11px]">
+                {assignedCount} assigned
+              </Badge>
+            ) : null}
+          </div>
         </div>
-        <Badge variant={isAssigned ? "secondary" : "outline"} className="shrink-0">
-          {isAssigned ? "Assigned" : "Unassigned"}
-        </Badge>
-      </div>
 
-      <div className="mt-3 space-y-3 text-xs">
+        <div className="relative flex justify-center py-4">
+          <span className="h-full w-px rounded-full bg-gradient-to-b from-transparent via-primary/45 to-transparent" />
+          <span className="absolute left-1/2 top-6 h-px w-4 -translate-x-0 bg-primary/45" />
+          <span className="absolute bottom-6 left-1/2 h-px w-4 -translate-x-0 bg-primary/45" />
+        </div>
+
+        <div className="space-y-2">
+          {group.orders.map((order) => {
+            const key = orderKey(order)
+            const selected = selectedKeys.has(key)
+            const assigned = isFulfillmentAssigned(order)
+
+            return (
+              <div
+                key={key}
+                role="button"
+                tabIndex={0}
+                onClick={(event) => {
+                  event.stopPropagation()
+                  onTogglePackage(order)
+                }}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" && event.key !== " ") return
+                  event.preventDefault()
+                  event.stopPropagation()
+                  onTogglePackage(order)
+                }}
+                className={`relative w-full rounded-md border p-3 text-left transition-colors ${
+                  selected ? "border-primary bg-primary/10" : "bg-background hover:bg-muted/50"
+                }`}
+              >
+                <span className="absolute -left-7 top-1/2 h-px w-7 bg-primary/35" />
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="truncate font-mono text-sm font-semibold">{field(order.trackingNumber)}</p>
+                    <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{packageSummary(order)}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-1.5">
+                    {selected ? <CheckCircle2 className="h-4 w-4 text-primary" /> : null}
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={mappedOrderKey === key ? "default" : "outline"}
+                      className="h-8 px-2 text-xs"
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        onFocusMap(order)
+                      }}
+                    >
+                      <MapIcon className="h-3.5 w-3.5" />
+                      Map
+                    </Button>
+                  </div>
+                </div>
+                <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                  <Badge variant="outline" className={statusBadgeClass(order.status)}>
+                    {humanize(order.status)}
+                  </Badge>
+                  <Badge variant={assigned ? "secondary" : "outline"} className="rounded-md">
+                    {assigned ? field(order.assignedDriverName || order.assignedDriverUserId) : "Unassigned"}
+                  </Badge>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      </div>
+      <div className="mt-3 grid gap-2 text-xs text-muted-foreground md:grid-cols-2">
         <div className="flex gap-2">
           <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <p className="font-medium">{formatDateTime(order.pickup?.scheduledTime || order.pickup?.pickupTime)}</p>
-            <p className="line-clamp-2 text-muted-foreground">{formatAddress(order.pickup?.address)}</p>
-          </div>
+          <p className="line-clamp-2">{formatAddress(primaryOrder?.pickup?.address)}</p>
         </div>
         <div className="flex gap-2">
           <Route className="mt-0.5 h-3.5 w-3.5 shrink-0 text-primary" />
-          <div className="min-w-0">
-            <p className="font-medium">{formatDateTime(order.dropoff?.scheduledTime || order.dropoff?.dropoffTime)}</p>
-            <p className="line-clamp-2 text-muted-foreground">{formatAddress(order.dropoff?.address)}</p>
-          </div>
+          <p className="line-clamp-2">{formatAddress(primaryOrder?.dropoff?.address)}</p>
         </div>
       </div>
-    </button>
+    </article>
   )
 }
 
@@ -629,18 +773,32 @@ function DispatchMap({
 function DriverCard({
   session,
   distance,
-  canAssign,
+  action,
+  actionCount,
   isAssigning,
   onAssign,
+  onReassign,
 }: {
   session: DriverSession
   distance?: DriverDistance
-  canAssign: boolean
+  action: DriverAssignmentAction
+  actionCount: number
   isAssigning: boolean
   onAssign: () => void
+  onReassign: () => void
 }) {
   const activeOrderCount = orderCount(session)
   const heartbeat = session.lastHeartbeatAt || session.lastKnownLocation?.serverReceivedAt
+  const actionLabel =
+    action === "assigned"
+      ? "Already assigned"
+      : action === "reassign"
+        ? "Reassign selected here"
+        : action === "select"
+          ? "Select packages"
+          : actionCount > 1
+            ? `Assign ${actionCount} packages`
+            : "Assign package"
 
   return (
     <article className="rounded-md border bg-background p-3 shadow-sm">
@@ -656,8 +814,8 @@ function DriverCard({
 
       <div className="mt-3 grid grid-cols-2 gap-2">
         <div className="rounded-md border bg-muted/30 p-2">
-          <p className="text-xs text-muted-foreground">To pickup</p>
-          <p className="mt-1 text-sm font-semibold">{distance?.distanceText || "Select order"}</p>
+          <p className="text-xs text-muted-foreground">To mapped pickup</p>
+          <p className="mt-1 text-sm font-semibold">{distance?.distanceText || "Select map"}</p>
           {distance?.durationText ? <p className="text-xs text-muted-foreground">{distance.durationText}</p> : null}
         </div>
         <div className="rounded-md border bg-muted/30 p-2">
@@ -696,14 +854,26 @@ function DriverCard({
         </div>
       </div>
 
-      <Button type="button" size="sm" className="mt-3 w-full" disabled={!canAssign || isAssigning} onClick={onAssign}>
+      <Button
+        type="button"
+        size="sm"
+        variant={action === "reassign" || action === "assigned" ? "outline" : "default"}
+        className="mt-3 w-full"
+        disabled={action === "select" || action === "assigned" || isAssigning}
+        onClick={action === "reassign" ? onReassign : onAssign}
+      >
         {isAssigning ? (
           <>
             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
             Assigning
           </>
+        ) : action === "assigned" ? (
+          <>
+            <CheckCircle2 className="mr-2 h-4 w-4" />
+            {actionLabel}
+          </>
         ) : (
-          "Assign Order"
+          actionLabel
         )}
       </Button>
     </article>
@@ -721,26 +891,52 @@ export function OrderFulfillmentDispatchBoard({
   const { toast } = useToast()
   const orders = data.items
   const drivers = driverSessionsData?.items || []
-  const [selectedKey, setSelectedKey] = useState(() => orderKey(orders.find((item) => !item.assignedDriverUserId) || orders[0]))
+  const [selectedKeys, setSelectedKeys] = useState<Set<string>>(() => {
+    const initialOrder = orders.find((item) => !item.assignedDriverUserId) || orders[0]
+    return initialOrder ? new Set([orderKey(initialOrder)]) : new Set()
+  })
+  const [mappedOrderKey, setMappedOrderKey] = useState(() => orderKey(orders.find((item) => !item.assignedDriverUserId) || orders[0]))
   const [assigningDriverKey, setAssigningDriverKey] = useState<string | null>(null)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
   const scriptStatus = useScript(`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`)
 
   useEffect(() => {
     if (!orders.length) {
-      setSelectedKey("")
+      setSelectedKeys(new Set())
       return
     }
 
-    if (!orders.some((order) => orderKey(order) === selectedKey)) {
-      setSelectedKey(orderKey(orders.find((item) => !item.assignedDriverUserId) || orders[0]))
-    }
-  }, [orders, selectedKey])
+    setSelectedKeys((current) => {
+      const availableKeys = new Set(orders.map(orderKey))
+      const next = new Set(Array.from(current).filter((key) => availableKeys.has(key)))
+      if (next.size) return next
 
-  const selectedOrder = useMemo(() => {
-    return orders.find((order) => orderKey(order) === selectedKey) || orders[0] || null
-  }, [orders, selectedKey])
-  const stops = useResolvedStops(selectedOrder, scriptStatus)
+      const initialOrder = orders.find((item) => !item.assignedDriverUserId) || orders[0]
+      return initialOrder ? new Set([orderKey(initialOrder)]) : new Set()
+    })
+  }, [orders])
+
+  useEffect(() => {
+    if (!orders.length) {
+      setMappedOrderKey("")
+      return
+    }
+
+    if (!orders.some((order) => orderKey(order) === mappedOrderKey)) {
+      setMappedOrderKey(orderKey(orders.find((item) => !item.assignedDriverUserId) || orders[0]))
+    }
+  }, [mappedOrderKey, orders])
+
+  const groupedOrders = useMemo(() => groupOrderFulfillments(orders), [orders])
+
+  const selectedOrders = useMemo(() => {
+    return orders.filter((order) => selectedKeys.has(orderKey(order)))
+  }, [orders, selectedKeys])
+
+  const mappedOrder = useMemo(() => {
+    return orders.find((order) => orderKey(order) === mappedOrderKey) || orders[0] || null
+  }, [mappedOrderKey, orders])
+  const stops = useResolvedStops(mappedOrder, scriptStatus)
   const driverDistances = useDriverDistances(drivers, stops.pickup, scriptStatus)
 
   const sortedDrivers = useMemo(() => {
@@ -766,11 +962,67 @@ export function OrderFulfillmentDispatchBoard({
     statusParts.length === ADMIN_ATTENTION_FULFILLMENT_STATUSES.length &&
     ADMIN_ATTENTION_FULFILLMENT_STATUSES.every((status) => statusSet.has(status))
   const statusScope = statusFilter === "ALL" ? "All statuses" : isDefaultAttention ? "Admin attention" : statusFilter
-  const selectedOrderId = selectedOrder?.id || ""
 
-  const assignDriver = async (session: DriverSession, sessionIndex: number) => {
-    if (!selectedOrderId || !session.userId) {
-      setAssignmentError("Selected order or driver session is missing assignment data.")
+  const selectedAssignedCount = selectedOrders.filter(isFulfillmentAssigned).length
+  const selectedUnassignedCount = selectedOrders.length - selectedAssignedCount
+
+  const togglePackage = (order: OrderFulfillment) => {
+    const key = orderKey(order)
+    if (!key) return
+    setAssignmentError(null)
+    setSelectedKeys((current) => {
+      const next = new Set(current)
+      if (next.has(key)) next.delete(key)
+      else next.add(key)
+      return next
+    })
+  }
+
+  const toggleGroup = (group: ShippingOrderGroup) => {
+    setAssignmentError(null)
+    setSelectedKeys((current) => {
+      const keys = group.orders.map(orderKey).filter(Boolean)
+      const allSelected = keys.every((key) => current.has(key))
+      const next = new Set(current)
+      keys.forEach((key) => {
+        if (allSelected) next.delete(key)
+        else next.add(key)
+      })
+      return next
+    })
+  }
+
+  const focusMap = (order: OrderFulfillment) => {
+    const key = orderKey(order)
+    if (!key) return
+    setMappedOrderKey(key)
+  }
+
+  const driverAssignmentPlan = (session: DriverSession): DriverAssignmentPlan => {
+    if (!selectedOrders.length) return { action: "select", ordersToAssign: [] }
+
+    const assignedToAnotherDriver = selectedOrders.some((order) => {
+      return isFulfillmentAssigned(order) && !isAssignedToDriver(order, session)
+    })
+
+    if (assignedToAnotherDriver) {
+      return { action: "reassign", ordersToAssign: [] }
+    }
+
+    const ordersToAssign = selectedOrders.filter((order) => !isFulfillmentAssigned(order))
+    if (ordersToAssign.length) return { action: "assign", ordersToAssign }
+
+    return { action: "assigned", ordersToAssign: [] }
+  }
+
+  const assignDriver = async (session: DriverSession, sessionIndex: number, ordersToAssign: OrderFulfillment[]) => {
+    const orderIdsToAssign = ordersToAssign.map((order) => order.id).filter((id): id is string => Boolean(id))
+    if (!orderIdsToAssign.length || !session.userId) {
+      setAssignmentError("Select at least one unassigned package with assignment data.")
+      return
+    }
+    if (orderIdsToAssign.length !== ordersToAssign.length) {
+      setAssignmentError("One or more selected packages are missing fulfilment IDs.")
       return
     }
 
@@ -780,14 +1032,14 @@ export function OrderFulfillmentDispatchBoard({
     setAssignmentError(null)
 
     try {
-      const response = await apiFetch("/api/admin/order-fulfillments/assign-driver", {
+      const response = await apiFetch("/api/admin/order-fulfillments/assign-orders", {
         method: "POST",
         headers: {
           Accept: "application/json",
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          orderFulfilmentId: selectedOrderId,
+          listOfOrderFulfilmentIds: orderIdsToAssign,
           driverUserId: session.userId,
           driverName,
         }),
@@ -804,8 +1056,8 @@ export function OrderFulfillmentDispatchBoard({
       }
 
       toast({
-        title: "Order assigned",
-        description: `${field(selectedOrder?.trackingNumber || selectedOrderId)} assigned to ${field(session.driverNameSnapshot)}.`,
+        title: orderIdsToAssign.length > 1 ? "Packages assigned" : "Package assigned",
+        description: `${orderIdsToAssign.length} package${orderIdsToAssign.length === 1 ? "" : "s"} assigned to ${field(session.driverNameSnapshot)}.`,
       })
       router.refresh()
     } catch {
@@ -817,27 +1069,60 @@ export function OrderFulfillmentDispatchBoard({
     }
   }
 
+  const showReassignPlaceholder = (session: DriverSession) => {
+    toast({
+      title: "Reassignment not wired yet",
+      description: `Reassigning selected packages to ${field(session.driverNameSnapshot)} needs the backend flow first.`,
+    })
+  }
+
+  const clearSelection = () => {
+    setAssignmentError(null)
+    setSelectedKeys(new Set())
+  }
+
   return (
     <section className="overflow-hidden rounded-md border bg-card shadow-sm">
-      <div className="grid min-h-[720px] xl:h-[calc(100vh-235px)] xl:min-h-[680px] xl:grid-cols-[340px_minmax(420px,1fr)_360px]">
+      <div className="grid min-h-[720px] xl:h-[calc(100vh-235px)] xl:min-h-[680px] xl:grid-cols-[470px_minmax(420px,1fr)_360px]">
         <aside className="flex min-h-[420px] flex-col border-b xl:border-b-0 xl:border-r">
           <div className="border-b p-4">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-lg font-semibold">Order Queue</h2>
-                <p className="text-sm text-muted-foreground">{data.totalElements} fulfilments</p>
+                <h2 className="text-lg font-semibold">Shipping Orders</h2>
+                <p className="text-sm text-muted-foreground">
+                  {groupedOrders.length} groups / {data.totalElements} packages
+                </p>
               </div>
               <Badge variant="secondary">{statusScope}</Badge>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-xs">
+              <Badge variant={selectedOrders.length ? "default" : "outline"}>{selectedOrders.length} selected</Badge>
+              <Badge variant="outline">{selectedUnassignedCount} unassigned</Badge>
+              <Badge variant="outline">{selectedAssignedCount} assigned</Badge>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="h-7 px-2 text-xs"
+                disabled={!selectedOrders.length}
+                onClick={clearSelection}
+              >
+                <CircleOff className="h-3.5 w-3.5" />
+                Unselect all
+              </Button>
             </div>
           </div>
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-3">
-            {orders.map((order) => (
+            {groupedOrders.map((group) => (
               <OrderQueueCard
-                key={orderKey(order)}
-                order={order}
-                selected={orderKey(order) === orderKey(selectedOrder || {})}
-                onSelect={() => setSelectedKey(orderKey(order))}
+                key={group.key}
+                group={group}
+                selectedKeys={selectedKeys}
+                mappedOrderKey={mappedOrderKey}
+                onToggleGroup={() => toggleGroup(group)}
+                onTogglePackage={togglePackage}
+                onFocusMap={focusMap}
               />
             ))}
           </div>
@@ -869,7 +1154,7 @@ export function OrderFulfillmentDispatchBoard({
         </aside>
 
         <main className="relative min-h-[520px] border-b xl:border-b-0">
-          <DispatchMap selectedOrder={selectedOrder} stops={stops} sessions={drivers} scriptStatus={scriptStatus} />
+          <DispatchMap selectedOrder={mappedOrder} stops={stops} sessions={drivers} scriptStatus={scriptStatus} />
           <div className="absolute bottom-4 left-4 right-4 rounded-md border bg-background/95 p-3 shadow-lg backdrop-blur md:right-auto md:w-[520px]">
             <div className="grid gap-3 md:grid-cols-3">
               <div className="min-w-0">
@@ -878,7 +1163,7 @@ export function OrderFulfillmentDispatchBoard({
                   Pickup
                 </div>
                 <p className="mt-1 truncate text-sm font-semibold">
-                  {formatDateTime(selectedOrder?.pickup?.scheduledTime || selectedOrder?.pickup?.pickupTime)}
+                  {formatDateTime(mappedOrder?.pickup?.scheduledTime || mappedOrder?.pickup?.pickupTime)}
                 </p>
               </div>
               <div className="min-w-0">
@@ -886,14 +1171,14 @@ export function OrderFulfillmentDispatchBoard({
                   <Truck className="h-3.5 w-3.5" />
                   Driver
                 </div>
-                <p className="mt-1 truncate text-sm font-semibold">{field(selectedOrder?.assignedDriverName)}</p>
+                <p className="mt-1 truncate text-sm font-semibold">{field(mappedOrder?.assignedDriverName)}</p>
               </div>
               <div className="min-w-0">
                 <div className="flex items-center gap-1.5 text-xs font-medium uppercase text-muted-foreground">
                   <Package className="h-3.5 w-3.5" />
-                  Package
+                  Mapped
                 </div>
-                <p className="mt-1 truncate text-sm font-semibold">{packageSummary(selectedOrder || {})}</p>
+                <p className="mt-1 truncate font-mono text-sm font-semibold">{field(mappedOrder?.trackingNumber)}</p>
               </div>
             </div>
           </div>
@@ -904,7 +1189,7 @@ export function OrderFulfillmentDispatchBoard({
             <div className="flex items-start justify-between gap-3">
               <div>
                 <h2 className="text-lg font-semibold">Available Drivers</h2>
-                <p className="text-sm text-muted-foreground">Distance to selected pickup</p>
+                <p className="text-sm text-muted-foreground">Distance to mapped pickup</p>
               </div>
               <Badge variant="secondary">{drivers.length}</Badge>
             </div>
@@ -938,14 +1223,17 @@ export function OrderFulfillmentDispatchBoard({
             {!driverSessionsError &&
               sortedDrivers.map((session, index) => {
                 const key = driverKey(session, index)
+                const assignmentPlan = driverAssignmentPlan(session)
                 return (
                   <DriverCard
                     key={key}
                     session={session}
                     distance={driverDistances[key]}
-                    canAssign={Boolean(selectedOrderId && session.userId)}
+                    action={assignmentPlan.action}
+                    actionCount={assignmentPlan.ordersToAssign.length}
                     isAssigning={assigningDriverKey === key}
-                    onAssign={() => assignDriver(session, index)}
+                    onAssign={() => assignDriver(session, index, assignmentPlan.ordersToAssign)}
+                    onReassign={() => showReassignPlaceholder(session)}
                   />
                 )
               })}

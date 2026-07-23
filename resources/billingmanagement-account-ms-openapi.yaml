@@ -3,6 +3,11 @@ info:
   title: Billing Management Account MS API
   version: 1.2.0
   description: Customer/client postpaid billing account CRUD API. BillingAccount is account summary/config only; charges, refund credits, credit-balance ledger entries, invoices, and payments are separate MongoDB documents.
+tags:
+  - name: Platform Configuration
+    description: Public read-only MapleX platform/company configuration APIs for frontend applications.
+  - name: Admin Platform Configuration
+    description: Secured MapleX platform/company configuration administration APIs. Requires `admin_super` authority.
 paths:
   /billingmanagement/billing-account:
     post:
@@ -866,6 +871,763 @@ paths:
           description: Unauthorized
         '500':
           description: Unexpected server failure
+  /billingmanagement/api/v1/public/platform-configuration:
+    get:
+      summary: Get public MapleX platform configuration
+      operationId: getPublicPlatformConfiguration
+      tags: [Platform Configuration]
+      description: |
+        Returns public-facing MapleX company/platform configuration for frontend applications.
+
+        The configuration is backed by the singleton MongoDB document
+        `MAPLEX_PLATFORM_CONFIGURATION` in the `platform_configuration` collection.
+
+        Public output intentionally excludes MongoDB version, internal audit identities, disabled
+        social profiles, and legal documents that are draft, scheduled, expired, or archived.
+        Legal documents are returned only when they are currently effective:
+        `status=ACTIVE`, `current=true`, `activeFrom <= now`, and `activeUntil` is absent or in the future.
+
+        This endpoint is public and does not require `admin_super`.
+      responses:
+        '200':
+          description: Public platform configuration returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicPlatformConfigurationResponse'
+              example:
+                contact:
+                  emails:
+                    - type: SUPPORT_INQUIRIES
+                      displayName: Support Inquiries
+                      value: support@maplexpress.ca
+                    - type: BILLING_INQUIRIES
+                      displayName: Billing Inquiries
+                      value: billing@maplexpress.ca
+                  phones:
+                    - type: CUSTOMER_SUPPORT
+                      displayName: Customer Support
+                      value: '+1 902 555 0101'
+                  location:
+                    locationName: MapleX Halifax Office
+                    addressLine1: 1 Maple Street
+                    addressLine2: Suite 200
+                    city: Halifax
+                    provinceOrState: NS
+                    postalCode: B3J 1A1
+                    countryCode: CA
+                    mapUrl: https://maps.example.com/maplex-halifax
+                    latitude: 44.6488
+                    longitude: -63.5752
+                socialMediaProfiles:
+                  - platform: FACEBOOK
+                    displayName: Facebook
+                    profileUrl: https://facebook.com/maplexpress
+                    handle: MapleX Express
+                    displayOrder: 1
+                  - platform: INDEED
+                    displayName: Indeed
+                    profileUrl: https://ca.indeed.com/cmp/maplexpress
+                    handle: MapleX Careers
+                    displayOrder: 2
+                legalDocuments:
+                  - legalDocumentId: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+                    documentType: PRIVACY_POLICY
+                    displayName: Privacy Policy
+                    title: Privacy Policy
+                    documentUrl: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+                    policyVersion: 1
+                    activeFrom: '2026-07-23T00:00:00Z'
+                    activeUntil: null
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/public/platform-configuration/contact:
+    get:
+      summary: Get public contact configuration
+      operationId: getPublicPlatformContactConfiguration
+      tags: [Platform Configuration]
+      description: |
+        Returns configured public emails, configured public phone numbers, and one public
+        business location. Email and phone entries are frontend-friendly lists that include
+        both stable enum identifiers and display names.
+      responses:
+        '200':
+          description: Public contact configuration returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ContactConfigurationResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/public/platform-configuration/social-media:
+    get:
+      summary: Get enabled public social-media profiles
+      operationId: getPublicPlatformSocialMediaProfiles
+      tags: [Platform Configuration]
+      description: Returns only enabled social-media profiles, sorted by `displayOrder`.
+      responses:
+        '200':
+          description: Enabled social-media profiles returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicSocialMediaProfileResponse'
+              example:
+                - platform: FACEBOOK
+                  displayName: Facebook
+                  profileUrl: https://facebook.com/maplexpress
+                  handle: MapleX Express
+                  displayOrder: 1
+                - platform: INDEED
+                  displayName: Indeed
+                  profileUrl: https://ca.indeed.com/cmp/maplexpress
+                  handle: MapleX Careers
+                  displayOrder: 2
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/public/platform-configuration/legal-documents:
+    get:
+      summary: Get current effective public legal documents
+      operationId: getPublicPlatformLegalDocuments
+      tags: [Platform Configuration]
+      description: |
+        Returns at most one effective current legal document for each legal-document type.
+        Draft, scheduled, expired, and archived documents are not returned.
+      responses:
+        '200':
+          description: Current effective legal documents returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicLegalDocumentResponse'
+              example:
+                - legalDocumentId: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+                  documentType: PRIVACY_POLICY
+                  displayName: Privacy Policy
+                  title: Privacy Policy
+                  documentUrl: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+                  policyVersion: 1
+                  activeFrom: '2026-07-23T00:00:00Z'
+                  activeUntil: null
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/public/platform-configuration/legal-documents/{documentType}:
+    get:
+      summary: Get one current effective public legal document
+      operationId: getPublicPlatformLegalDocumentByType
+      tags: [Platform Configuration]
+      description: |
+        Returns the current effective legal document for the requested legal-document type.
+        Returns `404 Not Found` when no currently effective document exists for the type.
+      parameters:
+        - in: path
+          name: documentType
+          required: true
+          description: Stable legal-document type identifier.
+          schema:
+            $ref: '#/components/schemas/LegalDocumentType'
+          example: COOKIE_POLICY
+      responses:
+        '200':
+          description: Current effective legal document returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicLegalDocumentResponse'
+        '404':
+          description: No current effective legal document exists for this type
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration:
+    get:
+      summary: Get complete admin platform configuration
+      operationId: getAdminPlatformConfiguration
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Returns the complete singleton platform configuration, including MongoDB optimistic
+        locking version, audit metadata, complete social-media configuration, and full
+        legal-document version history.
+
+        Requires Spring Security authority `admin_super`:
+        `@PreAuthorize("hasAuthority('admin_super')")`.
+      responses:
+        '200':
+          description: Complete admin platform configuration returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlatformConfigurationResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/contact:
+    put:
+      summary: Replace public contact configuration
+      operationId: updateAdminPlatformContactConfiguration
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Replaces the complete public contact configuration while preserving legal and
+        social-media sections in the singleton document.
+
+        Validation:
+        - Email and phone keys must be supported enum identifiers.
+        - Email values must be valid email addresses.
+        - Phone values must be nonblank strings.
+        - Address `addressLine1`, `city`, `provinceOrState`, `postalCode`, and `countryCode` are required.
+        - Coordinates must be provided together, with latitude -90..90 and longitude -180..180.
+        - `mapUrl`, when present, must be HTTP or HTTPS.
+
+        Requires Spring Security authority `admin_super`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateContactConfigurationRequest'
+            example:
+              emails:
+                SUPPORT_INQUIRIES: support@maplexpress.ca
+                BILLING_INQUIRIES: billing@maplexpress.ca
+                PRIVACY_REQUESTS: privacy@maplexpress.ca
+              phones:
+                CUSTOMER_SUPPORT: '+1 902 555 0101'
+                DISPATCH: '+1 902 555 0199 ext. 2'
+              location:
+                locationName: MapleX Halifax Office
+                addressLine1: 1 Maple Street
+                addressLine2: Suite 200
+                city: Halifax
+                provinceOrState: NS
+                postalCode: B3J 1A1
+                countryCode: CA
+                mapUrl: https://maps.example.com/maplex-halifax
+                latitude: 44.6488
+                longitude: -63.5752
+      responses:
+        '200':
+          description: Contact configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlatformConfigurationResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Optimistic-lock conflict. Reload the singleton document and retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/social-media:
+    put:
+      summary: Replace social-media configuration
+      operationId: updateAdminPlatformSocialMediaConfiguration
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Replaces the complete social-media configuration while preserving contact and
+        legal sections in the singleton document.
+
+        Validation:
+        - Profile keys must be supported `SocialMediaPlatform` enum identifiers.
+        - `profileUrl` is required for each configured profile and must be HTTP or HTTPS.
+        - `displayOrder` must not be negative.
+        - Disabled profiles remain stored but are hidden from public APIs.
+
+        Requires Spring Security authority `admin_super`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSocialMediaConfigurationRequest'
+            example:
+              profiles:
+                FACEBOOK:
+                  profileUrl: https://facebook.com/maplexpress
+                  handle: MapleX Express
+                  enabled: true
+                  displayOrder: 1
+                INDEED:
+                  profileUrl: https://ca.indeed.com/cmp/maplexpress
+                  handle: MapleX Careers
+                  enabled: true
+                  displayOrder: 2
+                X:
+                  profileUrl: https://x.com/maplexpress
+                  handle: '@maplexpress'
+                  enabled: false
+                  displayOrder: 3
+      responses:
+        '200':
+          description: Social-media configuration updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminPlatformConfigurationResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Optimistic-lock conflict. Reload the singleton document and retry.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/legal-documents:
+    post:
+      summary: Create legal-document version
+      operationId: createAdminPlatformLegalDocumentVersion
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Creates a new legal-document version in `DRAFT` status and appends it to the nested
+        legal-document history list in the singleton document.
+
+        Backend-controlled fields:
+        `legalDocumentId`, `policyVersion`, `status`, `current`, `createdAt`, `createdBy`,
+        `updatedAt`, `updatedBy`, `activatedAt`, `activatedBy`, `archivedAt`, and `archivedBy`.
+
+        `policyVersion` is generated independently per `documentType` by taking the highest
+        existing version for that type and adding one. The actual legal PDF/document bytes
+        are not stored in MongoDB; only the document URL and metadata are stored.
+
+        Requires Spring Security authority `admin_super`.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateLegalDocumentVersionRequest'
+            example:
+              documentType: PRIVACY_POLICY
+              title: Privacy Policy
+              documentUrl: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+              changeSummary: Initial public privacy policy.
+      responses:
+        '201':
+          description: Legal-document draft version created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLegalDocumentResponse'
+              example:
+                legalDocumentId: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+                documentType: PRIVACY_POLICY
+                displayName: Privacy Policy
+                title: Privacy Policy
+                documentUrl: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+                policyVersion: 1
+                status: DRAFT
+                current: false
+                changeSummary: Initial public privacy policy.
+                createdAt: '2026-07-23T00:00:00Z'
+                createdBy: Admin_1
+                updatedAt: '2026-07-23T00:00:00Z'
+                updatedBy: Admin_1
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Optimistic-lock conflict. Reload and retry; duplicate policy versions are not silently overwritten.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/legal-documents/{legalDocumentId}:
+    patch:
+      summary: Update legal-document draft metadata
+      operationId: updateAdminPlatformLegalDocumentDraft
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Updates editable metadata on a legal-document version.
+
+        Only `DRAFT` versions that have never been active may be edited. Active, expired,
+        archived, and previously activated versions are immutable historical evidence.
+
+        Accepted fields are `title`, `documentUrl`, and `changeSummary`; all status, version,
+        current, ID, and audit fields remain backend-controlled.
+
+        Requires Spring Security authority `admin_super`.
+      parameters:
+        - in: path
+          name: legalDocumentId
+          required: true
+          description: Backend-generated legal-document version ID.
+          schema: { type: string, format: uuid }
+          example: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateLegalDocumentDraftRequest'
+            example:
+              title: Privacy Policy
+              documentUrl: https://cdn.maplexpress.ca/legal/privacy-policy-v1.1.pdf
+              changeSummary: Corrected contact email in privacy request section.
+      responses:
+        '200':
+          description: Legal-document draft updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLegalDocumentResponse'
+        '400':
+          description: Validation failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Legal document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Legal document is not editable or singleton was modified concurrently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete legal-document draft
+      operationId: deleteAdminPlatformLegalDocumentDraft
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Permanently deletes a legal-document version only when it is `DRAFT`, `current=false`,
+        and has never been activated.
+
+        Active, expired, scheduled, archived, and previously active legal history is never
+        permanently deleted.
+
+        Requires Spring Security authority `admin_super`.
+      parameters:
+        - in: path
+          name: legalDocumentId
+          required: true
+          description: Backend-generated legal-document version ID.
+          schema: { type: string, format: uuid }
+          example: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+      responses:
+        '204':
+          description: Draft deleted
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Legal document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Legal document is not deletable or singleton was modified concurrently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/legal-documents/{legalDocumentId}/activate:
+    post:
+      summary: Activate or schedule legal-document version
+      operationId: activateAdminPlatformLegalDocument
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Activates a legal-document version immediately when `activeFrom` is omitted or not
+        after the current time. Schedules it when `activeFrom` is in the future.
+
+        Immediate activation:
+        - Selected version becomes `ACTIVE` and `current=true`.
+        - Any current version for the same `documentType` becomes `EXPIRED` and `current=false`.
+
+        Scheduled activation:
+        - Selected version becomes `SCHEDULED` and `current=false`.
+        - The current version remains current until the scheduled activation time.
+        - A scheduler processes due scheduled versions using
+          `platform-configuration.legal-document-scheduler.fixed-delay-ms`.
+
+        `activeUntil`, when provided, must be after `activeFrom`. Archived versions cannot be
+        reactivated. The frontend cannot set `current`, `status`, or version fields.
+
+        Requires Spring Security authority `admin_super`.
+      parameters:
+        - in: path
+          name: legalDocumentId
+          required: true
+          description: Backend-generated legal-document version ID.
+          schema: { type: string, format: uuid }
+          example: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ActivateLegalDocumentRequest'
+            examples:
+              immediate:
+                summary: Immediate activation
+                value:
+                  activeUntil: '2027-07-23T00:00:00Z'
+              scheduled:
+                summary: Scheduled activation
+                value:
+                  activeFrom: '2026-08-01T00:00:00Z'
+                  activeUntil: '2027-08-01T00:00:00Z'
+      responses:
+        '200':
+          description: Legal document activated or scheduled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLegalDocumentResponse'
+        '400':
+          description: Invalid effective date range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Legal document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Legal document state conflict or singleton was modified concurrently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/legal-documents/{legalDocumentId}/archive:
+    post:
+      summary: Archive legal-document version
+      operationId: archiveAdminPlatformLegalDocument
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        Archives a non-current legal-document version by setting `status=ARCHIVED`,
+        `current=false`, `archivedAt`, and `archivedBy`.
+
+        A current active policy cannot be archived until a replacement version is activated,
+        preventing a legal-document type from accidentally losing its active policy.
+
+        Requires Spring Security authority `admin_super`.
+      parameters:
+        - in: path
+          name: legalDocumentId
+          required: true
+          description: Backend-generated legal-document version ID.
+          schema: { type: string, format: uuid }
+          example: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+      responses:
+        '200':
+          description: Legal document archived
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminLegalDocumentResponse'
+        '401':
+          description: Missing or invalid bearer token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have `admin_super`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Legal document not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Current active policy cannot be archived or singleton was modified concurrently
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Unexpected server failure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
 components:
   securitySchemes:
     bearerAuth:
@@ -887,6 +1649,553 @@ components:
       name: sortDir
       schema: { type: string, default: desc, enum: [asc, desc] }
   schemas:
+    ErrorResponse:
+      type: object
+      description: Standard service error envelope.
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: Validation failed
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorResponseError'
+        errorDetails:
+          nullable: true
+          type: object
+          additionalProperties: true
+      example:
+        status: error
+        message: Validation failed
+        errors:
+          - field: documentUrl
+            message: URL must be a valid HTTP or HTTPS URL
+    ErrorResponseError:
+      type: object
+      properties:
+        field:
+          type: string
+          example: documentUrl
+        message:
+          type: string
+          example: URL must be a valid HTTP or HTTPS URL
+    ContactEmailType:
+      type: string
+      description: |
+        Stable public contact email category identifier.
+
+        Display names returned by API:
+        - `SUPPORT_INQUIRIES`: Support Inquiries
+        - `GENERAL_INQUIRIES`: General Inquiries
+        - `SALES_INQUIRIES`: Sales Inquiries
+        - `BILLING_INQUIRIES`: Billing Inquiries
+        - `CAREERS`: Careers
+        - `PARTNERSHIP_INQUIRIES`: Partnership Inquiries
+        - `PRIVACY_REQUESTS`: Privacy Requests
+        - `LEGAL_NOTICES`: Legal Notices
+      enum: [SUPPORT_INQUIRIES, GENERAL_INQUIRIES, SALES_INQUIRIES, BILLING_INQUIRIES, CAREERS, PARTNERSHIP_INQUIRIES, PRIVACY_REQUESTS, LEGAL_NOTICES]
+      example: SUPPORT_INQUIRIES
+    ContactPhoneType:
+      type: string
+      description: |
+        Stable public contact phone category identifier.
+
+        Display names returned by API:
+        - `CUSTOMER_SUPPORT`: Customer Support
+        - `GENERAL_INQUIRIES`: General Inquiries
+        - `SALES_INQUIRIES`: Sales Inquiries
+        - `BILLING_INQUIRIES`: Billing Inquiries
+        - `DISPATCH`: Dispatch
+        - `AFTER_HOURS_SUPPORT`: After Hours Support
+      enum: [CUSTOMER_SUPPORT, GENERAL_INQUIRIES, SALES_INQUIRIES, BILLING_INQUIRIES, DISPATCH, AFTER_HOURS_SUPPORT]
+      example: CUSTOMER_SUPPORT
+    LegalDocumentType:
+      type: string
+      description: |
+        Stable legal-document type identifier.
+
+        Display names returned by API:
+        - `TERMS_AND_CONDITIONS`: Terms and Conditions
+        - `PRIVACY_POLICY`: Privacy Policy
+        - `COOKIE_POLICY`: Cookie Policy
+        - `REFUND_POLICY`: Refund Policy
+      enum: [TERMS_AND_CONDITIONS, PRIVACY_POLICY, COOKIE_POLICY, REFUND_POLICY]
+      example: PRIVACY_POLICY
+    LegalDocumentStatus:
+      type: string
+      description: Legal-document lifecycle status controlled by the backend.
+      enum: [DRAFT, SCHEDULED, ACTIVE, EXPIRED, ARCHIVED]
+      example: ACTIVE
+    SocialMediaPlatform:
+      type: string
+      description: |
+        Stable social-media platform identifier. `INDEED` represents the public careers/company-jobs page.
+
+        Display names returned by API:
+        - `FACEBOOK`: Facebook
+        - `INSTAGRAM`: Instagram
+        - `LINKEDIN`: LinkedIn
+        - `X`: X
+        - `YOUTUBE`: YouTube
+        - `TIKTOK`: TikTok
+        - `WHATSAPP`: WhatsApp
+        - `INDEED`: Indeed
+      enum: [FACEBOOK, INSTAGRAM, LINKEDIN, X, YOUTUBE, TIKTOK, WHATSAPP, INDEED]
+      example: FACEBOOK
+    UpdateContactConfigurationRequest:
+      type: object
+      required: [location]
+      description: |
+        Complete replacement payload for public contact configuration.
+        Keys are enum-backed so arbitrary email or phone labels are rejected.
+      properties:
+        emails:
+          $ref: '#/components/schemas/ContactEmailMapRequest'
+        phones:
+          $ref: '#/components/schemas/ContactPhoneMapRequest'
+        location:
+          $ref: '#/components/schemas/AddressRequest'
+    ContactEmailMapRequest:
+      type: object
+      description: |
+        Public email addresses keyed by supported `ContactEmailType`.
+        Values must be valid email addresses. Blank or null values are rejected.
+      additionalProperties: false
+      properties:
+        SUPPORT_INQUIRIES: { type: string, format: email, example: support@maplexpress.ca }
+        GENERAL_INQUIRIES: { type: string, format: email, example: hello@maplexpress.ca }
+        SALES_INQUIRIES: { type: string, format: email, example: sales@maplexpress.ca }
+        BILLING_INQUIRIES: { type: string, format: email, example: billing@maplexpress.ca }
+        CAREERS: { type: string, format: email, example: careers@maplexpress.ca }
+        PARTNERSHIP_INQUIRIES: { type: string, format: email, example: partnerships@maplexpress.ca }
+        PRIVACY_REQUESTS: { type: string, format: email, example: privacy@maplexpress.ca }
+        LEGAL_NOTICES: { type: string, format: email, example: legal@maplexpress.ca }
+    ContactPhoneMapRequest:
+      type: object
+      description: |
+        Public phone numbers keyed by supported `ContactPhoneType`.
+        Phone numbers are stored as strings and may include country codes, spaces,
+        brackets, hyphens, extensions, and `+`.
+      additionalProperties: false
+      properties:
+        CUSTOMER_SUPPORT: { type: string, example: '+1 902 555 0101' }
+        GENERAL_INQUIRIES: { type: string, example: '+1 902 555 0102' }
+        SALES_INQUIRIES: { type: string, example: '+1 902 555 0103' }
+        BILLING_INQUIRIES: { type: string, example: '+1 902 555 0104' }
+        DISPATCH: { type: string, example: '+1 902 555 0199 ext. 2' }
+        AFTER_HOURS_SUPPORT: { type: string, example: '+1 902 555 0198' }
+    AddressRequest:
+      type: object
+      required: [addressLine1, city, provinceOrState, postalCode, countryCode]
+      description: Single public business location.
+      properties:
+        locationName:
+          type: string
+          example: MapleX Halifax Office
+        addressLine1:
+          type: string
+          example: 1 Maple Street
+        addressLine2:
+          type: string
+          nullable: true
+          example: Suite 200
+        city:
+          type: string
+          example: Halifax
+        provinceOrState:
+          type: string
+          example: NS
+        postalCode:
+          type: string
+          example: B3J 1A1
+        countryCode:
+          type: string
+          default: CA
+          example: CA
+        mapUrl:
+          type: string
+          format: uri
+          nullable: true
+          description: Optional HTTP/HTTPS map URL.
+          example: https://maps.example.com/maplex-halifax
+        latitude:
+          type: number
+          format: double
+          minimum: -90
+          maximum: 90
+          nullable: true
+          example: 44.6488
+        longitude:
+          type: number
+          format: double
+          minimum: -180
+          maximum: 180
+          nullable: true
+          example: -63.5752
+    UpdateSocialMediaConfigurationRequest:
+      type: object
+      description: Complete replacement payload for social-media configuration.
+      properties:
+        profiles:
+          $ref: '#/components/schemas/SocialMediaProfilesMapRequest'
+    SocialMediaProfilesMapRequest:
+      type: object
+      description: Social-media profiles keyed by supported `SocialMediaPlatform`.
+      additionalProperties: false
+      properties:
+        FACEBOOK: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        INSTAGRAM: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        LINKEDIN: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        X: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        YOUTUBE: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        TIKTOK: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        WHATSAPP: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+        INDEED: { $ref: '#/components/schemas/SocialMediaProfileRequest' }
+    SocialMediaProfileRequest:
+      type: object
+      required: [profileUrl]
+      properties:
+        profileUrl:
+          type: string
+          format: uri
+          description: Required HTTP or HTTPS public profile URL.
+          example: https://facebook.com/maplexpress
+        handle:
+          type: string
+          nullable: true
+          example: MapleX Express
+        enabled:
+          type: boolean
+          description: Disabled profiles remain stored but are omitted from public APIs.
+          example: true
+        displayOrder:
+          type: integer
+          minimum: 0
+          example: 1
+    CreateLegalDocumentVersionRequest:
+      type: object
+      required: [documentType, title, documentUrl]
+      description: |
+        Creates a backend-versioned legal-document draft.
+        Do not send `legalDocumentId`, `policyVersion`, `status`, `current`, or audit fields.
+      properties:
+        documentType:
+          $ref: '#/components/schemas/LegalDocumentType'
+        title:
+          type: string
+          example: Privacy Policy
+        documentUrl:
+          type: string
+          format: uri
+          description: HTTP or HTTPS S3/CDN/document URL. Legal document bytes are not stored in MongoDB.
+          example: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+        changeSummary:
+          type: string
+          nullable: true
+          example: Initial public privacy policy.
+    UpdateLegalDocumentDraftRequest:
+      type: object
+      description: |
+        Editable metadata for a `DRAFT` legal-document version. At least one field must be provided.
+        Only drafts that have never been active can be updated.
+      properties:
+        title:
+          type: string
+          example: Privacy Policy
+        documentUrl:
+          type: string
+          format: uri
+          example: https://cdn.maplexpress.ca/legal/privacy-policy-v1.1.pdf
+        changeSummary:
+          type: string
+          nullable: true
+          example: Corrected privacy contact details.
+    ActivateLegalDocumentRequest:
+      type: object
+      description: |
+        Activates immediately when `activeFrom` is omitted or not in the future.
+        Schedules activation when `activeFrom` is in the future.
+        `activeUntil`, when provided, must be after `activeFrom`.
+      properties:
+        activeFrom:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-08-01T00:00:00Z'
+        activeUntil:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2027-08-01T00:00:00Z'
+    PublicPlatformConfigurationResponse:
+      type: object
+      description: Public-safe platform configuration projection for frontend applications.
+      properties:
+        contact:
+          $ref: '#/components/schemas/ContactConfigurationResponse'
+        socialMediaProfiles:
+          type: array
+          description: Enabled social profiles sorted by `displayOrder`.
+          items:
+            $ref: '#/components/schemas/PublicSocialMediaProfileResponse'
+        legalDocuments:
+          type: array
+          description: Current effective legal documents only.
+          items:
+            $ref: '#/components/schemas/PublicLegalDocumentResponse'
+    AdminPlatformConfigurationResponse:
+      type: object
+      description: Complete admin projection of the singleton platform configuration.
+      properties:
+        id:
+          type: string
+          example: MAPLEX_PLATFORM_CONFIGURATION
+        mongoVersion:
+          type: integer
+          format: int64
+          nullable: true
+          description: Spring Data MongoDB optimistic-lock version. Different from legal `policyVersion`.
+          example: 7
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T00:00:00Z'
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T01:15:00Z'
+        updatedBy:
+          type: string
+          nullable: true
+          description: Authenticated administrator ID resolved from JWT subject.
+          example: Admin_1
+        contact:
+          $ref: '#/components/schemas/ContactConfigurationResponse'
+        socialMediaProfiles:
+          type: array
+          description: Complete social-media profile list, including disabled profiles.
+          items:
+            $ref: '#/components/schemas/AdminSocialMediaProfileResponse'
+        legalDocuments:
+          type: array
+          description: Full legal-document history, including drafts, scheduled, active, expired, and archived versions.
+          items:
+            $ref: '#/components/schemas/AdminLegalDocumentResponse'
+    ContactConfigurationResponse:
+      type: object
+      properties:
+        emails:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactEmailResponse'
+        phones:
+          type: array
+          items:
+            $ref: '#/components/schemas/ContactPhoneResponse'
+        location:
+          nullable: true
+          allOf:
+            - $ref: '#/components/schemas/AddressResponse'
+    ContactEmailResponse:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ContactEmailType'
+        displayName:
+          type: string
+          example: Support Inquiries
+        value:
+          type: string
+          format: email
+          example: support@maplexpress.ca
+    ContactPhoneResponse:
+      type: object
+      properties:
+        type:
+          $ref: '#/components/schemas/ContactPhoneType'
+        displayName:
+          type: string
+          example: Customer Support
+        value:
+          type: string
+          example: '+1 902 555 0101'
+    AddressResponse:
+      type: object
+      properties:
+        locationName: { type: string, nullable: true, example: MapleX Halifax Office }
+        addressLine1: { type: string, example: 1 Maple Street }
+        addressLine2: { type: string, nullable: true, example: Suite 200 }
+        city: { type: string, example: Halifax }
+        provinceOrState: { type: string, example: NS }
+        postalCode: { type: string, example: B3J 1A1 }
+        countryCode: { type: string, example: CA }
+        mapUrl: { type: string, format: uri, nullable: true, example: https://maps.example.com/maplex-halifax }
+        latitude: { type: number, format: double, nullable: true, example: 44.6488 }
+        longitude: { type: number, format: double, nullable: true, example: -63.5752 }
+    PublicSocialMediaProfileResponse:
+      type: object
+      description: Enabled public social-media profile. Disabled profiles are omitted from public APIs.
+      properties:
+        platform:
+          $ref: '#/components/schemas/SocialMediaPlatform'
+        displayName:
+          type: string
+          example: Facebook
+        profileUrl:
+          type: string
+          format: uri
+          example: https://facebook.com/maplexpress
+        handle:
+          type: string
+          nullable: true
+          example: MapleX Express
+        displayOrder:
+          type: integer
+          example: 1
+    AdminSocialMediaProfileResponse:
+      type: object
+      description: Admin social-media profile projection, including disabled entries.
+      properties:
+        platform:
+          $ref: '#/components/schemas/SocialMediaPlatform'
+        displayName:
+          type: string
+          example: Facebook
+        profileUrl:
+          type: string
+          format: uri
+          example: https://facebook.com/maplexpress
+        handle:
+          type: string
+          nullable: true
+          example: MapleX Express
+        enabled:
+          type: boolean
+          example: true
+        displayOrder:
+          type: integer
+          example: 1
+    PublicLegalDocumentResponse:
+      type: object
+      description: Current effective public legal document.
+      properties:
+        legalDocumentId:
+          type: string
+          format: uuid
+          example: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+        documentType:
+          $ref: '#/components/schemas/LegalDocumentType'
+        displayName:
+          type: string
+          example: Privacy Policy
+        title:
+          type: string
+          example: Privacy Policy
+        documentUrl:
+          type: string
+          format: uri
+          example: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+        policyVersion:
+          type: integer
+          format: int64
+          description: Backend-generated legal policy version, independent per `documentType`.
+          example: 1
+        activeFrom:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T00:00:00Z'
+        activeUntil:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+    AdminLegalDocumentResponse:
+      type: object
+      description: Full admin legal-document version history item.
+      properties:
+        legalDocumentId:
+          type: string
+          format: uuid
+          example: 0e8bbf80-b2c8-4c0c-90f2-0e3e2a04d5fd
+        documentType:
+          $ref: '#/components/schemas/LegalDocumentType'
+        displayName:
+          type: string
+          example: Privacy Policy
+        title:
+          type: string
+          example: Privacy Policy
+        documentUrl:
+          type: string
+          format: uri
+          example: https://cdn.maplexpress.ca/legal/privacy-policy-v1.pdf
+        policyVersion:
+          type: integer
+          format: int64
+          description: Backend-generated legal policy version, independent per `documentType`.
+          example: 1
+        status:
+          $ref: '#/components/schemas/LegalDocumentStatus'
+        activeFrom:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T00:00:00Z'
+        activeUntil:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        current:
+          type: boolean
+          description: True only for the active current version of a legal-document type.
+          example: true
+        changeSummary:
+          type: string
+          nullable: true
+          example: Initial public privacy policy.
+        createdAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T00:00:00Z'
+        createdBy:
+          type: string
+          nullable: true
+          example: Admin_1
+        updatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T00:00:00Z'
+        updatedBy:
+          type: string
+          nullable: true
+          example: Admin_1
+        activatedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-07-23T00:05:00Z'
+        activatedBy:
+          type: string
+          nullable: true
+          example: Admin_1
+        archivedAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: null
+        archivedBy:
+          type: string
+          nullable: true
+          example: null
     ClientBillingDashboardResponse:
       type: object
       properties:

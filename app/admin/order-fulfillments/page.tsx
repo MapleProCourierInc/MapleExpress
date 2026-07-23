@@ -57,6 +57,14 @@ function formatLoadedAt(date: Date) {
   return `${hh}:${min}:${sec}`
 }
 
+function orderFulfillmentErrorDescription(status?: string) {
+  if (status && ["502", "503", "504"].includes(String(status))) {
+    return "The fulfilment service is restarting or temporarily unavailable. Refresh again in a moment."
+  }
+
+  return `Backend returned status ${status || "unknown"}. Adjust filters or refresh the page.`
+}
+
 export default async function AdminOrderFulfillmentsPage({
   searchParams,
 }: {
@@ -81,7 +89,7 @@ export default async function AdminOrderFulfillmentsPage({
     getActiveDriverSessions(),
   ])
 
-  const { data, error, textError } = fulfillmentResult
+  const { data, error } = fulfillmentResult
   const activeDriverCount = driverSessionsResult.data?.items.length ?? 0
   const unassignedCount = data?.items.filter((item) => !item.assignedDriverUserId && !item.assignedDriverName).length ?? 0
   const currentPageCount = data?.items.length ?? 0
@@ -120,9 +128,7 @@ export default async function AdminOrderFulfillmentsPage({
         <Alert variant="destructive">
           <AlertCircle className="h-4 w-4" />
           <AlertTitle>{error.message || "Failed to load order fulfilments"}</AlertTitle>
-          <AlertDescription>
-            {textError || `Backend returned status ${error.status || "unknown"}. Adjust filters or refresh the page.`}
-          </AlertDescription>
+          <AlertDescription>{orderFulfillmentErrorDescription(error.status)}</AlertDescription>
         </Alert>
       ) : null}
 

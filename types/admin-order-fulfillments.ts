@@ -154,6 +154,12 @@ export type AssignDriverRequest = {
   driverName: string
 }
 
+export type AssignOrdersRequest = {
+  listOfOrderFulfilmentIds: string[]
+  driverUserId: string
+  driverName: string
+}
+
 export type OrderFulfillmentApiError = {
   status?: string
   message?: string

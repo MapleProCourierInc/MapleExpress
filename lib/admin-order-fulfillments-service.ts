@@ -4,6 +4,7 @@ import { ORDER_FULFILMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   AssignDriverRequest,
+  AssignOrdersRequest,
   OrderFulfillment,
   OrderFulfillmentApiError,
   OrderFulfillmentQuery,
@@ -14,6 +15,21 @@ type ServiceResult<T> = {
   data: T | null
   error: OrderFulfillmentApiError | null
   textError?: string | null
+}
+
+function isDirtyTextResponse(text: string) {
+  return /<!doctype|<html|<head|<body|<\/|nginx|temporarily unavailable/i.test(text)
+}
+
+function friendlyError(response: Response, text?: string): OrderFulfillmentApiError {
+  if ([502, 503, 504].includes(response.status) || (text && isDirtyTextResponse(text))) {
+    return {
+      status: String(response.status),
+      message: "Fulfilment service is temporarily unavailable",
+    }
+  }
+
+  return { status: String(response.status), message: "Request failed" }
 }
 
 async function parseError(response: Response): Promise<{ error: OrderFulfillmentApiError | null; textError: string | null }> {
@@ -28,9 +44,10 @@ async function parseError(response: Response): Promise<{ error: OrderFulfillment
   }
 
   const text = await response.text().catch(() => "")
+  const dirty = isDirtyTextResponse(text)
   return {
-    error: { status: String(response.status), message: "Request failed" },
-    textError: text || null,
+    error: friendlyError(response, text),
+    textError: text && !dirty ? text : null,
   }
 }
 
@@ -94,4 +111,32 @@ export async function assignDriverToOrderFulfillment(
   }
 
   return { data: (await response.json()) as OrderFulfillment, error: null, textError: null }
+}
+
+export async function assignDriverToOrderFulfillments(
+  payload: AssignOrdersRequest,
+): Promise<ServiceResult<OrderFulfillment[]>> {
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(ORDER_FULFILMENT_SERVICE_URL, "/v1/assignOrders"),
+    {
+      method: "POST",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    },
+    { includeIdToken: true },
+  )
+
+  if (!response) {
+    return { data: null, error: { status: "401", message: "Unauthorized" }, textError: null }
+  }
+
+  if (!response.ok) {
+    const parsed = await parseError(response)
+    return { data: null, ...parsed }
+  }
+
+  return { data: (await response.json()) as OrderFulfillment[], error: null, textError: null }
 }
