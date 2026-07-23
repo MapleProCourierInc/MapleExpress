@@ -11,6 +11,7 @@ import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { AlertCircle, Loader2, Truck, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion } from "framer-motion"
+import { LegalDocumentLink } from "@/components/platform/legal-document-link"
 
 type SignupModalProps = {
   isOpen: boolean
@@ -219,13 +220,13 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
                   />
                   <Label htmlFor="tosAgreement" className="text-sm">
                     I agree to the{" "}
-                    <a href="/terms" className="text-primary hover:underline">
+                    <LegalDocumentLink documentType="TERMS_AND_CONDITIONS" className="text-primary hover:underline">
                       Terms of Service
-                    </a>{" "}
+                    </LegalDocumentLink>{" "}
                     and{" "}
-                    <a href="/privacy" className="text-primary hover:underline">
+                    <LegalDocumentLink documentType="PRIVACY_POLICY" className="text-primary hover:underline">
                       Privacy Policy
-                    </a>
+                    </LegalDocumentLink>
                   </Label>
                 </div>
 

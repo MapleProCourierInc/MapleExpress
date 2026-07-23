@@ -13,6 +13,7 @@ import { AlertCircle, Loader2, Truck, X } from "lucide-react"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { motion } from "framer-motion"
 import { VerificationPending } from "@/components/verification-pending"
+import { LegalDocumentLink } from "@/components/platform/legal-document-link"
 
 type LoginModalProps = {
   isOpen: boolean
@@ -212,13 +213,13 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
 
             <div className="mt-6 text-center text-xs text-gray-500">
               By signing in, you agree to our{" "}
-              <a href="#" className="text-primary hover:underline">
+              <LegalDocumentLink documentType="TERMS_AND_CONDITIONS" className="text-primary hover:underline">
                 Terms of Service
-              </a>{" "}
+              </LegalDocumentLink>{" "}
               and{" "}
-              <a href="#" className="text-primary hover:underline">
+              <LegalDocumentLink documentType="PRIVACY_POLICY" className="text-primary hover:underline">
                 Privacy Policy
-              </a>
+              </LegalDocumentLink>
             </div>
             </div>
             </>

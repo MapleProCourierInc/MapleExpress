@@ -4,26 +4,35 @@ import { useEffect, useMemo, useState } from "react"
 import {
   AlertCircle,
   Archive,
+  Calendar as CalendarIcon,
   CheckCircle2,
   ExternalLink,
   FilePlus2,
   Loader2,
+  Plus,
   RefreshCw,
   Save,
   Trash2,
+  Upload,
 } from "lucide-react"
 import { apiFetch } from "@/lib/client-api"
+import { uploadFileWithPresignedPut } from "@/lib/s3-upload-client"
+import { cn } from "@/lib/utils"
 import { useToast } from "@/hooks/use-toast"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
+import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
+import { Progress } from "@/components/ui/progress"
+import type { S3UploadType } from "@/types/aws-s3"
 import type {
   ActivateLegalDocumentRequest,
   AdminLegalDocumentResponse,
@@ -90,6 +99,25 @@ type LegalActivationForm = {
   activeUntil: string
 }
 
+type LegalUploadState = {
+  fileName: string
+  fileSize: number
+  progress: number
+  status: "idle" | "uploading" | "uploaded" | "error"
+  error: string | null
+}
+
+const emptyLegalUploadState = (): LegalUploadState => ({
+  fileName: "",
+  fileSize: 0,
+  progress: 0,
+  status: "idle",
+  error: null,
+})
+
+const LEGAL_DOCUMENT_S3_PUBLIC_BASE_URL = "https://maple-express.s3.ca-central-1.amazonaws.com/"
+const MONTH_LABELS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+
 const emptyEmails = () =>
   Object.fromEntries(CONTACT_EMAIL_TYPE_OPTIONS.map((option) => [option.value, ""])) as Record<ContactEmailType, string>
 
@@ -119,7 +147,7 @@ const emptySocialForm = () =>
   Object.fromEntries(
     SOCIAL_MEDIA_PLATFORM_OPTIONS.map((option, index) => [
       option.value,
-      { profileUrl: "", handle: "", enabled: true, displayOrder: String(index + 1) },
+      { profileUrl: "", handle: "", enabled: false, displayOrder: String(index + 1) },
     ]),
   ) as SocialForm
 
@@ -142,6 +170,44 @@ function numberOrNull(value: string) {
   if (!trimmed) return null
   const numeric = Number(trimmed)
   return Number.isFinite(numeric) ? numeric : null
+}
+
+function padDatePart(value: number) {
+  return String(value).padStart(2, "0")
+}
+
+function dateToUtcMidnightIso(date: Date) {
+  return `${date.getFullYear()}-${padDatePart(date.getMonth() + 1)}-${padDatePart(date.getDate())}T00:00:00Z`
+}
+
+function parseCalendarDate(value?: string | null) {
+  const trimmed = value?.trim()
+  if (!trimmed) return undefined
+
+  const isoDateMatch = /^(\d{4})-(\d{2})-(\d{2})/.exec(trimmed)
+  if (isoDateMatch) {
+    const year = Number(isoDateMatch[1])
+    const month = Number(isoDateMatch[2])
+    const day = Number(isoDateMatch[3])
+    const date = new Date(year, month - 1, day)
+
+    if (
+      date.getFullYear() === year &&
+      date.getMonth() === month - 1 &&
+      date.getDate() === day
+    ) {
+      return date
+    }
+  }
+
+  const parsed = new Date(trimmed)
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed
+}
+
+function formatCalendarDate(value?: string | null) {
+  const date = parseCalendarDate(value)
+  if (!date) return ""
+  return `${MONTH_LABELS[date.getMonth()]} ${date.getDate()}, ${date.getFullYear()}`
 }
 
 function contactFormFromConfig(config: AdminPlatformConfigurationResponse | null): ContactForm {
@@ -176,10 +242,11 @@ function socialFormFromConfig(config: AdminPlatformConfigurationResponse | null)
   const form = emptySocialForm()
   ;(config?.socialMediaProfiles || []).forEach((profile) => {
     if (!profile.platform) return
+    const profileUrl = profile.profileUrl || ""
     form[profile.platform] = {
-      profileUrl: profile.profileUrl || "",
+      profileUrl,
       handle: profile.handle || "",
-      enabled: profile.enabled ?? true,
+      enabled: Boolean(profileUrl.trim()) && (profile.enabled ?? true),
       displayOrder: profile.displayOrder == null ? "" : String(profile.displayOrder),
     }
   })
@@ -218,6 +285,16 @@ function statusBadgeVariant(status?: LegalDocumentStatus | null) {
   return "outline"
 }
 
+function legalDocumentSortPriority(document: AdminLegalDocumentResponse) {
+  if (document.current) return 0
+  if (document.status === "ACTIVE") return 1
+  if (document.status === "SCHEDULED") return 2
+  if (document.status === "DRAFT") return 3
+  if (document.status === "EXPIRED") return 4
+  if (document.status === "ARCHIVED") return 5
+  return 6
+}
+
 function readSummary(response: Response, fallback: string) {
   const contentType = response.headers.get("content-type") || ""
   if (contentType.includes("application/json")) {
@@ -231,20 +308,176 @@ function readSummary(response: Response, fallback: string) {
   return response.text().then((text) => text || fallback).catch(() => fallback)
 }
 
+function isPdfFile(file: File) {
+  return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf")
+}
+
+function isHttpUrl(value: string) {
+  return /^https?:\/\//i.test(value)
+}
+
+function legalDocumentUrlFromUploadedKey(key: string) {
+  if (isHttpUrl(key)) return key
+  return `${LEGAL_DOCUMENT_S3_PUBLIC_BASE_URL}${key.replace(/^\/+/, "")}`
+}
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return ""
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`
+}
+
+function LegalPdfUploadControl({
+  id,
+  documentKey,
+  uploadState,
+  disabled,
+  onFileSelected,
+}: {
+  id: string
+  documentKey?: string
+  uploadState: LegalUploadState
+  disabled?: boolean
+  onFileSelected: (file: File) => void
+}) {
+  const uploading = uploadState.status === "uploading"
+
+  return (
+    <div className="space-y-2 rounded-md border p-3">
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <Label htmlFor={id}>PDF Document</Label>
+          <p className="text-xs text-muted-foreground">Upload a PDF. The public S3 URL is saved to platform configuration.</p>
+        </div>
+        <label
+          htmlFor={id}
+          aria-disabled={disabled || uploading}
+          className={cn(
+            "inline-flex h-10 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-md border border-input bg-background px-4 py-2 text-sm font-medium ring-offset-background transition-colors hover:bg-accent hover:text-accent-foreground",
+            (disabled || uploading) && "pointer-events-none opacity-50",
+          )}
+        >
+          {uploading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+          {uploading ? "Uploading..." : "Choose PDF"}
+        </label>
+      </div>
+      <input
+        id={id}
+        type="file"
+        accept="application/pdf,.pdf"
+        className="sr-only"
+        disabled={disabled || uploading}
+        onChange={(event) => {
+          const file = event.target.files?.[0]
+          event.currentTarget.value = ""
+          if (file) onFileSelected(file)
+        }}
+      />
+      {uploading || uploadState.status === "uploaded" ? (
+        <div className="space-y-1">
+          <Progress value={uploadState.progress} />
+          <p className="text-xs text-muted-foreground">
+            {uploadState.fileName} {formatFileSize(uploadState.fileSize) ? `(${formatFileSize(uploadState.fileSize)})` : ""} - {uploadState.progress}%
+          </p>
+        </div>
+      ) : null}
+      {uploadState.status === "error" && uploadState.error ? (
+        <p className="text-xs text-destructive">{uploadState.error}</p>
+      ) : null}
+      {documentKey ? (
+        <p className="break-all rounded bg-muted/50 px-2 py-1 text-xs text-muted-foreground">Document URL: {documentKey}</p>
+      ) : (
+        <p className="text-xs text-muted-foreground">No PDF uploaded yet.</p>
+      )}
+    </div>
+  )
+}
+
+function LegalDatePicker({
+  id,
+  label,
+  value,
+  placeholder,
+  disabled,
+  onChange,
+}: {
+  id: string
+  label: string
+  value: string
+  placeholder: string
+  disabled?: boolean
+  onChange: (value: string) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const selectedDate = parseCalendarDate(value)
+  const displayValue = formatCalendarDate(value)
+
+  return (
+    <div className="space-y-1.5">
+      <Label htmlFor={id}>{label}</Label>
+      <div className="flex gap-2">
+        <Popover open={open} onOpenChange={setOpen}>
+          <PopoverTrigger asChild>
+            <Button
+              id={id}
+              type="button"
+              variant="outline"
+              disabled={disabled}
+              className={cn("w-full justify-start text-left font-normal", !displayValue && "text-muted-foreground")}
+            >
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {displayValue || placeholder}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0" align="start">
+            <Calendar
+              mode="single"
+              selected={selectedDate}
+              onSelect={(date) => {
+                if (!date) return
+                onChange(dateToUtcMidnightIso(date))
+                setOpen(false)
+              }}
+              initialFocus
+            />
+          </PopoverContent>
+        </Popover>
+        {value ? (
+          <Button type="button" variant="outline" disabled={disabled} onClick={() => onChange("")}>
+            Clear
+          </Button>
+        ) : null}
+      </div>
+    </div>
+  )
+}
+
 export function AdminPlatformConfigurationManager({ initialData, initialError }: Props) {
   const { toast } = useToast()
   const [config, setConfig] = useState(initialData)
   const [loadError, setLoadError] = useState(initialError?.message || "")
   const [busyAction, setBusyAction] = useState<string | null>(null)
   const [contactForm, setContactForm] = useState(() => contactFormFromConfig(initialData))
+  const [newEmailType, setNewEmailType] = useState<ContactEmailType | "">("")
+  const [newEmailValue, setNewEmailValue] = useState("")
+  const [newPhoneType, setNewPhoneType] = useState<ContactPhoneType | "">("")
+  const [newPhoneValue, setNewPhoneValue] = useState("")
   const [socialForm, setSocialForm] = useState(() => socialFormFromConfig(initialData))
   const [legalForm, setLegalForm] = useState(() => freshLegalForm())
+  const [legalCreateUpload, setLegalCreateUpload] = useState<LegalUploadState>(() => emptyLegalUploadState())
+  const [draftUploadStates, setDraftUploadStates] = useState<Record<string, LegalUploadState>>({})
   const [draftForms, setDraftForms] = useState(() => draftFormsFromConfig(initialData))
   const [activationForms, setActivationForms] = useState(() => activationFormsFromConfig(initialData))
 
   useEffect(() => {
     setContactForm(contactFormFromConfig(config))
+    setNewEmailType("")
+    setNewEmailValue("")
+    setNewPhoneType("")
+    setNewPhoneValue("")
     setSocialForm(socialFormFromConfig(config))
+    setLegalCreateUpload(emptyLegalUploadState())
+    setDraftUploadStates({})
     setDraftForms(draftFormsFromConfig(config))
     setActivationForms(activationFormsFromConfig(config))
   }, [config])
@@ -252,15 +485,117 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
   const legalDocuments = useMemo(
     () =>
       [...(config?.legalDocuments || [])].sort((left, right) => {
+        const priorityCompare = legalDocumentSortPriority(left) - legalDocumentSortPriority(right)
+        if (priorityCompare !== 0) return priorityCompare
         const typeCompare = String(left.documentType || "").localeCompare(String(right.documentType || ""))
         if (typeCompare !== 0) return typeCompare
         return Number(right.policyVersion || 0) - Number(left.policyVersion || 0)
       }),
     [config],
   )
+  const configuredEmailOptions = CONTACT_EMAIL_TYPE_OPTIONS.filter((option) => contactForm.emails[option.value].trim())
+  const availableEmailOptions = CONTACT_EMAIL_TYPE_OPTIONS.filter((option) => !contactForm.emails[option.value].trim())
+  const configuredPhoneOptions = CONTACT_PHONE_TYPE_OPTIONS.filter((option) => contactForm.phones[option.value].trim())
+  const availablePhoneOptions = CONTACT_PHONE_TYPE_OPTIONS.filter((option) => !contactForm.phones[option.value].trim())
 
-  const currentLegalCount = legalDocuments.filter((document) => document.current).length
-  const enabledSocialCount = (config?.socialMediaProfiles || []).filter((profile) => profile.enabled).length
+  const addEmail = () => {
+    if (!newEmailType || !newEmailValue.trim()) return
+    setContactForm((prev) => ({
+      ...prev,
+      emails: { ...prev.emails, [newEmailType]: newEmailValue.trim() },
+    }))
+    setNewEmailType("")
+    setNewEmailValue("")
+  }
+
+  const addPhone = () => {
+    if (!newPhoneType || !newPhoneValue.trim()) return
+    setContactForm((prev) => ({
+      ...prev,
+      phones: { ...prev.phones, [newPhoneType]: newPhoneValue.trim() },
+    }))
+    setNewPhoneType("")
+    setNewPhoneValue("")
+  }
+
+  const uploadLegalPdf = async ({
+    file,
+    documentType,
+    onState,
+    onUploaded,
+  }: {
+    file: File
+    documentType: LegalDocumentType
+    onState: (state: LegalUploadState) => void
+    onUploaded: (key: string) => void
+  }) => {
+    if (!isPdfFile(file)) {
+      onState({
+        fileName: file.name,
+        fileSize: file.size,
+        progress: 0,
+        status: "error",
+        error: "Only PDF documents can be uploaded.",
+      })
+      return
+    }
+
+    if (file.size > 1024 * 1024) {
+      toast({
+        title: "Large PDF selected",
+        description: "The browser will upload this PDF as-is. Compression needs a PDF-specific server or worker pipeline.",
+      })
+    }
+
+    onState({ fileName: file.name, fileSize: file.size, progress: 0, status: "uploading", error: null })
+
+    try {
+      const key = await uploadFileWithPresignedPut({
+        uploadType: documentType as S3UploadType,
+        file,
+        contentType: "application/pdf",
+        onProgress: (progress) =>
+          onState({ fileName: file.name, fileSize: file.size, progress, status: "uploading", error: null }),
+      })
+
+      onUploaded(key)
+      onState({ fileName: file.name, fileSize: file.size, progress: 100, status: "uploaded", error: null })
+    } catch (error) {
+      onState({
+        fileName: file.name,
+        fileSize: file.size,
+        progress: 0,
+        status: "error",
+        error: error instanceof Error ? error.message : "Upload failed",
+      })
+    }
+  }
+
+  const uploadCreateLegalPdf = (file: File) => {
+    void uploadLegalPdf({
+      file,
+      documentType: legalForm.documentType,
+      onState: setLegalCreateUpload,
+      onUploaded: (key) => setLegalForm((prev) => ({ ...prev, documentUrl: legalDocumentUrlFromUploadedKey(key) })),
+    })
+  }
+
+  const uploadDraftLegalPdf = (document: AdminLegalDocumentResponse, file: File, draft: LegalDraftForm) => {
+    void uploadLegalPdf({
+      file,
+      documentType: document.documentType,
+      onState: (state) =>
+        setDraftUploadStates((prev) => ({
+          ...prev,
+          [document.legalDocumentId]: state,
+        })),
+      onUploaded: (key) =>
+        setDraftForms((prev) => ({
+          ...prev,
+          [document.legalDocumentId]: { ...draft, documentUrl: legalDocumentUrlFromUploadedKey(key) },
+        })),
+    })
+  }
 
   const refreshConfig = async (silent = false) => {
     setBusyAction("refresh")
@@ -372,6 +707,15 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
   }
 
   const createLegalDocument = async () => {
+    if (!legalForm.documentUrl.trim()) {
+      toast({
+        title: "Upload a PDF first",
+        description: "Legal-document drafts store the public S3 URL generated from the AWS upload key.",
+        variant: "destructive",
+      })
+      return
+    }
+
     setBusyAction("legal-create")
     const response = await apiFetch("/api/admin/platform-configuration/legal-documents", {
       method: "POST",
@@ -502,6 +846,35 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
     toast({ title: "Legal document archived" })
   }
 
+  const openLegalDocument = async (document: AdminLegalDocumentResponse) => {
+    const storedDocumentUrl = document.documentUrl || ""
+    if (!storedDocumentUrl) return
+
+    if (isHttpUrl(storedDocumentUrl)) {
+      window.open(storedDocumentUrl, "_blank", "noopener,noreferrer")
+      return
+    }
+
+    const response = await fetch(`/api/platform-configuration/legal-documents/view?key=${encodeURIComponent(storedDocumentUrl)}`, {
+      cache: "no-store",
+      headers: { Accept: "application/json" },
+    })
+
+    if (!response.ok) {
+      toast({
+        title: "Unable to open document",
+        description: "Could not generate a temporary view URL for this S3 key.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    const payload = (await response.json().catch(() => null)) as { presignedGetUrl?: string } | null
+    if (payload?.presignedGetUrl) {
+      window.open(payload.presignedGetUrl, "_blank", "noopener,noreferrer")
+    }
+  }
+
   return (
     <div className="space-y-5">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -523,33 +896,6 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
         </Alert>
       )}
 
-      <div className="grid gap-3 md:grid-cols-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Configuration ID</CardDescription>
-            <CardTitle className="truncate text-base">{config?.id || "-"}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Mongo Version</CardDescription>
-            <CardTitle className="text-base">{config?.mongoVersion ?? "-"}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Enabled Social Profiles</CardDescription>
-            <CardTitle className="text-base">{enabledSocialCount}</CardTitle>
-          </CardHeader>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardDescription>Current Legal Documents</CardDescription>
-            <CardTitle className="text-base">{currentLegalCount}</CardTitle>
-          </CardHeader>
-        </Card>
-      </div>
-
       <Tabs defaultValue="contact" className="space-y-4">
         <TabsList className="grid w-full grid-cols-3 md:w-auto">
           <TabsTrigger value="contact">Contact</TabsTrigger>
@@ -562,51 +908,170 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
             <Card>
               <CardHeader>
                 <CardTitle>Public Email Addresses</CardTitle>
-                <CardDescription>Blank fields are omitted from the replacement payload.</CardDescription>
+                <CardDescription>Configured email categories from the platform document.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
-                {CONTACT_EMAIL_TYPE_OPTIONS.map((option) => (
-                  <div key={option.value} className="space-y-1.5">
-                    <Label htmlFor={`email-${option.value}`}>{option.label}</Label>
+              <CardContent className="space-y-3">
+                {configuredEmailOptions.length ? (
+                  configuredEmailOptions.map((option) => (
+                    <div key={option.value} className="grid gap-2 rounded-md border p-3 md:grid-cols-[180px,1fr,40px] md:items-end">
+                      <div>
+                        <Label htmlFor={`email-${option.value}`}>{option.label}</Label>
+                        <p className="mt-1 text-xs text-muted-foreground">{option.value}</p>
+                      </div>
+                      <Input
+                        id={`email-${option.value}`}
+                        type="email"
+                        value={contactForm.emails[option.value]}
+                        onChange={(event) =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            emails: { ...prev.emails, [option.value]: event.target.value },
+                          }))
+                        }
+                        placeholder="name@maplexpress.ca"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label={`Remove ${option.label}`}
+                        onClick={() =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            emails: { ...prev.emails, [option.value]: "" },
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    No public email addresses are configured.
+                  </p>
+                )}
+
+                <div className="grid gap-2 rounded-md bg-muted/40 p-3 md:grid-cols-[220px,1fr,auto] md:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Add Email Type</Label>
+                    <Select
+                      value={newEmailType}
+                      onValueChange={(value) => setNewEmailType(value as ContactEmailType)}
+                      disabled={!availableEmailOptions.length}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={availableEmailOptions.length ? "Select category" : "All email types added"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableEmailOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-email-value">Email Address</Label>
                     <Input
-                      id={`email-${option.value}`}
+                      id="new-email-value"
                       type="email"
-                      value={contactForm.emails[option.value]}
-                      onChange={(event) =>
-                        setContactForm((prev) => ({
-                          ...prev,
-                          emails: { ...prev.emails, [option.value]: event.target.value },
-                        }))
-                      }
+                      value={newEmailValue}
+                      onChange={(event) => setNewEmailValue(event.target.value)}
                       placeholder="name@maplexpress.ca"
+                      disabled={!availableEmailOptions.length}
                     />
                   </div>
-                ))}
+                  <Button type="button" onClick={addEmail} disabled={!newEmailType || !newEmailValue.trim()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add
+                  </Button>
+                </div>
               </CardContent>
             </Card>
 
             <Card>
               <CardHeader>
                 <CardTitle>Public Phone Numbers</CardTitle>
-                <CardDescription>Use display-ready phone strings, including extensions when needed.</CardDescription>
+                <CardDescription>Configured phone categories from the platform document.</CardDescription>
               </CardHeader>
-              <CardContent className="grid gap-3 md:grid-cols-2">
-                {CONTACT_PHONE_TYPE_OPTIONS.map((option) => (
-                  <div key={option.value} className="space-y-1.5">
-                    <Label htmlFor={`phone-${option.value}`}>{option.label}</Label>
+              <CardContent className="space-y-3">
+                {configuredPhoneOptions.length ? (
+                  configuredPhoneOptions.map((option) => (
+                    <div key={option.value} className="grid gap-2 rounded-md border p-3 md:grid-cols-[180px,1fr,40px] md:items-end">
+                      <div>
+                        <Label htmlFor={`phone-${option.value}`}>{option.label}</Label>
+                        <p className="mt-1 text-xs text-muted-foreground">{option.value}</p>
+                      </div>
+                      <Input
+                        id={`phone-${option.value}`}
+                        value={contactForm.phones[option.value]}
+                        onChange={(event) =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            phones: { ...prev.phones, [option.value]: event.target.value },
+                          }))
+                        }
+                        placeholder="+1 902 555 0101"
+                      />
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="icon"
+                        aria-label={`Remove ${option.label}`}
+                        onClick={() =>
+                          setContactForm((prev) => ({
+                            ...prev,
+                            phones: { ...prev.phones, [option.value]: "" },
+                          }))
+                        }
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))
+                ) : (
+                  <p className="rounded-md border border-dashed p-4 text-sm text-muted-foreground">
+                    No public phone numbers are configured.
+                  </p>
+                )}
+
+                <div className="grid gap-2 rounded-md bg-muted/40 p-3 md:grid-cols-[220px,1fr,auto] md:items-end">
+                  <div className="space-y-1.5">
+                    <Label>Add Phone Type</Label>
+                    <Select
+                      value={newPhoneType}
+                      onValueChange={(value) => setNewPhoneType(value as ContactPhoneType)}
+                      disabled={!availablePhoneOptions.length}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder={availablePhoneOptions.length ? "Select category" : "All phone types added"} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availablePhoneOptions.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label htmlFor="new-phone-value">Phone Number</Label>
                     <Input
-                      id={`phone-${option.value}`}
-                      value={contactForm.phones[option.value]}
-                      onChange={(event) =>
-                        setContactForm((prev) => ({
-                          ...prev,
-                          phones: { ...prev.phones, [option.value]: event.target.value },
-                        }))
-                      }
+                      id="new-phone-value"
+                      value={newPhoneValue}
+                      onChange={(event) => setNewPhoneValue(event.target.value)}
                       placeholder="+1 902 555 0101"
+                      disabled={!availablePhoneOptions.length}
                     />
                   </div>
-                ))}
+                  <Button type="button" onClick={addPhone} disabled={!newPhoneType || !newPhoneValue.trim()}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add
+                  </Button>
+                </div>
               </CardContent>
             </Card>
           </div>
@@ -741,6 +1206,8 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
             <CardContent className="space-y-3">
               {SOCIAL_MEDIA_PLATFORM_OPTIONS.map((option) => {
                 const profile = socialForm[option.value]
+                const hasProfileUrl = Boolean(profile.profileUrl.trim())
+                const isProfileEnabled = hasProfileUrl && profile.enabled
                 return (
                   <div key={option.value} className="grid gap-3 rounded-md border p-3 lg:grid-cols-[160px,1.5fr,1fr,120px,96px] lg:items-end">
                     <div className="flex items-center justify-between gap-3 lg:block">
@@ -749,10 +1216,11 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                         <p className="text-xs text-muted-foreground">{option.value}</p>
                       </div>
                       <Switch
-                        checked={profile.enabled}
+                        checked={isProfileEnabled}
                         onCheckedChange={(checked) =>
                           setSocialForm((prev) => ({ ...prev, [option.value]: { ...prev[option.value], enabled: checked } }))
                         }
+                        disabled={!hasProfileUrl}
                         aria-label={`Enable ${option.label}`}
                       />
                     </div>
@@ -761,9 +1229,17 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                       <Input
                         id={`social-url-${option.value}`}
                         value={profile.profileUrl}
-                        onChange={(event) =>
-                          setSocialForm((prev) => ({ ...prev, [option.value]: { ...prev[option.value], profileUrl: event.target.value } }))
-                        }
+                        onChange={(event) => {
+                          const profileUrl = event.target.value
+                          setSocialForm((prev) => ({
+                            ...prev,
+                            [option.value]: {
+                              ...prev[option.value],
+                              profileUrl,
+                              enabled: profileUrl.trim() ? prev[option.value].enabled : false,
+                            },
+                          }))
+                        }}
                         placeholder="https://..."
                       />
                     </div>
@@ -789,8 +1265,8 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                       />
                     </div>
                     <div className="flex items-center gap-2 pb-2 text-sm text-muted-foreground lg:justify-end">
-                      {profile.enabled ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4" />}
-                      {profile.enabled ? "Enabled" : "Disabled"}
+                      {isProfileEnabled ? <CheckCircle2 className="h-4 w-4 text-emerald-600" /> : <AlertCircle className="h-4 w-4" />}
+                      {isProfileEnabled ? "Enabled" : hasProfileUrl ? "Disabled" : "No link"}
                     </div>
                   </div>
                 )
@@ -817,7 +1293,10 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                   <Label>Document Type</Label>
                   <Select
                     value={legalForm.documentType}
-                    onValueChange={(value) => setLegalForm((prev) => ({ ...prev, documentType: value as LegalDocumentType }))}
+                    onValueChange={(value) => {
+                      setLegalForm((prev) => ({ ...prev, documentType: value as LegalDocumentType, documentUrl: "" }))
+                      setLegalCreateUpload(emptyLegalUploadState())
+                    }}
                   >
                     <SelectTrigger>
                       <SelectValue />
@@ -837,13 +1316,13 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                     onChange={(event) => setLegalForm((prev) => ({ ...prev, title: event.target.value }))}
                   />
                 </div>
-                <div className="space-y-1.5">
-                  <Label htmlFor="legal-url">Document URL</Label>
-                  <Input
-                    id="legal-url"
-                    value={legalForm.documentUrl}
-                    onChange={(event) => setLegalForm((prev) => ({ ...prev, documentUrl: event.target.value }))}
-                    placeholder="https://cdn.maplexpress.ca/legal/..."
+                <div className="lg:col-span-1">
+                  <LegalPdfUploadControl
+                    id="legal-create-pdf"
+                    documentKey={legalForm.documentUrl}
+                    uploadState={legalCreateUpload}
+                    disabled={busyAction === "legal-create"}
+                    onFileSelected={uploadCreateLegalPdf}
                   />
                 </div>
               </div>
@@ -857,7 +1336,10 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                 />
               </div>
               <div className="flex justify-end">
-                <Button onClick={createLegalDocument} disabled={busyAction === "legal-create"}>
+                <Button
+                  onClick={createLegalDocument}
+                  disabled={busyAction === "legal-create" || legalCreateUpload.status === "uploading" || !legalForm.documentUrl.trim()}
+                >
                   {busyAction === "legal-create" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FilePlus2 className="mr-2 h-4 w-4" />}
                   Create Draft
                 </Button>
@@ -869,6 +1351,7 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
             {legalDocuments.length ? (
               legalDocuments.map((document) => {
                 const draft = draftForms[document.legalDocumentId] || { title: "", documentUrl: "", changeSummary: "" }
+                const draftUploadState = draftUploadStates[document.legalDocumentId] || emptyLegalUploadState()
                 const activation = activationForms[document.legalDocumentId] || { activeFrom: "", activeUntil: "" }
                 const canEditDraft = document.status === "DRAFT"
                 const canActivate = document.status !== "ARCHIVED" && !document.current
@@ -889,11 +1372,9 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                           </CardDescription>
                         </div>
                         {document.documentUrl ? (
-                          <Button asChild variant="outline" size="sm">
-                            <a href={document.documentUrl} target="_blank" rel="noreferrer">
-                              <ExternalLink className="mr-2 h-4 w-4" />
-                              Open
-                            </a>
+                          <Button type="button" variant="outline" size="sm" onClick={() => openLegalDocument(document)}>
+                            <ExternalLink className="mr-2 h-4 w-4" />
+                            Open
                           </Button>
                         ) : null}
                       </div>
@@ -921,17 +1402,13 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                                 }
                               />
                             </div>
-                            <div className="space-y-1.5">
-                              <Label htmlFor={`draft-url-${document.legalDocumentId}`}>Draft URL</Label>
-                              <Input
-                                id={`draft-url-${document.legalDocumentId}`}
-                                value={draft.documentUrl}
-                                onChange={(event) =>
-                                  setDraftForms((prev) => ({
-                                    ...prev,
-                                    [document.legalDocumentId]: { ...draft, documentUrl: event.target.value },
-                                  }))
-                                }
+                            <div>
+                              <LegalPdfUploadControl
+                                id={`draft-pdf-${document.legalDocumentId}`}
+                                documentKey={draft.documentUrl}
+                                uploadState={draftUploadState}
+                                disabled={busyAction === `legal-update-${document.legalDocumentId}`}
+                                onFileSelected={(file) => uploadDraftLegalPdf(document, file, draft)}
                               />
                             </div>
                           </div>
@@ -964,7 +1441,11 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
                             </Button>
                             <Button
                               onClick={() => updateLegalDraft(document)}
-                              disabled={busyAction === `legal-update-${document.legalDocumentId}`}
+                              disabled={
+                                busyAction === `legal-update-${document.legalDocumentId}` ||
+                                draftUploadState.status === "uploading" ||
+                                !draft.documentUrl.trim()
+                              }
                             >
                               {busyAction === `legal-update-${document.legalDocumentId}` ? (
                                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
@@ -979,34 +1460,32 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
 
                       {canActivate ? (
                         <div className="grid gap-3 rounded-md border p-3 lg:grid-cols-[1fr,1fr,auto] lg:items-end">
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`active-from-${document.legalDocumentId}`}>Active From</Label>
-                            <Input
-                              id={`active-from-${document.legalDocumentId}`}
-                              value={activation.activeFrom}
-                              onChange={(event) =>
-                                setActivationForms((prev) => ({
-                                  ...prev,
-                                  [document.legalDocumentId]: { ...activation, activeFrom: event.target.value },
-                                }))
-                              }
-                              placeholder="2026-08-01T00:00:00Z"
-                            />
-                          </div>
-                          <div className="space-y-1.5">
-                            <Label htmlFor={`active-until-${document.legalDocumentId}`}>Active Until</Label>
-                            <Input
-                              id={`active-until-${document.legalDocumentId}`}
-                              value={activation.activeUntil}
-                              onChange={(event) =>
-                                setActivationForms((prev) => ({
-                                  ...prev,
-                                  [document.legalDocumentId]: { ...activation, activeUntil: event.target.value },
-                                }))
-                              }
-                              placeholder="2027-08-01T00:00:00Z"
-                            />
-                          </div>
+                          <LegalDatePicker
+                            id={`active-from-${document.legalDocumentId}`}
+                            label="Active From"
+                            value={activation.activeFrom}
+                            placeholder="Select start date"
+                            disabled={busyAction === `legal-activate-${document.legalDocumentId}`}
+                            onChange={(value) =>
+                              setActivationForms((prev) => ({
+                                ...prev,
+                                [document.legalDocumentId]: { ...activation, activeFrom: value },
+                              }))
+                            }
+                          />
+                          <LegalDatePicker
+                            id={`active-until-${document.legalDocumentId}`}
+                            label="Active Until"
+                            value={activation.activeUntil}
+                            placeholder="Select end date"
+                            disabled={busyAction === `legal-activate-${document.legalDocumentId}`}
+                            onChange={(value) =>
+                              setActivationForms((prev) => ({
+                                ...prev,
+                                [document.legalDocumentId]: { ...activation, activeUntil: value },
+                              }))
+                            }
+                          />
                           <Button
                             onClick={() => activateLegalDocument(document)}
                             disabled={busyAction === `legal-activate-${document.legalDocumentId}`}

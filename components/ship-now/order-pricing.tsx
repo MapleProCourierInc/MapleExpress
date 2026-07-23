@@ -14,6 +14,7 @@ import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
+import { LegalDocumentLink } from "@/components/platform/legal-document-link"
 import { requestAdminQuote, updateRushPriority, type ChargeMap, type OrderResponse } from "@/lib/order-service"
 
 interface OrderPricingProps {
@@ -444,9 +445,9 @@ export function OrderPricing({
             <div className="ship-now-flow-note text-sm text-muted-foreground p-4 rounded-md">
               <p>
                 By proceeding to payment, you agree to our{" "}
-                <a href="/terms" className="text-primary hover:underline">Terms of Service</a>{" "}
+                <LegalDocumentLink documentType="TERMS_AND_CONDITIONS" className="text-primary hover:underline">Terms of Service</LegalDocumentLink>{" "}
                 and{" "}
-                <a href="/privacy" className="text-primary hover:underline">Privacy Policy</a>.
+                <LegalDocumentLink documentType="PRIVACY_POLICY" className="text-primary hover:underline">Privacy Policy</LegalDocumentLink>.
               </p>
             </div>
           )}

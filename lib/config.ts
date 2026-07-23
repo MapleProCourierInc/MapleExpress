@@ -17,8 +17,14 @@ export const PROFILE_SERVICE_URL = process.env.NEXT_PUBLIC_PROFILE_SERVICE_URL |
 
 // AWS Integration Service
 export const AWS_INTEGRATION_SERVICE_URL =
+  process.env.AWS_INTEGRATION_SERVICE_URL ||
   process.env.NEXT_PUBLIC_AWS_INTEGRATION_SERVICE_URL ||
   'http://localhost/aws-integration';
+
+export const AWS_INTEGRATION_INTERNAL_SERVICE_SECRET =
+  process.env.AWS_INTEGRATION_INTERNAL_SERVICE_SECRET ||
+  process.env.INTERNAL_SERVICE_SECRET ||
+  '';
 
 // Order Service
 export const ORDER_SERVICE_URL = process.env.NEXT_PUBLIC_ORDER_SERVICE_URL || 'http://localhost/ordermanagement';

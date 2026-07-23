@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { SlidersHorizontal } from "lucide-react"
 import { usePathname, useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
@@ -33,11 +33,36 @@ export function DriversFilters({ initialFilters }: DriversFiltersProps) {
   const pathname = usePathname()
   const searchParams = useSearchParams()
 
+  const [mounted, setMounted] = useState(false)
   const [name, setName] = useState(initialFilters.name)
   const [profileStatus, setProfileStatus] = useState(initialFilters.profileStatus || "ALL")
   const [email, setEmail] = useState(initialFilters.email)
   const [station, setStation] = useState(initialFilters.station)
   const [companyName, setCompanyName] = useState(initialFilters.companyName)
+
+  useEffect(() => {
+    setMounted(true)
+  }, [])
+
+  if (!mounted) {
+    return (
+      <div className="rounded-lg border bg-background p-3" suppressHydrationWarning>
+        <div className="flex flex-wrap items-end gap-2">
+          <div className="min-w-[220px] flex-1 space-y-1">
+            <div className="h-3 w-20 rounded bg-muted" />
+            <div className="h-9 rounded-md bg-muted" />
+          </div>
+          <div className="w-[190px] space-y-1">
+            <div className="h-3 w-24 rounded bg-muted" />
+            <div className="h-9 rounded-md bg-muted" />
+          </div>
+          <div className="h-8 w-16 rounded-md bg-muted" />
+          <div className="h-8 w-16 rounded-md bg-muted" />
+          <div className="h-8 w-32 rounded-md bg-muted" />
+        </div>
+      </div>
+    )
+  }
 
   const apply = () => {
     const next = new URLSearchParams(searchParams.toString())

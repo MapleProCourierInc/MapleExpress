@@ -40,6 +40,7 @@ import { MONERIS_CHECKOUT_MODE } from "@/lib/config"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
+import { ContactEmailLink } from "@/components/platform/contact-email-link"
 
 type StatusTone = "success" | "warning" | "danger" | "progress" | "neutral"
 type BillingTab = "overview" | "invoices" | "payments" | "unbilled" | "refunds" | "credit-ledger"
@@ -1472,9 +1473,11 @@ export function Billing() {
             <p className="mt-2 text-sm leading-6 text-slate-600">
               Your account is not Postpay enabled. If you need Postpay billing for regular shipments,
               reach out to us at{" "}
-              <a className="font-semibold text-red-700 hover:underline" href="mailto:billing@maplexpress.com">
-                billing@maplexpress.com
-              </a>
+              <ContactEmailLink
+                type="BILLING_INQUIRIES"
+                fallbackEmail="billing@maplexpress.ca"
+                className="font-semibold text-red-700 hover:underline"
+              />
               .
             </p>
           </div>

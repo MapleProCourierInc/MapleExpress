@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
     errors.push({ field: "documentType", message: "Select a valid legal-document type" })
   }
   if (!String(body.title || "").trim()) errors.push({ field: "title", message: "Title is required" })
-  if (!String(body.documentUrl || "").trim()) errors.push({ field: "documentUrl", message: "Document URL is required" })
+  if (!String(body.documentUrl || "").trim()) errors.push({ field: "documentUrl", message: "Uploaded document key is required" })
 
   if (errors.length) {
     return validationError("Please review the legal-document draft.", errors)

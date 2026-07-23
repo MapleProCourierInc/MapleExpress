@@ -1,0 +1,433 @@
+openapi: 3.0.3
+info:
+  title: S3 V2 API
+  version: 1.0.0
+  description: |
+    OpenAPI definition for the endpoints exposed by `S3V2Controller` and internal S3 APIs.
+    These APIs generate short-lived presigned S3 URLs for upload (PUT) and view (GET).
+servers:
+  - url: /
+tags:
+  - name: S3
+    description: S3 upload/view URL generation APIs
+  - name: S3 Internal
+    description: Internal service-to-service S3 APIs
+paths:
+  /v2/s3/presign:
+    post:
+      tags: [S3]
+      summary: Generate secure v2 presigned PUT URL(s)
+      description: |
+        Generates object keys and presigned PUT URLs namespaced under `drivers/{sub}/...`
+        for driver documents, or `order-updates/{shippingOrderId}/{trackingNumber}/{fulfilmentStatus}/...`
+        for `DELIVERY_RELATED_IMAGE` uploads.
+        MapleXpress legal document upload types generate `legalDocuments/{UPLOAD_TYPE}_{timestamp}_{6-char UUID}.pdf`
+        keys, accept only `application/pdf`, do not apply resolution rules, and do not define a business size limit.
+        Persist the returned `key` in DB, not the URL.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignV2Request'
+            examples:
+              driverDocument:
+                summary: Driver document upload
+                value:
+                  uploadType: DRIVER_LICENSE_FRONT
+                  count: 1
+                  defaultContentType: image/jpeg
+              deliveryImages:
+                summary: Multiple delivery-related images for one order status update
+                value:
+                  uploadType: DELIVERY_RELATED_IMAGE
+                  fulfilmentStatus: PICKUP
+                  shippingOrderId: SO-12345
+                  trackingNumber: TRK-987654321
+                  count: 6
+                  defaultContentType: image/jpeg
+              legalDocument:
+                summary: MapleXpress legal PDF document
+                value:
+                  uploadType: PRIVACY_POLICY
+                  count: 1
+                  defaultContentType: application/pdf
+      responses:
+        '200':
+          description: Presigned URLs generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignV2Response'
+              example:
+                uploadId: f7491137-f7f1-4045-a607-1538a8661338
+                items:
+                  - key: order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_a1b2c3d4.jpg
+                    presignedPutUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+                    maxSizeBytes: 10485760
+                    contentType: image/jpeg
+                  - key: order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_e5f6a7b8.jpg
+                    presignedPutUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+                    maxSizeBytes: 10485760
+                    contentType: image/jpeg
+                  - key: legalDocuments/PRIVACY_POLICY_1719293939_a1b2c3.pdf
+                    presignedPutUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+                    maxSizeBytes: null
+                    contentType: application/pdf
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /v2/s3/presign/view:
+    post:
+      tags: [S3]
+      summary: Generate v2 presigned GET URL(s) for existing object keys
+      description: |
+        Generates presigned GET URLs for provided DB-stored object keys in a private S3 bucket.
+        This endpoint does not enforce key namespace authorization; callers enforce business access rules.
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignViewV2Request'
+      responses:
+        '200':
+          description: View URLs generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignViewV2Response'
+              example:
+                items:
+                  - key: drivers/abc123/drivingLicense/DL_FRONT_1719293939_a1b2c3d4.jpg
+                    presignedGetUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+                  - key: order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_a1b2c3d4.jpg
+                    presignedGetUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+  /internal/v2/s3/presign:
+    post:
+      tags: [S3 Internal]
+      summary: Generate v2 presigned PUT URL for internal services
+      description: |
+        Generates one presigned PUT URL for the caller-provided `s3Key`.
+        The bucket is resolved from `aws.s3.presign.v2.bucket-name`.
+        This internal endpoint is authenticated with `X-Internal-Service-Secret` instead of bearer JWT.
+      security:
+        - internalServiceSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InternalPresignV2Request'
+            example:
+              s3Key: services/driver-ms/drivers/abc123/profile-photo.jpg
+      responses:
+        '200':
+          description: Presigned URL generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalPresignV2Response'
+              example:
+                s3Key: services/driver-ms/drivers/abc123/profile-photo.jpg
+                presignedPutUrl: https://example-bucket.s3.amazonaws.com/...
+                expiresAt: 2026-03-01T12:00:00Z
+                expiresInSeconds: 600
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid internal service secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Unauthorized internal service request
+  /internal/presign/view:
+    post:
+      tags: [S3 Internal]
+      summary: Generate v2 presigned GET URL(s) for internal services
+      description: |
+        Generates presigned GET URLs for provided DB-stored object keys.
+        This internal endpoint is authenticated with `X-Internal-Service-Secret` instead of bearer JWT.
+      security:
+        - internalServiceSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PresignViewV2Request'
+      responses:
+        '200':
+          description: View URLs generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PresignViewV2Response'
+              example:
+                items:
+                  - key: drivers/abc123/drivingLicense/DL_FRONT_1719293939_a1b2c3d4.jpg
+                    presignedGetUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+                  - key: order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_a1b2c3d4.jpg
+                    presignedGetUrl: https://example-bucket.s3.amazonaws.com/...
+                    expiresAt: 2026-03-01T12:00:00Z
+                    expiresInSeconds: 600
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid internal service secret
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                status: error
+                message: Unauthorized internal service request
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalServiceSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+  schemas:
+    PresignV2Request:
+      type: object
+      description: Request for generating v2 presigned PUT URLs. For `DELIVERY_RELATED_IMAGE`, `fulfilmentStatus`, `shippingOrderId` and `trackingNumber` are required. Legal document upload types accept only `application/pdf` and generate `legalDocuments/{UPLOAD_TYPE}_{timestamp}_{6-char UUID}.pdf` keys.
+      required:
+        - uploadType
+      properties:
+        uploadType:
+          type: string
+          description: Upload purpose. Controls folder naming, filename prefix, validation, content type and size constraints.
+          enum:
+            - DRIVER_LICENSE_FRONT
+            - DRIVER_LICENSE_BACK
+            - PROOF_OF_WORK_CONTRACT
+            - PROOF_OF_WORK_PAYSTUB
+            - PROOF_OF_WORK_DOCUMENT
+            - PROFILE_PHOTO
+            - BACKGROUND_CHECK
+            - DELIVERY_RELATED_IMAGE
+            - TERMS_AND_CONDITIONS
+            - PRIVACY_POLICY
+            - COOKIE_POLICY
+          example: DRIVER_LICENSE_FRONT
+        fulfilmentStatus:
+          type: string
+          description: Required only when `uploadType` is `DELIVERY_RELATED_IMAGE`. Used as the delivery fulfilment status folder in the generated S3 key.
+          example: PICKUP
+        shippingOrderId:
+          type: string
+          description: Required only when `uploadType` is `DELIVERY_RELATED_IMAGE`. Used as the shipping order folder in the generated S3 key.
+          example: SO-12345
+        trackingNumber:
+          type: string
+          description: Required only when `uploadType` is `DELIVERY_RELATED_IMAGE`. Used as the tracking number folder in the generated S3 key.
+          example: TRK-987654321
+        count:
+          type: integer
+          minimum: 1
+          maximum: 10
+          description: Optional number of URLs to generate. If present, `defaultContentType` is required.
+          example: 2
+        defaultContentType:
+          type: string
+          description: Required when `count` is provided. Used for all generated URLs.
+          example: image/jpeg
+        files:
+          type: array
+          description: Preferred mode; provide one contentType per file.
+          items:
+            $ref: '#/components/schemas/FileUploadRequest'
+    FileUploadRequest:
+      type: object
+      required:
+        - contentType
+      properties:
+        contentType:
+          type: string
+          description: MIME type of the file to upload.
+          example: image/jpeg
+    InternalPresignV2Request:
+      type: object
+      description: Internal request for generating a v2 presigned PUT URL for a caller-provided S3 key.
+      required:
+        - s3Key
+      properties:
+        s3Key:
+          type: string
+          minLength: 1
+          description: S3 object key to presign. Bucket is resolved from service configuration.
+          example: services/driver-ms/drivers/abc123/profile-photo.jpg
+    PresignV2Response:
+      type: object
+      description: Response containing generated key(s) and presigned PUT URL(s). Store key in DB, not URL.
+      properties:
+        uploadId:
+          type: string
+          description: Correlation identifier for the generation request.
+          example: 9e34a4a9-b353-4f85-baf8-5f48cc8f1db8
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresignV2Item'
+    PresignV2Item:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Object key to persist in DB for later retrieval.
+          example: order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_a1b2c3d4.jpg
+        presignedPutUrl:
+          type: string
+          format: uri
+          description: Time-limited presigned PUT URL used only for immediate upload.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Absolute expiration time for the presigned URL.
+        expiresInSeconds:
+          type: integer
+          format: int64
+          example: 600
+        maxSizeBytes:
+          type: integer
+          format: int64
+          nullable: true
+          example: 10485760
+          description: Resolved max allowed upload size for this upload type. Null means no business size limit is defined.
+        contentType:
+          type: string
+          example: image/jpeg
+          description: Content type for this URL.
+    InternalPresignV2Response:
+      type: object
+      description: Internal response containing a caller-provided S3 key and presigned PUT URL.
+      properties:
+        s3Key:
+          type: string
+          description: S3 object key that was presigned.
+          example: services/driver-ms/drivers/abc123/profile-photo.jpg
+        presignedPutUrl:
+          type: string
+          format: uri
+          description: Time-limited presigned PUT URL used only for immediate upload.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Absolute expiration time for the presigned URL.
+        expiresInSeconds:
+          type: integer
+          format: int64
+          example: 600
+    PresignViewV2Request:
+      type: object
+      description: Request for generating v2 presigned GET URLs for existing S3 object keys.
+      required:
+        - keys
+      properties:
+        keys:
+          type: array
+          description: Stored S3 object keys to generate view URLs for.
+          minItems: 1
+          items:
+            type: string
+            minLength: 1
+          example:
+            - drivers/abc123/drivingLicense/DL_FRONT_1719293939_a1b2c3d4.jpg
+            - order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_a1b2c3d4.jpg
+    PresignViewV2Response:
+      type: object
+      description: Response containing presigned GET URL(s) for existing private S3 objects.
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/PresignViewV2Item'
+    PresignViewV2Item:
+      type: object
+      properties:
+        key:
+          type: string
+          description: Object key stored in DB.
+          example: order-updates/SO-12345/TRK-987654321/PICKUP/driver-abc_1719293939_a1b2c3d4.jpg
+        presignedGetUrl:
+          type: string
+          format: uri
+          description: Time-limited presigned GET URL used only for viewing/downloading.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Absolute expiration time for the presigned URL.
+        expiresInSeconds:
+          type: integer
+          format: int64
+          example: 600
+    ErrorResponse:
+      type: object
+      required:
+        - status
+        - message
+        - errors
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: An error occurred
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorResponseErrors'
+    ErrorResponseErrors:
+      type: object
+      required:
+        - field
+        - message
+      properties:
+        field:
+          type: string
+          example: basePrice
+        message:
+          type: string
+          example: Base price is required

@@ -1,9 +1,41 @@
+"use client"
+
 import Link from "next/link"
-import { Facebook, Twitter, Instagram, Linkedin } from "lucide-react"
+import {
+  BriefcaseBusiness,
+  Facebook,
+  Instagram,
+  Linkedin,
+  MessageCircle,
+  Music2,
+  Twitter,
+  Youtube,
+  type LucideIcon,
+} from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { LegalDocumentLink } from "@/components/platform/legal-document-link"
+import { usePlatformConfiguration } from "@/components/platform/platform-configuration-provider"
+import type { PublicSocialMediaPlatform } from "@/types/platform-configuration"
+
+const SOCIAL_ICONS: Record<PublicSocialMediaPlatform, LucideIcon> = {
+  FACEBOOK: Facebook,
+  INSTAGRAM: Instagram,
+  LINKEDIN: Linkedin,
+  X: Twitter,
+  YOUTUBE: Youtube,
+  TIKTOK: Music2,
+  WHATSAPP: MessageCircle,
+  INDEED: BriefcaseBusiness,
+}
 
 export function Footer() {
+  const { config } = usePlatformConfiguration()
+  const socialProfiles = [...(config?.socialMediaProfiles || [])]
+    .filter((profile) => profile.profileUrl)
+    .sort((left, right) => Number(left.displayOrder || 0) - Number(right.displayOrder || 0))
+  const indeedProfile = socialProfiles.find((profile) => profile.platform === "INDEED")
+
   return (
     <footer className="bg-gradient-to-r from-primary/5 to-secondary/5 py-12">
       <div className="container">
@@ -16,24 +48,25 @@ export function Footer() {
             <p className="text-muted-foreground mb-4">
               Your trusted partner for all your courier and logistics needs since 2024.
             </p>
-            <div className="flex gap-4">
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Facebook className="h-5 w-5" />
-                <span className="sr-only">Facebook</span>
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Twitter className="h-5 w-5" />
-                <span className="sr-only">Twitter</span>
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Instagram className="h-5 w-5" />
-                <span className="sr-only">Instagram</span>
-              </Link>
-              <Link href="#" className="text-muted-foreground hover:text-primary">
-                <Linkedin className="h-5 w-5" />
-                <span className="sr-only">LinkedIn</span>
-              </Link>
-            </div>
+            {socialProfiles.length ? (
+              <div className="flex flex-wrap gap-4">
+                {socialProfiles.map((profile) => {
+                  const Icon = SOCIAL_ICONS[profile.platform] || MessageCircle
+                  return (
+                    <a
+                      key={profile.platform}
+                      href={profile.profileUrl || "#"}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="text-muted-foreground hover:text-primary"
+                    >
+                      <Icon className="h-5 w-5" />
+                      <span className="sr-only">{profile.displayName || profile.platform}</span>
+                    </a>
+                  )
+                })}
+              </div>
+            ) : null}
           </div>
           <div>
             <h3 className="font-bold text-lg mb-4">Quick Links</h3>
@@ -53,6 +86,13 @@ export function Footer() {
                   About Us
                 </Link>
               </li>
+              {indeedProfile?.profileUrl ? (
+                <li>
+                  <a href={indeedProfile.profileUrl} target="_blank" rel="noreferrer" className="text-muted-foreground hover:text-primary">
+                    Careers
+                  </a>
+                </li>
+              ) : null}
               <li>
                 <Link href="/track" className="text-muted-foreground hover:text-primary">
                   Track Package
@@ -106,9 +146,9 @@ export function Footer() {
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               By subscribing, you agree to our{" "}
-              <Link href="#" className="underline underline-offset-2">
+              <LegalDocumentLink documentType="PRIVACY_POLICY" className="font-normal text-muted-foreground underline underline-offset-2 hover:text-primary">
                 Privacy Policy
-              </Link>
+              </LegalDocumentLink>
               .
             </p>
           </div>
@@ -116,15 +156,15 @@ export function Footer() {
         <div className="border-t border-border mt-12 pt-6 text-center text-sm text-muted-foreground">
           <p>&copy; {new Date().getFullYear()} MapleXpress Courier Services. All rights reserved.</p>
           <div className="flex justify-center gap-4 mt-2">
-            <Link href="#" className="hover:underline">
+            <LegalDocumentLink documentType="PRIVACY_POLICY" className="font-normal text-muted-foreground hover:underline">
               Privacy Policy
-            </Link>
-            <Link href="#" className="hover:underline">
+            </LegalDocumentLink>
+            <LegalDocumentLink documentType="TERMS_AND_CONDITIONS" className="font-normal text-muted-foreground hover:underline">
               Terms of Service
-            </Link>
-            <Link href="#" className="hover:underline">
+            </LegalDocumentLink>
+            <LegalDocumentLink documentType="COOKIE_POLICY" className="font-normal text-muted-foreground hover:underline">
               Cookie Policy
-            </Link>
+            </LegalDocumentLink>
           </div>
         </div>
       </div>
