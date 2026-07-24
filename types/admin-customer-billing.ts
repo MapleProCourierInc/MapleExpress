@@ -13,6 +13,62 @@ export type BillingAccount = {
   billingAccountId?: string | null
 }
 
+export type AdminBillingAccount = {
+  billingAccountId: string
+  mongoVersion?: number | null
+  ownerId?: string | null
+  ownerType?: OwnerType | null
+  billingMode?: string | null
+  billingCycle?: string | null
+  status?: string | null
+  email?: string | null
+  currentUnbilledAmount?: number | null
+  totalOutstandingAmount?: number | null
+  creditBalance?: number | null
+  creditLimit?: number | null
+  currency?: string | null
+  lastBilledDate?: string | null
+  nextBillingDate?: string | null
+  createdAt?: string | null
+  lastUpdatedAt?: string | null
+}
+
+export type BillingAccountCreditLimitAuditEntry = {
+  creditLimitAuditId?: string | null
+  previousCreditLimit?: number | null
+  newCreditLimit?: number | null
+  changeAmount?: number | null
+  changeType?: "INCREASED" | "DECREASED" | null
+  reason?: string | null
+  changedAt?: string | null
+  changedBy?: string | null
+  requestId?: string | null
+}
+
+export type AdminBillingAccountCreditLimitResponse = {
+  billingAccountId: string
+  ownerId?: string | null
+  ownerType?: OwnerType | null
+  mongoVersion?: number | null
+  previousCreditLimit?: number | null
+  creditLimit: number
+  currentUnbilledAmount?: number | null
+  totalOutstandingAmount?: number | null
+  creditBalance?: number | null
+  creditExposure?: number | null
+  availableCredit?: number | null
+  currency?: string | null
+  lastUpdatedAt?: string | null
+  latestAuditEntry?: BillingAccountCreditLimitAuditEntry | null
+  creditLimitAuditTrail?: BillingAccountCreditLimitAuditEntry[]
+}
+
+export type AdminUpdateBillingAccountCreditLimitRequest = {
+  creditLimit: number
+  reason: string
+  mongoVersion?: number
+}
+
 export type RelatedParty = {
   relatedPartyId?: string
   type?: string

@@ -1,10 +1,13 @@
 import "server-only"
 
-import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { BILLING_MANAGEMENT_SERVICE_URL, PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
+  AdminBillingAccount,
+  AdminBillingAccountCreditLimitResponse,
   AdminCustomerProfileListFilters,
   AdminEnablePayLaterRequest,
+  AdminUpdateBillingAccountCreditLimitRequest,
   AdminUpdatePostpayStatusRequest,
   ApiErrorResponse,
   IndividualProfile,
@@ -64,6 +67,53 @@ function normalizePageResponse<T>(payload: unknown, fallbackPage: number, fallba
     totalElements: typeof candidate?.totalElements === "number" ? candidate.totalElements : 0,
     totalPages: typeof candidate?.totalPages === "number" ? candidate.totalPages : 0,
   }
+}
+
+async function billingAccountFetch<T>(endpoint: string, init: RequestInit): Promise<ServiceResult<T>> {
+  const response = await authenticatedServerFetch(
+    getEndpointUrl(BILLING_MANAGEMENT_SERVICE_URL, endpoint),
+    init,
+    { includeIdToken: true },
+  )
+
+  if (!response) return { data: null, error: { status: "401", message: "Unauthorized" } }
+
+  if (!response.ok) {
+    const parsed = await parseError(response)
+    return {
+      data: null,
+      error: {
+        ...(parsed.error ?? {}),
+        status: String(response.status),
+      },
+      textError: parsed.textError,
+    }
+  }
+
+  return { data: (await response.json()) as T, error: null, textError: null }
+}
+
+export async function getAdminBillingAccountById(
+  billingAccountId: string,
+): Promise<ServiceResult<AdminBillingAccount>> {
+  return billingAccountFetch<AdminBillingAccount>(
+    `/billing-account/${encodeURIComponent(billingAccountId)}`,
+    { method: "GET", headers: withJsonHeaders() },
+  )
+}
+
+export async function updateAdminBillingAccountCreditLimit(
+  billingAccountId: string,
+  payload: AdminUpdateBillingAccountCreditLimitRequest,
+): Promise<ServiceResult<AdminBillingAccountCreditLimitResponse>> {
+  return billingAccountFetch<AdminBillingAccountCreditLimitResponse>(
+    `/api/v1/admin/billing-accounts/${encodeURIComponent(billingAccountId)}/credit-limit`,
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  )
 }
 
 export async function listIndividualProfiles(

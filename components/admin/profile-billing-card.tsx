@@ -2,6 +2,7 @@
 
 import { useState } from "react"
 import { useRouter } from "next/navigation"
+import { BillingAccountDialog } from "@/components/admin/billing-account-dialog"
 import { useToast } from "@/hooks/use-toast"
 import type { OwnerType, PayLaterConfigurationEntity } from "@/types/admin-customer-billing"
 import { Badge } from "@/components/ui/badge"
@@ -68,6 +69,7 @@ export function ProfileBillingCard({
   const { toast } = useToast()
 
   const isActive = payLaterConfiguration.activationStatus === "ACTIVE"
+  const billingAccountId = payLaterConfiguration.billingAccountId?.trim() || ""
 
   const onToggleIntent = (checked: boolean) => {
     const nextAction = checked ? "ENABLE" : "DISABLE"
@@ -137,7 +139,8 @@ export function ProfileBillingCard({
               <CardTitle>Billing / Postpay</CardTitle>
               <CardDescription>Monthly billing is configured for this user.</CardDescription>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-3">
+              {isActive && billingAccountId ? <BillingAccountDialog billingAccountId={billingAccountId} /> : null}
               <Label htmlFor="monthly-billing-toggle" className="text-xs text-muted-foreground">
                 Monthly billing
               </Label>

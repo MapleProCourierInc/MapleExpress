@@ -8,6 +8,8 @@ tags:
     description: Public read-only MapleX platform/company configuration APIs for frontend applications.
   - name: Admin Platform Configuration
     description: Secured MapleX platform/company configuration administration APIs. Requires `admin_super` authority.
+  - name: Admin Billing Account
+    description: Secured billing account administration APIs. Requires `admin_super` authority.
   - name: Internal Billing Charges
     description: Checkout charge APIs used by pricing-payment-ms. Requests require both the customer's bearer JWT and `X-Internal-Service-Secret`; the JWT `sub` must match `BillingAccount.ownerId`.
 paths:
@@ -166,6 +168,120 @@ paths:
       responses:
         '204':
           description: Deleted
+  /api/v1/admin/billing-accounts/{billingAccountId}/credit-limit:
+    patch:
+      summary: Update billing account credit limit
+      tags: [Admin Billing Account]
+      security:
+        - bearerAuth: []
+      description: |
+        Admin-only API for changing the credit limit on one billing account.
+
+        Required authorization:
+        - `Authorization: Bearer <admin JWT>`
+        - JWT authorities must include `admin_super`.
+
+        The request body supplies the new `creditLimit`, a required business `reason`, and an optional current
+        `mongoVersion` from the admin UI. The service reads the administrator identifier from the JWT `sub`;
+        administrator identity is never accepted from the request body.
+
+        The update appends a nested `creditLimitAuditTrail` entry to the `billingAccounts` MongoDB document with:
+        previous limit, new limit, signed change amount, increase/decrease direction, reason, changed timestamp,
+        changed-by administrator id, and optional `X-Request-ID`.
+
+        MongoDB optimistic locking protects concurrent updates. If a supplied `mongoVersion` is stale, or Mongo
+        detects a concurrent save conflict, the API returns `409 Conflict`.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
+        - in: path
+          name: billingAccountId
+          required: true
+          description: Billing account id whose credit limit should be updated.
+          schema:
+            type: string
+            example: ACC_A1B2C3D4
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateBillingAccountCreditLimitRequest'
+            example:
+              creditLimit: 7500.00
+              reason: Approved by finance after account review
+              mongoVersion: 4
+      responses:
+        '200':
+          description: Credit limit updated and audit trail appended
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminBillingAccountCreditLimitResponse'
+              example:
+                billingAccountId: ACC_A1B2C3D4
+                ownerId: 6998bbe65fef7a493
+                ownerType: ORGANIZATION
+                mongoVersion: 5
+                previousCreditLimit: 5000.00
+                creditLimit: 7500.00
+                currentUnbilledAmount: 100.00
+                totalOutstandingAmount: 200.00
+                creditBalance: 50.00
+                creditExposure: 250.00
+                availableCredit: 7250.00
+                currency: CAD
+                lastUpdatedAt: '2026-07-24T10:00:00Z'
+                latestAuditEntry:
+                  creditLimitAuditId: 99f7a626-d24c-49fb-8d4c-47b2b93a29d5
+                  previousCreditLimit: 5000.00
+                  newCreditLimit: 7500.00
+                  changeAmount: 2500.00
+                  changeType: INCREASED
+                  reason: Approved by finance after account review
+                  changedAt: '2026-07-24T10:00:00Z'
+                  changedBy: admin-user-sub
+                  requestId: req-20260724-0001
+                creditLimitAuditTrail:
+                  - creditLimitAuditId: 99f7a626-d24c-49fb-8d4c-47b2b93a29d5
+                    previousCreditLimit: 5000.00
+                    newCreditLimit: 7500.00
+                    changeAmount: 2500.00
+                    changeType: INCREASED
+                    reason: Approved by finance after account review
+                    changedAt: '2026-07-24T10:00:00Z'
+                    changedBy: admin-user-sub
+                    requestId: req-20260724-0001
+        '400':
+          description: Invalid request, missing reason, negative credit limit, or unchanged credit limit
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Missing or invalid bearer JWT
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have the `admin_super` authority
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Billing account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Stale mongoVersion or optimistic-lock conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /billingmanagement/internal/billing-account/charges/shipping-order:
     post:
       summary: Apply checkout shipping-order charge to billing account
@@ -2723,6 +2839,115 @@ components:
         currency: { type: string, example: CAD }
         customerFacingReason: { type: string }
         occurredAt: { type: string, format: date-time }
+    UpdateBillingAccountCreditLimitRequest:
+      type: object
+      required: [creditLimit, reason]
+      description: Admin request for updating one billing account credit limit. Administrator identity is read from the bearer JWT subject and must not be supplied in the body.
+      properties:
+        creditLimit:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 7500.00
+          description: New billing account credit limit.
+        reason:
+          type: string
+          minLength: 1
+          maxLength: 500
+          example: Approved by finance after account review
+          description: Required business reason stored in the credit-limit audit trail.
+        mongoVersion:
+          type: integer
+          format: int64
+          nullable: true
+          example: 4
+          description: Optional current MongoDB optimistic-lock version. Stale values are rejected with 409.
+    CreditLimitChangeType:
+      type: string
+      enum: [INCREASED, DECREASED]
+      description: Direction of the credit-limit change.
+      example: INCREASED
+    BillingAccountCreditLimitAuditEntry:
+      type: object
+      description: Nested immutable audit entry stored on the billing account for one credit-limit change.
+      properties:
+        creditLimitAuditId:
+          type: string
+          format: uuid
+          example: 99f7a626-d24c-49fb-8d4c-47b2b93a29d5
+        previousCreditLimit:
+          type: number
+          format: decimal
+          example: 5000.00
+        newCreditLimit:
+          type: number
+          format: decimal
+          example: 7500.00
+        changeAmount:
+          type: number
+          format: decimal
+          example: 2500.00
+          description: Signed amount, calculated as `newCreditLimit - previousCreditLimit`. Decreases are negative.
+        changeType:
+          $ref: '#/components/schemas/CreditLimitChangeType'
+        reason:
+          type: string
+          example: Approved by finance after account review
+        changedAt:
+          type: string
+          format: date-time
+          example: '2026-07-24T10:00:00Z'
+        changedBy:
+          type: string
+          example: admin-user-sub
+          description: Authenticated administrator JWT subject.
+        requestId:
+          type: string
+          nullable: true
+          example: req-20260724-0001
+          description: Optional `X-Request-ID` captured for correlation.
+    AdminBillingAccountCreditLimitResponse:
+      type: object
+      description: Admin response after a credit-limit update, including the latest audit entry and the full credit-limit audit trail.
+      properties:
+        billingAccountId: { type: string, example: ACC_A1B2C3D4 }
+        ownerId: { type: string, example: 6998bbe65fef7a493 }
+        ownerType: { type: string, enum: [INDIVIDUAL, ORGANIZATION], example: ORGANIZATION }
+        mongoVersion:
+          type: integer
+          format: int64
+          example: 5
+          description: MongoDB optimistic-lock version after the update.
+        previousCreditLimit:
+          type: number
+          format: decimal
+          example: 5000.00
+        creditLimit:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 7500.00
+        currentUnbilledAmount: { type: number, format: decimal, example: 100.00 }
+        totalOutstandingAmount: { type: number, format: decimal, example: 200.00 }
+        creditBalance: { type: number, format: decimal, example: 50.00 }
+        creditExposure:
+          type: number
+          format: decimal
+          example: 250.00
+          description: max(0, currentUnbilledAmount + totalOutstandingAmount - creditBalance).
+        availableCredit:
+          type: number
+          format: decimal
+          example: 7250.00
+          description: max(0, creditLimit - creditExposure).
+        currency: { type: string, example: CAD }
+        lastUpdatedAt: { type: string, format: date-time }
+        latestAuditEntry:
+          $ref: '#/components/schemas/BillingAccountCreditLimitAuditEntry'
+        creditLimitAuditTrail:
+          type: array
+          items:
+            $ref: '#/components/schemas/BillingAccountCreditLimitAuditEntry'
     BillingAccount:
       type: object
       required: [ownerId, ownerType, billingMode, billingCycle, status, creditLimit]
