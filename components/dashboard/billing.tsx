@@ -290,8 +290,8 @@ function BillingDashboardLoading() {
       </div>
 
       <div className="space-y-6">
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
-          {Array.from({ length: 4 }).map((_, index) => (
+        <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
+          {Array.from({ length: 5 }).map((_, index) => (
             <BillingStatCardLoading key={index} />
           ))}
         </div>
@@ -818,6 +818,8 @@ function BillingPaymentView({
   onSuccess: () => Promise<void>
 }) {
   const balanceDue = dashboard.summary.totalPayableNow > 0 ? dashboard.summary.totalPayableNow : dashboard.summary.balanceDue
+  const creditLimit = dashboard.summary.creditLimit ?? dashboard.billingAccount?.creditLimit ?? 0
+  const availableCredit = dashboard.summary.availableCredit ?? 0
   const currency = dashboard.summary.currency || dashboard.billingAccount?.currency || "CAD"
   const billingAccountId = dashboard.billingAccount?.billingAccountId
   const [amountInput, setAmountInput] = useState(() => (balanceDue > 0 ? balanceDue.toFixed(2) : ""))
@@ -836,9 +838,8 @@ function BillingPaymentView({
     if (!amountInput.trim()) return "Enter a payment amount."
     if (!Number.isFinite(amount)) return "Enter a valid payment amount."
     if (amount <= 0) return "Payment amount must be greater than 0."
-    if (amount > balanceDue) return "Payment amount cannot be greater than the total balance due."
     return null
-  }, [amount, amountInput, balanceDue])
+  }, [amount, amountInput])
 
   const formatCurrency = (value?: number | null) => money(value, currency)
 
@@ -1027,7 +1028,7 @@ function BillingPaymentView({
     }
   }
 
-  if (!billingAccountId || balanceDue <= 0) {
+  if (!billingAccountId) {
     return (
       <div className="space-y-6">
         <button className="inline-flex items-center gap-2 text-sm font-semibold text-slate-700 hover:text-slate-950" onClick={onBack} type="button">
@@ -1035,8 +1036,8 @@ function BillingPaymentView({
           Back to billing
         </button>
         <div className="rounded-lg border border-slate-200 bg-white p-8 text-center shadow-sm">
-          <h1 className="text-xl font-bold text-slate-950">No payment due</h1>
-          <p className="mt-2 text-sm text-slate-500">There is no outstanding balance on this billing account.</p>
+          <h1 className="text-xl font-bold text-slate-950">Billing account unavailable</h1>
+          <p className="mt-2 text-sm text-slate-500">A billing account is required before a payment can be started.</p>
         </div>
       </div>
     )
@@ -1055,8 +1056,8 @@ function BillingPaymentView({
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
         <section className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm">
           <div>
-            <h1 className="text-2xl font-bold text-slate-950">Pay Balance</h1>
-            <p className="mt-2 text-sm text-slate-500">Payments are applied to your oldest unpaid invoices first.</p>
+            <h1 className="text-2xl font-bold text-slate-950">Make Payment</h1>
+            <p className="mt-2 text-sm text-slate-500">Payments are applied to your billing account after checkout is confirmed.</p>
           </div>
 
           {(step === "entry" || step === "initiating") && (
@@ -1199,6 +1200,14 @@ function BillingPaymentView({
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">Balance due</span>
               <span className="font-mono font-bold text-slate-950">{formatCurrency(balanceDue)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Credit limit</span>
+              <span className="font-mono font-bold text-slate-950">{formatCurrency(creditLimit)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-slate-500">Available credit</span>
+              <span className="font-mono font-bold text-slate-950">{formatCurrency(availableCredit)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">Currency</span>
@@ -1431,6 +1440,8 @@ export function Billing() {
     (dashboard?.summary.totalPayableNow ?? 0) > 0
       ? dashboard?.summary.totalPayableNow ?? 0
       : dashboard?.summary.balanceDue ?? 0
+  const creditLimit = dashboard?.summary.creditLimit ?? dashboard?.billingAccount?.creditLimit ?? 0
+  const availableCredit = dashboard?.summary.availableCredit ?? 0
   const selectedInvoice =
     invoiceHistory.find((invoice) => invoice.invoiceId === selectedInvoiceId) ||
     invoiceHistory[0] ||
@@ -1552,18 +1563,16 @@ export function Billing() {
       <div>
         {activeTab === "overview" ? (
           <div className="space-y-6">
-            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-4">
+            <div className="grid grid-cols-1 gap-6 md:grid-cols-2 xl:grid-cols-5">
               <StatCard
                 action={
-                  dashboard.actions.canPayBalance && payableNow > 0 ? (
-                    <button
-                      className="inline-flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800"
-                      onClick={() => navigateBillingView("payment")}
-                      type="button"
-                    >
-                      {dashboard.actions.payBalanceLabel || "Pay Balance"}
-                    </button>
-                  ) : undefined
+                  <button
+                    className="inline-flex w-full items-center justify-center rounded-lg bg-red-700 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-800"
+                    onClick={() => navigateBillingView("payment")}
+                    type="button"
+                  >
+                    Make Payment
+                  </button>
                 }
                 emphasized={dashboard.summary.hasOutstandingBalance}
                 helper={dashboard.summary.balanceStatusLabel || undefined}
@@ -1586,10 +1595,16 @@ export function Billing() {
                 value={money(dashboard.summary.currentUnbilledAmount, currency)}
               />
               <StatCard
-                helper={dashboard.summary.hasCredit ? "Available to apply" : "Ready to apply"}
+                helper="Remaining postpay credit"
                 icon={<Banknote className="h-5 w-5" />}
                 label="Available Credit"
-                value={money(dashboard.summary.creditBalance, currency)}
+                value={money(availableCredit, currency)}
+              />
+              <StatCard
+                helper="Approved account limit"
+                icon={<WalletCards className="h-5 w-5" />}
+                label="Credit Limit"
+                value={money(creditLimit, currency)}
               />
               <StatCard
                 helper="Scheduled"
@@ -1888,7 +1903,7 @@ export function Billing() {
                 Credit Balance Ledger
               </h2>
               <span className="font-mono text-sm font-bold text-slate-950">
-                Available {money(dashboard.summary.creditBalance, currency)}
+                Credit balance {money(dashboard.summary.creditBalance, currency)}
               </span>
             </div>
             {isCreditLedgerLoading ? (

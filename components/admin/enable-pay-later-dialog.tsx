@@ -30,21 +30,36 @@ export function EnablePayLaterDialog({
 }) {
   const [open, setOpen] = useState(false)
   const [reason, setReason] = useState("")
+  const [creditLimit, setCreditLimit] = useState("")
   const [notes, setNotes] = useState("")
   const [loading, setLoading] = useState(false)
   const [reasonError, setReasonError] = useState<string | null>(null)
+  const [creditLimitError, setCreditLimitError] = useState<string | null>(null)
   const router = useRouter()
   const { toast } = useToast()
 
   const submit = async () => {
+    const parsedCreditLimit = creditLimit.trim() ? Number(creditLimit) : Number.NaN
+    let hasError = false
+
     if (!reason.trim()) {
       setReasonError("Reason is required")
-      return
+      hasError = true
+    } else {
+      setReasonError(null)
     }
+
+    if (!Number.isFinite(parsedCreditLimit) || parsedCreditLimit < 0) {
+      setCreditLimitError("Credit limit must be 0 or greater")
+      hasError = true
+    } else {
+      setCreditLimitError(null)
+    }
+
+    if (hasError) return
 
     try {
       setLoading(true)
-      setReasonError(null)
       const response = await apiFetch("/api/admin/customers/billing/pay-later/enable", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -52,6 +67,7 @@ export function EnablePayLaterDialog({
           ownerType,
           ownerId,
           reason: reason.trim(),
+          creditLimit: parsedCreditLimit,
           notes: notes.trim(),
         }),
       })
@@ -76,6 +92,7 @@ export function EnablePayLaterDialog({
       toast({ title: "Monthly billing enabled", description: payload?.message || "Billing configuration updated." })
       setOpen(false)
       setReason("")
+      setCreditLimit("")
       setNotes("")
       router.refresh()
     } catch {
@@ -99,6 +116,20 @@ export function EnablePayLaterDialog({
         </DialogHeader>
 
         <div className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="credit-limit">Credit limit</Label>
+            <Input
+              id="credit-limit"
+              inputMode="decimal"
+              min="0"
+              onChange={(e) => setCreditLimit(e.target.value)}
+              placeholder="5000.00"
+              step="0.01"
+              type="number"
+              value={creditLimit}
+            />
+            {creditLimitError ? <p className="text-xs text-destructive">{creditLimitError}</p> : null}
+          </div>
           <div className="space-y-2">
             <Label htmlFor="reason">Reason</Label>
             <Input id="reason" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Required" />

@@ -8,6 +8,7 @@ export interface BillingAccount {
   status?: string | null
   email?: string | null
   billingCycle?: string | null
+  creditLimit?: number | null
   currency?: string | null
   lastBilledDate?: string | null
   nextBillingDate?: string | null
@@ -17,6 +18,8 @@ export interface BillingSummary {
   balanceDue: number
   currentUnbilledAmount: number
   creditBalance: number
+  creditLimit: number
+  availableCredit: number
   totalPayableNow: number
   currency: string
   hasOutstandingBalance: boolean
@@ -254,13 +257,22 @@ export async function getBillingDashboard(): Promise<BillingDashboardResponse> {
   }
 
   const data = await response.json()
+  const billingAccount = data?.billingAccount ?? null
+  const balanceDue = data?.summary?.balanceDue ?? 0
+  const currentUnbilledAmount = data?.summary?.currentUnbilledAmount ?? 0
+  const creditBalance = data?.summary?.creditBalance ?? 0
+  const creditLimit = data?.summary?.creditLimit ?? billingAccount?.creditLimit ?? 0
+  const creditExposure = Math.max(0, currentUnbilledAmount + balanceDue - creditBalance)
+  const availableCredit = data?.summary?.availableCredit ?? Math.max(0, creditLimit - creditExposure)
 
   return {
-    billingAccount: data?.billingAccount ?? null,
+    billingAccount,
     summary: {
-      balanceDue: data?.summary?.balanceDue ?? 0,
-      currentUnbilledAmount: data?.summary?.currentUnbilledAmount ?? 0,
-      creditBalance: data?.summary?.creditBalance ?? 0,
+      balanceDue,
+      currentUnbilledAmount,
+      creditBalance,
+      creditLimit,
+      availableCredit,
       totalPayableNow: data?.summary?.totalPayableNow ?? data?.summary?.balanceDue ?? 0,
       currency: data?.summary?.currency ?? "CAD",
       hasOutstandingBalance: Boolean(data?.summary?.hasOutstandingBalance),

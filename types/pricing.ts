@@ -30,7 +30,7 @@ export interface PricingV2Surcharge {
   displayName: string
   description: string | null
   enabled: boolean
-  triggerType: "ALWAYS" | "SERVICE_TYPE" | "TIME_WINDOW"
+  triggerType: "ALWAYS" | "SERVICE_TYPE" | "TIME_WINDOW" | "CUSTOMER_TYPE"
   triggerValue: string | null
   startTime: string | null
   endTime: string | null
@@ -39,6 +39,12 @@ export interface PricingV2Surcharge {
   amount: number | null
   percentage: number | null
   percentageBase: PricingV2PercentageBase | null
+}
+
+export interface PricingV2SignatureRequiredFee {
+  displayName: string | null
+  enabled: boolean
+  amount: number | null
 }
 
 export interface PricingV2Tax {
@@ -82,6 +88,7 @@ export interface CreatePricingV2Request {
     distanceSlabs: PricingV2DistanceSlab[]
   }
   surcharges: PricingV2Surcharge[]
+  signatureRequiredFee: PricingV2SignatureRequiredFee | null
   taxes: PricingV2Tax[]
   customQuoteRules: {
     enabled: boolean

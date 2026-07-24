@@ -1155,6 +1155,7 @@ function PricingReferencePanel({
 }) {
   const packageSlabs = (model?.packageSlabs || []).filter((slab) => slab.enabled).sort((left, right) => left.tierOrder - right.tierOrder)
   const distanceSlabs = (model?.distancePricing?.distanceSlabs || []).filter((slab) => slab.enabled)
+  const signatureRequiredFee = model?.signatureRequiredFee?.enabled ? model.signatureRequiredFee : null
   const surcharges = (model?.surcharges || []).filter((surcharge) => surcharge.enabled)
   const taxes = (model?.taxes || []).filter((tax) => tax.enabled)
 
@@ -1245,6 +1246,20 @@ function PricingReferencePanel({
                   <p className="text-muted-foreground">No enabled distance slabs returned.</p>
                 )}
               </div>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Signature-required fee</p>
+            <div className="rounded-lg border bg-background p-3 text-xs">
+              {signatureRequiredFee ? (
+                <div className="flex justify-between gap-3">
+                  <span className="min-w-0 truncate">{signatureRequiredFee.displayName || "Signature Required Fee"}</span>
+                  <span className="font-mono font-semibold">{formatCurrency(signatureRequiredFee.amount, model.currency || currency)}</span>
+                </div>
+              ) : (
+                <p className="text-muted-foreground">No enabled signature-required fee returned.</p>
+              )}
             </div>
           </div>
 

@@ -8,19 +8,29 @@ export async function POST(request: NextRequest) {
   const ownerType = String(body?.ownerType || "").trim().toUpperCase()
   const ownerId = String(body?.ownerId || "").trim()
   const reason = String(body?.reason || "").trim()
+  const rawCreditLimit = body?.creditLimit
+  const creditLimit =
+    rawCreditLimit === null ||
+    rawCreditLimit === undefined ||
+    (typeof rawCreditLimit === "string" && rawCreditLimit.trim() === "")
+      ? Number.NaN
+      : Number(rawCreditLimit)
   const notes = body?.notes ? String(body.notes).trim() : ""
 
   if (!["INDIVIDUAL", "ORGANIZATION"].includes(ownerType)) {
     return NextResponse.json({ message: "ownerType must be INDIVIDUAL or ORGANIZATION" }, { status: 400 })
   }
 
-  if (!ownerId || !reason) {
+  if (!ownerId || !reason || !Number.isFinite(creditLimit) || creditLimit < 0) {
     return NextResponse.json(
       {
-        message: "ownerId and reason are required",
+        message: "ownerId, reason, and creditLimit are required",
         errors: [
           ...(!ownerId ? [{ field: "ownerId", message: "Required" }] : []),
           ...(!reason ? [{ field: "reason", message: "Required" }] : []),
+          ...(!Number.isFinite(creditLimit) || creditLimit < 0
+            ? [{ field: "creditLimit", message: "Credit limit must be 0 or greater" }]
+            : []),
         ],
       },
       { status: 400 },
@@ -31,6 +41,7 @@ export async function POST(request: NextRequest) {
     ownerType: ownerType as "INDIVIDUAL" | "ORGANIZATION",
     ownerId,
     reason,
+    creditLimit,
     notes,
   })
 

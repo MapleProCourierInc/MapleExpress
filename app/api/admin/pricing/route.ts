@@ -57,13 +57,16 @@ function validatePayload(raw: Record<string, unknown>) {
 
   if (duplicates((payload.surcharges || []).map((surcharge) => surcharge.surchargeCode))) add("surcharges", "Surcharge codes must be unique")
   ;(payload.surcharges || []).forEach((surcharge, index) => {
+    if (!String(surcharge.surchargeCode || "").trim()) add(`surcharges.${index}.surchargeCode`, "Surcharge code is required")
     if (!["FLAT", "PERCENTAGE"].includes(surcharge.calculationType)) add(`surcharges.${index}.calculationType`, "Use FLAT or PERCENTAGE for surcharges")
-    if (!["ALWAYS", "SERVICE_TYPE", "TIME_WINDOW"].includes(surcharge.triggerType)) add(`surcharges.${index}.triggerType`, "Unsupported surcharge trigger")
+    if (!["ALWAYS", "SERVICE_TYPE", "TIME_WINDOW", "CUSTOMER_TYPE"].includes(surcharge.triggerType)) add(`surcharges.${index}.triggerType`, "Unsupported surcharge trigger")
     if (surcharge.triggerType === "SERVICE_TYPE" && !surcharge.triggerValue) add(`surcharges.${index}.triggerValue`, "Service type is required")
+    if (surcharge.triggerType === "CUSTOMER_TYPE" && !surcharge.triggerValue) add(`surcharges.${index}.triggerValue`, "Customer type is required")
     if (surcharge.triggerType === "TIME_WINDOW" && (!surcharge.startTime || !surcharge.endTime)) add(`surcharges.${index}`, "Time-window surcharges require start and end times")
-    if (surcharge.calculationType === "FLAT" && !nonNegative(surcharge.amount)) add(`surcharges.${index}.amount`, "Flat surcharges require an amount")
-    if (surcharge.calculationType === "PERCENTAGE" && !nonNegative(surcharge.percentage)) add(`surcharges.${index}.percentage`, "Percentage surcharges require a percentage")
+    if (surcharge.enabled && surcharge.calculationType === "FLAT" && !nonNegative(surcharge.amount)) add(`surcharges.${index}.amount`, "Enabled flat surcharges require an amount")
+    if (surcharge.enabled && surcharge.calculationType === "PERCENTAGE" && !nonNegative(surcharge.percentage)) add(`surcharges.${index}.percentage`, "Enabled percentage surcharges require a percentage")
   })
+  if (payload.signatureRequiredFee?.enabled && !nonNegative(payload.signatureRequiredFee.amount)) add("signatureRequiredFee.amount", "Enabled signature-required fee requires an amount")
   if (duplicates((payload.taxes || []).map((tax) => tax.taxCode))) add("taxes", "Tax codes must be unique")
   ;(payload.taxes || []).forEach((tax, index) => {
     if (tax.calculationType !== "PERCENTAGE") add(`taxes.${index}.calculationType`, "Taxes must use PERCENTAGE")

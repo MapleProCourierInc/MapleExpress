@@ -102,6 +102,7 @@ export type AdminEnablePayLaterRequest = {
   ownerType: OwnerType
   ownerId: string
   reason: string
+  creditLimit: number
   notes?: string
 }
 

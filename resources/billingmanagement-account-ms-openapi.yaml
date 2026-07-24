@@ -2,23 +2,45 @@ openapi: 3.0.3
 info:
   title: Billing Management Account MS API
   version: 1.2.0
-  description: Customer/client postpaid billing account CRUD API. BillingAccount is account summary/config only; charges, refund credits, credit-balance ledger entries, invoices, and payments are separate MongoDB documents.
+  description: Customer/client postpaid billing account CRUD API. BillingAccount is account summary/config only; charges, refund credits, credit-balance ledger entries, invoices, and payments are separate MongoDB documents. Postpaid checkout charges are applied through the internal billing charge API, which requires both a caller JWT and an internal service secret, then enforces BillingAccount.creditLimit against net exposure.
 tags:
   - name: Platform Configuration
     description: Public read-only MapleX platform/company configuration APIs for frontend applications.
   - name: Admin Platform Configuration
     description: Secured MapleX platform/company configuration administration APIs. Requires `admin_super` authority.
+  - name: Internal Billing Charges
+    description: Checkout charge APIs used by pricing-payment-ms. Requests require both the customer's bearer JWT and `X-Internal-Service-Secret`; the JWT `sub` must match `BillingAccount.ownerId`.
 paths:
   /billingmanagement/billing-account:
     post:
       summary: Create customer billing account
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
+      description: Creates a billing account. For `POSTPAID_INVOICE` accounts, administrators must provide `creditLimit`; checkout charges are rejected when projected net exposure would exceed that limit.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
       requestBody:
         required: true
         content:
           application/json:
             schema:
               $ref: '#/components/schemas/BillingAccount'
+            example:
+              ownerId: 6998bbe65fef7a493
+              ownerType: ORGANIZATION
+              billingMode: POSTPAID_INVOICE
+              billingCycle: MONTHLY
+              status: ACTIVE
+              email: accounts-payable@example.com
+              currentUnbilledAmount: 0
+              totalOutstandingAmount: 0
+              creditBalance: 0
+              creditLimit: 5000.00
+              currency: CAD
       responses:
         '201':
           description: Created
@@ -29,7 +51,13 @@ paths:
     get:
       summary: List customer billing accounts
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
         - in: query
           name: ownerId
           schema: { type: string }
@@ -58,7 +86,13 @@ paths:
     get:
       summary: Get billing account by id
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
         - in: path
           name: billingAccountId
           required: true
@@ -73,7 +107,14 @@ paths:
     put:
       summary: Replace billing account by id
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
+      description: Replaces billing account configuration and rolling summary fields. `mongoVersion` may be supplied by concurrency-aware clients; stale versions are rejected with 409 by Mongo optimistic locking.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
         - in: path
           name: billingAccountId
           required: true
@@ -94,7 +135,13 @@ paths:
     patch:
       summary: Patch billing account by id
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
         - in: path
           name: billingAccountId
           required: true
@@ -105,7 +152,13 @@ paths:
     delete:
       summary: Delete billing account by id
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
         - in: path
           name: billingAccountId
           required: true
@@ -113,58 +166,116 @@ paths:
       responses:
         '204':
           description: Deleted
-  /billingmanagement/billing-account/orders/shipping-charge:
+  /billingmanagement/internal/billing-account/charges/shipping-order:
     post:
-      summary: Post shipping order charge to billing account
-      deprecated: true
-      tags: [Billing Account]
+      summary: Apply checkout shipping-order charge to billing account
+      tags: [Internal Billing Charges]
+      security:
+        - bearerAuth: []
+          internalServiceSecret: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/InternalServiceSecretHeader'
       description: |
-        Deprecated direct posting API retained for compatibility.
-        Creates an `UNBILLED` BillingAccountCharge ledger entry in `billing_account_charges`.
-        It no longer appends to `BillingAccount.orders`.
-        Preferred flow: Billing MS consumes `OrderStatusChangeNotification` where
-        `newStatus` is `CONFIRMED` and `paymentStatus` is `POSTED_TO_BILLING_ACCOUNT`.
-        JWT `sub` must match billingAccount.ownerId.
-        Billing account must be `ACTIVE` and `POSTPAID_INVOICE`.
+        Internal checkout API for pricing-payment-ms.
+
+        This is the only supported path for applying shipping-order charges to postpaid billing accounts.
+        The previous Kafka `OrderStatusChangeNotification` charge application route and deprecated bearer-token
+        `/billing-account/orders/shipping-charge` route have been removed.
+
+        The caller must provide both:
+        - `Authorization: Bearer <customer JWT>`
+        - `X-Internal-Service-Secret: <configured internal secret>`
+
+        The customer JWT `sub` must match `BillingAccount.ownerId`; otherwise the request is rejected with
+        `403 Forbidden`. This keeps the charge user-initiated while still limiting the endpoint to trusted
+        internal service traffic.
+
+        The endpoint creates one `UNBILLED` `BillingAccountCharge` ledger entry in `billing_account_charges`
+        and increments `BillingAccount.currentUnbilledAmount` only when the billing account is eligible and the
+        projected net credit exposure does not exceed `BillingAccount.creditLimit`.
+
+        Credit exposure formula:
+        `max(0, currentUnbilledAmount + totalOutstandingAmount - creditBalance)`.
+
+        The request is idempotent by `paymentId` and by `shippingOrderId + paymentId`; replays return `200 OK`
+        with `postingStatus=ALREADY_POSTED` and do not apply the same charge again.
+
+        Required authentication headers: `Authorization` and `X-Internal-Service-Secret`.
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/PostShippingOrderChargeRequest'
+              $ref: '#/components/schemas/InternalShippingOrderChargeRequest'
             example:
               billingAccountId: ACC_A1B2C3D4
               paymentId: PAY_20260310_0002
               shippingOrderId: SO_10002
-              amount: 89.50
+              amount: 80.00
+              taxAmount: 12.00
+              totalAmount: 92.00
               currency: CAD
               orderDateTime: '2026-03-10T23:30:00Z'
-              orderStatus: CONFIRMED
-              orderStatusReason: Shipping order charge added to monthly billing account
               taxes:
-                - taxType: GST
-                  taxRate: 5
-                  amount: 4.26
-              notes: Posted from pricing-payment-ms checkout flow
+                - type: HST
+                  percentage: '15%'
+                  amount: 12.00
+              notes: Created from pricing-payment internal checkout API
       responses:
-        '200':
-          description: Charge posted or already posted idempotent response
+        '201':
+          description: Charge posted and account unbilled balance updated
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PostShippingOrderChargeResponse'
+                $ref: '#/components/schemas/InternalShippingOrderChargeResponse'
+        '200':
+          description: Idempotent duplicate; charge was already posted previously
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InternalShippingOrderChargeResponse'
         '400':
-          description: Invalid request or billing account not eligible
+          description: Invalid request, amount mismatch, currency mismatch, inactive account, or non-postpaid account
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '401':
-          description: Unauthorized
+          description: Missing or invalid bearer token, or missing/invalid `X-Internal-Service-Secret`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '403':
-          description: Billing account ownership mismatch
+          description: Authenticated JWT subject does not match `BillingAccount.ownerId`
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
         '404':
           description: Billing account not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '409':
+          description: Credit limit exceeded, duplicate write conflict, or optimistic-lock conflict
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /billingmanagement/billing-account/payments:
     post:
       summary: Post payment received to billing account
       tags: [Billing Account]
+      security:
+        - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/RequestIdHeader'
       description: |
         Records payment activity toward billing account and updates outstanding dues.
         JWT `sub` must match billingAccount.ownerId.
@@ -237,12 +348,16 @@ paths:
     post:
       summary: Generate monthly invoices
       tags: [Invoice]
+      security:
+        - bearerAuth: []
       description: |
         Generates one invoice per billing account from `UNBILLED` billing account charges and `UNBILLED` refund credits in the target calendar month.
         Generation starts from charges, not from ACTIVE billing accounts, so old postpay charges are still invoiced even if an account is now prepaid or disabled.
         Refund credits are rendered as negative invoice line items and reduce current-period totals.
         Credit balance is auto-applied to the new invoice and a `CREDIT_BALANCE` BillingPayment record is created when credit is used.
         Previous unpaid balances are stored separately as `previousBalance` and are not duplicated as invoice line items.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
       requestBody:
         required: false
         content:
@@ -260,8 +375,11 @@ paths:
     get:
       summary: Internal invoice detail lookup
       tags: [Invoice]
+      security:
+        - bearerAuth: []
       description: Internal endpoint for document-generator-ms to retrieve full invoice data by invoiceId.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - in: path
           name: invoiceId
           required: true
@@ -281,6 +399,8 @@ paths:
       tags: [Client Billing Dashboard]
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
       description: |
         Returns the authenticated customer's initial billing dashboard payload. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
 
@@ -308,6 +428,7 @@ paths:
                       status: ACTIVE
                       email: customer@example.com
                       billingCycle: MONTHLY
+                      creditLimit: 5000.00
                       currency: CAD
                       lastBilledDate: '2026-06-01T01:00:00Z'
                       nextBillingDate: '2026-07-01T01:00:00Z'
@@ -315,6 +436,9 @@ paths:
                       balanceDue: 550.00
                       currentUnbilledAmount: 74.25
                       creditBalance: 0.00
+                      creditLimit: 5000.00
+                      creditExposure: 624.25
+                      availableCredit: 4375.75
                       totalPayableNow: 550.00
                       currency: CAD
                       hasOutstandingBalance: true
@@ -475,6 +599,9 @@ paths:
                       balanceDue: 0
                       currentUnbilledAmount: 0
                       creditBalance: 0
+                      creditLimit: 0
+                      creditExposure: 0
+                      availableCredit: 0
                       totalPayableNow: 0
                       currency: CAD
                       hasOutstandingBalance: false
@@ -508,6 +635,7 @@ paths:
 
         Full invoice line items are not returned. `lineItemCount` is returned instead. Presigned invoice document URLs are generated best-effort from `invoiceS3Key`; if generation fails, the response still succeeds and that invoice has `invoiceDocumentStatus=UNAVAILABLE`.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - in: query
@@ -603,6 +731,7 @@ paths:
       description: |
         Returns a paginated list of only `UNBILLED` charges for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - in: query
@@ -660,6 +789,7 @@ paths:
       description: |
         Returns a paginated billing payment list for the authenticated customer. The billing account is resolved from the JWT `sub`/ownerId; clients must not pass `billingAccountId`. Sensitive gateway/card details are not returned.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - in: query
@@ -730,6 +860,7 @@ paths:
 
         Refund credits are posted from pricing-payment-ms, reduce current unbilled balance first, and move any excess to the account credit balance.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - in: query
@@ -807,6 +938,7 @@ paths:
 
         Ledger amounts are signed: positive entries create credit balance, negative entries consume credit balance.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - $ref: '#/components/parameters/PageParam'
         - $ref: '#/components/parameters/SizeParam'
         - in: query
@@ -1073,6 +1205,8 @@ paths:
       tags: [Admin Platform Configuration]
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
       description: |
         Returns the complete singleton platform configuration, including MongoDB optimistic
         locking version, audit metadata, complete social-media configuration, and full
@@ -1112,6 +1246,8 @@ paths:
       tags: [Admin Platform Configuration]
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
       description: |
         Replaces the complete public contact configuration while preserving legal and
         social-media sections in the singleton document.
@@ -1194,6 +1330,8 @@ paths:
       tags: [Admin Platform Configuration]
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
       description: |
         Replaces the complete social-media configuration while preserving contact and
         legal sections in the singleton document.
@@ -1272,6 +1410,8 @@ paths:
       tags: [Admin Platform Configuration]
       security:
         - bearerAuth: []
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
       description: |
         Creates a new legal-document version in `DRAFT` status and appends it to the nested
         legal-document history list in the singleton document.
@@ -1365,6 +1505,7 @@ paths:
 
         Requires Spring Security authority `admin_super`.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - in: path
           name: legalDocumentId
           required: true
@@ -1439,6 +1580,7 @@ paths:
 
         Requires Spring Security authority `admin_super`.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - in: path
           name: legalDocumentId
           required: true
@@ -1504,6 +1646,7 @@ paths:
 
         Requires Spring Security authority `admin_super`.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - in: path
           name: legalDocumentId
           required: true
@@ -1585,6 +1728,7 @@ paths:
 
         Requires Spring Security authority `admin_super`.
       parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
         - in: path
           name: legalDocumentId
           required: true
@@ -1634,7 +1778,55 @@ components:
       type: http
       scheme: bearer
       bearerFormat: JWT
+      description: Standard customer/user JWT. For checkout charge application, the `sub` claim must match `BillingAccount.ownerId`.
+    internalServiceSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+      description: Shared service-to-service secret used by trusted internal callers such as pricing-payment-ms. Checkout charge application also requires `bearerAuth`.
   parameters:
+    AuthorizationHeader:
+      in: header
+      name: Authorization
+      required: true
+      description: Bearer JWT access token. Use `Bearer <token>`.
+      schema:
+        type: string
+        example: Bearer eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+    AcceptHeader:
+      in: header
+      name: Accept
+      required: true
+      description: Required by generated billing-account APIs. Use `application/json`.
+      schema:
+        type: string
+        default: application/json
+        example: application/json
+    ContentTypeHeader:
+      in: header
+      name: Content-Type
+      required: true
+      description: Required by generated billing-account APIs. Use `application/json`.
+      schema:
+        type: string
+        default: application/json
+        example: application/json
+    RequestIdHeader:
+      in: header
+      name: X-Request-ID
+      required: false
+      description: Optional caller-generated request/correlation identifier.
+      schema:
+        type: string
+        example: req-20260724-0001
+    InternalServiceSecretHeader:
+      in: header
+      name: X-Internal-Service-Secret
+      required: true
+      description: Shared internal service secret configured as `external-services.internal-service-secret`.
+      schema:
+        type: string
+        example: internal-secret-value
     PageParam:
       in: query
       name: page
@@ -2246,6 +2438,7 @@ components:
         status: { type: string, example: ACTIVE }
         email: { type: string, format: email, example: customer@example.com }
         billingCycle: { type: string, example: MONTHLY }
+        creditLimit: { type: number, format: decimal, example: 5000.00 }
         currency: { type: string, example: CAD }
         lastBilledDate: { type: string, format: date-time, nullable: true }
         nextBillingDate: { type: string, format: date-time, nullable: true }
@@ -2255,6 +2448,17 @@ components:
         balanceDue: { type: number, format: decimal, example: 550.00 }
         currentUnbilledAmount: { type: number, format: decimal, example: 74.25 }
         creditBalance: { type: number, format: decimal, example: 0.00 }
+        creditLimit: { type: number, format: decimal, example: 5000.00 }
+        creditExposure:
+          type: number
+          format: decimal
+          example: 624.25
+          description: max(0, currentUnbilledAmount + balanceDue - creditBalance).
+        availableCredit:
+          type: number
+          format: decimal
+          example: 4375.75
+          description: max(0, creditLimit - creditExposure).
         totalPayableNow: { type: number, format: decimal, example: 550.00 }
         currency: { type: string, example: CAD }
         hasOutstandingBalance: { type: boolean, example: true }
@@ -2521,12 +2725,17 @@ components:
         occurredAt: { type: string, format: date-time }
     BillingAccount:
       type: object
-      required: [ownerId, ownerType, billingMode, billingCycle, status]
-      description: Account master/configuration and rolling billing summary only. Transaction history is stored in BillingAccountCharge, BillingInvoice, and BillingPayment documents.
+      required: [ownerId, ownerType, billingMode, billingCycle, status, creditLimit]
+      description: Account master/configuration and rolling billing summary only. Transaction history is stored in BillingAccountCharge, BillingInvoice, and BillingPayment documents. `creditLimit` is required for postpaid billing accounts and is enforced by the internal checkout charge API.
       properties:
         billingAccountId:
           type: string
           example: ACC_A1B2C3D4
+        mongoVersion:
+          type: integer
+          format: int64
+          example: 3
+          description: MongoDB optimistic-lock version. Optional on requests; returned for concurrency-aware clients.
         ownerId:
           type: string
           example: 6998bbe65fef7a493
@@ -2557,6 +2766,12 @@ components:
           type: number
           format: decimal
           example: 0
+        creditLimit:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 5000.00
+          description: Maximum net billing-account exposure allowed for postpaid checkout charges.
         currency:
           type: string
           example: CAD
@@ -2826,10 +3041,11 @@ components:
           items: { $ref: '#/components/schemas/Tax' }
     Tax:
       type: object
+      required: [type, percentage, amount]
       properties:
-        taxType: { type: string, example: GST }
-        taxRate: { type: number, format: double, example: 5 }
-        amount: { type: number, format: double, example: 4.26 }
+        type: { type: string, example: HST }
+        percentage: { type: string, example: '15%' }
+        amount: { type: number, format: decimal, example: 12.00 }
     InvoiceHistory:
       type: object
       properties:
@@ -2851,38 +3067,80 @@ components:
         referenceType: { type: string, example: INVOICE }
         referenceId: { type: string, example: INV_10001 }
         notes: { type: string }
-    PostShippingOrderChargeRequest:
+    InternalShippingOrderChargeRequest:
       type: object
-      required: [billingAccountId, paymentId, shippingOrderId, amount, currency]
+      required: [billingAccountId, paymentId, shippingOrderId, amount, taxAmount, totalAmount, currency]
+      description: Request sent by pricing-payment-ms during checkout to apply a shipping-order charge to a postpaid billing account.
       properties:
-        billingAccountId: { type: string }
-        paymentId: { type: string }
-        shippingOrderId: { type: string }
-        amount: { type: number, format: double }
-        currency: { type: string }
-        orderDateTime: { type: string, format: date-time }
-        orderStatus: { type: string }
-        orderStatusReason: { type: string }
-        taxes:
-          type: array
-          items: { $ref: '#/components/schemas/Tax' }
-        notes: { type: string }
-    PostShippingOrderChargeResponse:
-      type: object
-      properties:
-        billingAccountId: { type: string }
-        ownerId: { type: string }
-        shippingOrderId: { type: string }
-        paymentId: { type: string }
-        postingStatus: { type: string, example: POSTED }
-        totalAmountDue:
+        billingAccountId:
+          type: string
+          example: ACC_A1B2C3D4
+        paymentId:
+          type: string
+          example: PAY_20260310_0002
+          description: Idempotency key for the applied charge. One paymentId can create at most one billing account charge.
+        shippingOrderId:
+          type: string
+          example: SO_10002
+        amount:
           type: number
           format: decimal
-          description: Compatibility field populated from BillingAccount.currentUnbilledAmount for shipping-charge posting responses.
-        currency: { type: string }
-        message: { type: string }
-        lastUpdatedAt: { type: string, format: date-time }
-        orderCount: { type: integer }
+          minimum: 0
+          example: 80.00
+          description: Charge subtotal before tax.
+        taxAmount:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 12.00
+        totalAmount:
+          type: number
+          format: decimal
+          minimum: 0.01
+          example: 92.00
+          description: Total charge amount. Must equal `amount + taxAmount` and is the amount counted against credit limit.
+        currency:
+          type: string
+          example: CAD
+          description: Must match the billing account currency.
+        orderDateTime:
+          type: string
+          format: date-time
+          nullable: true
+        taxes:
+          type: array
+          nullable: true
+          items: { $ref: '#/components/schemas/Tax' }
+        notes:
+          type: string
+          nullable: true
+          example: Created from pricing-payment internal checkout API
+    InternalShippingOrderChargeResponse:
+      type: object
+      description: Result of applying a checkout shipping-order charge. Duplicate requests are idempotent and return `postingStatus=ALREADY_POSTED`.
+      properties:
+        billingAccountId: { type: string, example: ACC_A1B2C3D4 }
+        chargeId: { type: string, nullable: true, example: CHG_550e8400-e29b-41d4-a716-446655440000 }
+        shippingOrderId: { type: string, example: SO_10002 }
+        paymentId: { type: string, example: PAY_20260310_0002 }
+        postingStatus: { type: string, enum: [POSTED, ALREADY_POSTED], example: POSTED }
+        currentUnbilledAmount: { type: number, format: decimal, example: 92.00 }
+        totalOutstandingAmount: { type: number, format: decimal, example: 0.00 }
+        creditBalance: { type: number, format: decimal, example: 0.00 }
+        creditLimit: { type: number, format: decimal, example: 5000.00 }
+        creditExposure:
+          type: number
+          format: decimal
+          example: 92.00
+          description: max(0, currentUnbilledAmount + totalOutstandingAmount - creditBalance).
+        availableCredit:
+          type: number
+          format: decimal
+          example: 4908.00
+          description: max(0, creditLimit - creditExposure).
+        currency: { type: string, example: CAD }
+        message: { type: string, example: Shipping order charge posted to billing account successfully }
+        lastUpdatedAt: { type: string, format: date-time, nullable: true }
     PostBillingAccountPaymentRequest:
       type: object
       required: [billingAccountId, paymentId, amount, currency, paymentStatus, paymentMethodType, referenceType]

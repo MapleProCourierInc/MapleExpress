@@ -233,6 +233,8 @@ paths:
       summary: Calculate pricing V2 quote
       description: |
         Calculates a flexible V2 courier quote using `PricingEntityV2`.
+        If `isSignatureRequired=true`, the active pricing model's enabled
+        `signatureRequiredFee` flat amount is added before subtotal tax calculation.
 
         Client users are quoted using active customer-specific pricing for their JWT
         `sub`, falling back to active global pricing. Admin users can optionally
@@ -260,6 +262,7 @@ paths:
               distanceKm: 20
               zoneCode: GLOBAL
               rushPriorityRequested: true
+              isSignatureRequired: true
       responses:
         '200':
           description: Quote calculated. Business-limit responses set `customQuoteRequired=true`.
@@ -280,9 +283,10 @@ paths:
                   Large Parcel Base Charge: 19.99
                   Distance Charge 10-25 KM: 10.00
                   Rush / Priority Fee: 5.00
-                  HST: 5.25
-                  Subtotal: 34.99
-                  Total: 40.24
+                  Signature Required Fee: 3.50
+                  Subtotal: 38.49
+                  HST: 5.77
+                  Total: 44.26
                 calculationContext:
                   actualWeightKg: 6.00
                   dimensionalWeightKg: 12.00
@@ -1214,6 +1218,10 @@ components:
           type: array
           nullable: true
           items: { $ref: '#/components/schemas/PricingV2SurchargeRule' }
+        signatureRequiredFee:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2SignatureRequiredFeeConfig'
+          nullable: true
         taxes:
           type: array
           nullable: true
@@ -1253,6 +1261,10 @@ components:
           type: array
           nullable: true
           items: { $ref: '#/components/schemas/PricingV2SurchargeRule' }
+        signatureRequiredFee:
+          allOf:
+            - $ref: '#/components/schemas/PricingV2SignatureRequiredFeeConfig'
+          nullable: true
         taxes:
           type: array
           nullable: true
@@ -1319,6 +1331,11 @@ components:
           nullable: true
           default: false
           description: Applies the RUSH_PRIORITY surcharge when explicitly set to true.
+        isSignatureRequired:
+          type: boolean
+          nullable: true
+          default: false
+          description: Applies the pricing model's enabled signature-required flat fee when explicitly set to true.
         pricingId:
           type: string
           nullable: true
@@ -1366,9 +1383,10 @@ components:
             Large Parcel Base Charge: 19.99
             Distance Charge 10-25 KM: 10.00
             Rush / Priority Fee: 5.00
-            HST: 5.25
-            Subtotal: 34.99
-            Total: 40.24
+            Signature Required Fee: 3.50
+            Subtotal: 38.49
+            HST: 5.77
+            Total: 44.26
         calculationContext:
           type: object
           additionalProperties: true
@@ -1503,6 +1521,22 @@ components:
           allOf:
             - $ref: '#/components/schemas/PricingV2PercentageBase'
           nullable: true
+
+    PricingV2SignatureRequiredFeeConfig:
+      type: object
+      description: Optional flat fee applied only when quote request `isSignatureRequired=true`.
+      properties:
+        displayName:
+          type: string
+          nullable: true
+          example: Signature Required Fee
+        enabled:
+          type: boolean
+          example: true
+        amount:
+          type: number
+          nullable: true
+          example: 3.50
 
     PricingV2TaxRule:
       type: object

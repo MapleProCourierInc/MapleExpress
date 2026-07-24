@@ -2109,13 +2109,18 @@ components:
 
     AdminEnablePayLaterRequest:
       type: object
-      required: [ownerType, ownerId, reason]
+      required: [ownerType, ownerId, reason, creditLimit]
       properties:
         ownerType:
           type: string
           enum: [INDIVIDUAL, ORGANIZATION]
         ownerId: { type: string }
         reason: { type: string }
+        creditLimit:
+          type: number
+          format: decimal
+          minimum: 0
+          example: 5000.00
         notes: { type: string }
 
     AdminUpdatePostpayStatusRequest:
