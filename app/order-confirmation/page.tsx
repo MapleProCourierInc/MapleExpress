@@ -1,13 +1,37 @@
 "use client"
 
-import { Suspense } from 'react';
+import { Suspense, useEffect, useState } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/shared/header"
 import { Footer } from "@/components/shared/footer"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { CheckCircle2, Package, Home, Send } from "lucide-react"
-import Link from "next/link"
+import { CheckCircle2, Clock3, Home, Mail, PackageCheck, Send } from "lucide-react"
+
+function formatPickupWindow(createdAt: string) {
+  const createdDate = new Date(createdAt)
+  if (Number.isNaN(createdDate.getTime())) return null
+
+  const pickupStart = new Date(createdDate.getTime() + 30 * 60 * 1000)
+  const pickupEnd = new Date(createdDate.getTime() + 90 * 60 * 1000)
+  const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  })
+  const timeFormatter = new Intl.DateTimeFormat("en-CA", {
+    hour: "numeric",
+    minute: "2-digit",
+  })
+
+  if (pickupStart.toDateString() === pickupEnd.toDateString()) {
+    return `${dateFormatter.format(pickupStart)}, ${timeFormatter.format(pickupStart)} and ${timeFormatter.format(pickupEnd)}`
+  }
+
+  return `${dateFormatter.format(pickupStart)} at ${timeFormatter.format(pickupStart)} and ${dateFormatter.format(
+    pickupEnd,
+  )} at ${timeFormatter.format(pickupEnd)}`
+}
 
 function OrderConfirmationContent() {
   const router = useRouter()
@@ -15,11 +39,18 @@ function OrderConfirmationContent() {
 
   const orderId = searchParams.get("orderId")
   const totalAmount = searchParams.get("total")
-  const pickupName = searchParams.get("pickup")
-  const dropoffName = searchParams.get("dropoff")
   const itemCount = searchParams.get("items")
+  const createdAt = searchParams.get("createdAt")
+  const [pickupWindow, setPickupWindow] = useState<string | null>(null)
 
-  const formattedTotal = totalAmount ? parseFloat(totalAmount).toLocaleString("en-CA", { style: "currency", currency: "CAD" }) : ""
+  useEffect(() => {
+    setPickupWindow(createdAt ? formatPickupWindow(createdAt) : null)
+  }, [createdAt])
+
+  const parsedTotal = totalAmount ? Number.parseFloat(totalAmount) : Number.NaN
+  const formattedTotal = Number.isFinite(parsedTotal)
+    ? parsedTotal.toLocaleString("en-CA", { style: "currency", currency: "CAD" })
+    : ""
 
   return (
     <div className="flex flex-col min-h-screen">
@@ -34,53 +65,59 @@ function OrderConfirmationContent() {
                 </div>
                 <CardTitle className="text-2xl sm:text-3xl font-bold text-gray-800">Order Confirmed!</CardTitle>
                 <CardDescription className="text-md sm:text-lg text-muted-foreground mt-2">
-                  Thank you for your order. Your shipment has been successfully processed.
+                  Your shipment is booked and our dispatch team is preparing the pickup.
                 </CardDescription>
               </CardHeader>
               <CardContent className="p-6 sm:p-8 space-y-6">
                 <div className="space-y-3 text-sm sm:text-base">
                   <h2 className="text-lg sm:text-xl font-semibold text-gray-700 mb-3">Order Summary</h2>
                   {orderId && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Order ID:</span>
-                      <span className="font-medium text-gray-800">{orderId}</span>
+                    <div className="flex min-w-0 items-start justify-between gap-4">
+                      <span className="shrink-0 text-muted-foreground">Order ID:</span>
+                      <span className="min-w-0 break-all text-right font-medium text-gray-800">{orderId}</span>
                     </div>
                   )}
                   {itemCount && (
                     <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Number of Items:</span>
+                      <span className="text-muted-foreground">Number of Packages:</span>
                       <span className="font-medium text-gray-800">{itemCount}</span>
-                    </div>
-                  )}
-                  {pickupName && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Pickup From:</span>
-                      <span className="font-medium text-gray-800 truncate max-w-[60%]">{pickupName}</span>
-                    </div>
-                  )}
-                  {dropoffName && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-muted-foreground">Deliver To:</span>
-                      <span className="font-medium text-gray-800 truncate max-w-[60%]">{dropoffName}</span>
                     </div>
                   )}
                   {formattedTotal && (
                     <div className="flex justify-between items-center pt-2 border-t mt-3">
-                      <span className="text-lg font-semibold text-gray-700">Total Paid:</span>
+                      <span className="text-lg font-semibold text-gray-700">Order Total:</span>
                       <span className="text-lg font-bold text-primary">{formattedTotal}</span>
                     </div>
                   )}
                 </div>
 
+                <div className="border-y bg-muted/30 py-5">
+                  <div className="flex items-start gap-3">
+                    <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                    <div>
+                      <h2 className="font-semibold text-gray-800">Estimated pickup window</h2>
+                      <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                        {pickupWindow
+                          ? `Your driver may arrive between ${pickupWindow}.`
+                          : "We are scheduling your pickup and will confirm the timing by email."}{" "}
+                        Please have every package securely packed and labelled before the pickup window begins.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-3">
+                  <Mail className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
+                  <div>
+                    <h2 className="font-semibold text-gray-800">Shipping labels are on the way</h2>
+                    <p className="mt-1 text-sm leading-6 text-muted-foreground">
+                      We will email your shipping labels and packing instructions shortly. Print and attach the correct
+                      label to each package before pickup.
+                    </p>
+                  </div>
+                </div>
+
                 <div className="pt-6 space-y-3 sm:space-y-0 sm:flex sm:flex-row sm:justify-between sm:gap-4">
-{/*                  <Button
-                    onClick={() => router.push(orderId ? `/dashboard/shipments?trackingId=${orderId}` : "/dashboard")}
-                    variant="outline"
-                    className="w-full sm:w-auto"
-                  >
-                    <Package className="mr-2 h-4 w-4" />
-                    Track Order
-                  </Button>*/}
                   <Button
                     onClick={() => router.push("/ship-now")}
                     variant="outline"
@@ -99,7 +136,8 @@ function OrderConfirmationContent() {
                 </div>
 
                 <p className="text-xs text-muted-foreground text-center pt-4">
-                  You will receive an email confirmation shortly with your order details. If you have any questions, please contact our support team.
+                  <PackageCheck className="mr-1 inline h-3.5 w-3.5" />
+                  You can monitor every package from Shipments in your dashboard.
                 </p>
               </CardContent>
             </Card>
@@ -111,12 +149,10 @@ function OrderConfirmationContent() {
   )
 }
 
-// It's good practice to wrap the component that uses useSearchParams
-// in a Suspense boundary at the page level if not done by Next.js automatically.
 export default function OrderConfirmationPage() {
   return (
     <Suspense fallback={<div>Loading confirmation...</div>}>
       <OrderConfirmationContent />
     </Suspense>
-  );
+  )
 }

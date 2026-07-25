@@ -8,6 +8,7 @@ import { useScript } from "@/hooks/use-script"
 import { GOOGLE_MAPS_API_KEY } from "@/lib/config"
 
 interface AddressAutocompleteProps {
+  id?: string
   value: string
   onChange: (
     value: string,
@@ -43,7 +44,7 @@ function fetchFullPlaceDetails(placeId: string): Promise<google.maps.places.Plac
         placeId,
         fields: ["address_components", "formatted_address", "geometry", "name", "place_id"],
       },
-      (result: google.maps.places.PlaceResult | null, status: google.maps.places.PlacesServiceStatus) => {
+      (result: google.maps.places.PlaceResult | null, status: string) => {
         if (status === googleMaps.places.PlacesServiceStatus.OK && result) {
           resolve(result)
           return
@@ -55,6 +56,7 @@ function fetchFullPlaceDetails(placeId: string): Promise<google.maps.places.Plac
 }
 
 export function AddressAutocomplete({
+  id,
   value,
   onChange,
   placeholder = "Enter an address",
@@ -89,9 +91,10 @@ export function AddressAutocomplete({
         componentRestrictions: { country: "ca" },
       }
 
-      autocompleteRef.current = new window.google.maps.places.Autocomplete(inputRef.current, options)
+      const autocomplete = new window.google.maps.places.Autocomplete(inputRef.current, options)
+      autocompleteRef.current = autocomplete
 
-      autocompleteRef.current.addListener("place_changed", async () => {
+      autocomplete.addListener("place_changed", async () => {
         if (!autocompleteRef.current) return
 
         const selectedPlace = autocompleteRef.current.getPlace()
@@ -158,6 +161,7 @@ export function AddressAutocomplete({
   return (
     <div className="relative">
       <Input
+        id={id}
         ref={inputRef}
         type="text"
         value={value}

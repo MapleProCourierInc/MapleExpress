@@ -12,6 +12,7 @@ import { OrderPricing } from "@/components/ship-now/order-pricing"
 import { PaymentForm } from "@/components/ship-now/payment-form"
 import { ShippingSuccess } from "@/components/ship-now/shipping-success"
 import { Button } from "@/components/ui/button"
+import { useToast } from "@/hooks/use-toast"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
 import {
@@ -246,7 +247,6 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     pickupAddress: null,
   })
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [error, setError] = useState<string | null>(null)
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<number | null>(null)
   const [isPriorityDelivery, setIsPriorityDelivery] = useState(false)
@@ -257,11 +257,23 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
   const [isProcessingPayment, setIsProcessingPayment] = useState(false)
   const [isResumingPayment, setIsResumingPayment] = useState(false)
   const [orderId, setOrderId] = useState<string | null>(null)
+  const [isPaymentCheckoutActive, setIsPaymentCheckoutActive] = useState(false)
+  const { toast } = useToast()
   const router = useRouter();
 
   useEffect(() => {
-    setError(null)
+    if (currentStep !== "PAYMENT") {
+      setIsPaymentCheckoutActive(false)
+    }
   }, [currentStep])
+
+  const showFlowError = (title: string, error: unknown, fallback: string) => {
+    toast({
+      title,
+      description: error instanceof Error && error.message ? error.message : fallback,
+      variant: "destructive",
+    })
+  }
 
   useEffect(() => {
     const orderToResume = resumePaymentOrderId?.trim()
@@ -269,7 +281,6 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
     let cancelled = false
     setIsResumingPayment(true)
-    setError(null)
 
     getClientOrderDetail(orderToResume)
       .then((detail) => {
@@ -287,7 +298,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       })
       .catch((err) => {
         if (cancelled) return
-        setError(err instanceof Error && err.message ? err.message : "We could not load this order for payment.")
+        showFlowError("Payment details unavailable", err, "We could not load this order for payment.")
       })
       .finally(() => {
         if (!cancelled) setIsResumingPayment(false)
@@ -400,7 +411,10 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         await createAddress(addressData)
       } catch (err) {
         console.error("Error saving address:", err)
-        setError("Failed to save address for future use, but your order will continue.")
+        toast({
+          title: "Address was not saved",
+          description: "Your order can continue, but this pickup address will not be available for future orders.",
+        })
       }
     }
   }
@@ -432,7 +446,10 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         await createAddress(addressData)
       } catch (err) {
         console.error("Error saving address:", err)
-        setError("Failed to save address for future use, but your order will continue.")
+        toast({
+          title: "Address was not saved",
+          description: "Your order can continue, but this delivery address will not be available for future orders.",
+        })
       }
     }
   }
@@ -440,7 +457,6 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
   // Handle creating draft order
   const handleCreateDraftOrder = async () => {
     setIsSubmitting(true)
-    setError(null)
 
     try {
       if (!user) {
@@ -461,7 +477,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       setCurrentStep("PRICING")
     } catch (err) {
       console.error("Error creating draft order:", err)
-      setError(err instanceof Error && err.message ? err.message : "Failed to create order. Please try again.")
+      showFlowError("Order could not be created", err, "Failed to create order. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -527,12 +543,8 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     }
 
     setIsSubmitting(true)
-    setError(null)
     try {
       await removeDraftPackage(packageIndex)
-    } catch (err) {
-      setError(err instanceof Error && err.message ? err.message : "Failed to remove package. Please try again.")
-      throw err
     } finally {
       setIsSubmitting(false)
     }
@@ -549,13 +561,11 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     setHasDraftChanges(false)
     setPackageAddingIndex(null)
     setHasDraftChangesBeforePackageAdd(null)
-    setError(null)
     setCurrentStep("PACKAGE_DETAILS")
   }
 
   const handleCancelOrder = async () => {
     setIsSubmitting(true)
-    setError(null)
     try {
       if (draftOrder?.shippingOrderId) {
         await cancelOrder(draftOrder.shippingOrderId)
@@ -564,7 +574,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       resetDraftOrderFlow()
     } catch (err) {
       console.error("Error cancelling order:", err)
-      setError(err instanceof Error && err.message ? err.message : "Failed to cancel order. Please try again.")
+      showFlowError("Order could not be cancelled", err, "Failed to cancel order. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
@@ -579,18 +589,11 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
   const handlePaymentComplete = (completedOrderId: string) => {
     setOrderId(completedOrderId);
     if (draftOrder) {
-      // Construct query parameters for the confirmation page
-      // For pickup/dropoff names, using the first item as a general representation.
-      // This might need adjustment if a more detailed breakdown is required for multi-item/multi-destination orders on the confirmation page.
-      const pickupAddress = draftOrder.orderItems[0]?.pickup?.address;
-      const dropoffAddress = draftOrder.orderItems[0]?.dropoff?.address;
-
       const queryParams = new URLSearchParams({
         orderId: completedOrderId,
         total: draftOrder.aggregatedPricing.totalAmount.toString(),
-        pickup: pickupAddress?.fullName || order.pickupAddress?.fullName || "N/A",
-        dropoff: dropoffAddress?.fullName || "Multiple Destinations", // Fallback for multi-package different destinations
-        items: draftOrder.orderItems.length.toString()
+        items: draftOrder.orderItems.length.toString(),
+        createdAt: draftOrder.createdAt,
       }).toString();
       router.push(`/order-confirmation?${queryParams}`);
     } else {
@@ -639,12 +642,11 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     if (packageToDelete === null) return
 
     setIsSubmitting(true)
-    setError(null)
     try {
       await removeDraftPackage(packageToDelete)
     } catch (err) {
       console.error("Error removing package:", err)
-      setError(err instanceof Error && err.message ? err.message : "Failed to remove package. Please try again.")
+      showFlowError("Package was not removed", err, "Failed to remove package. Please try again.")
     } finally {
       setIsSubmitting(false)
       setShowDeleteDialog(false)
@@ -755,11 +757,15 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
   return (
       <div className="container py-16">
         <div className="max-w-5xl mx-auto">
-          <ShippingSteps currentStep={getStepNumber()} />
+          {!isPaymentCheckoutActive && <ShippingSteps currentStep={getStepNumber()} />}
 
-          {error && <div className="mt-4 p-3 bg-red-50 border border-red-200 text-red-700 rounded-md">{error}</div>}
-
-          <div className="ship-now-card mt-10 rounded-lg p-8 shadow-lg transition-all duration-300">
+          <div
+            className={
+              isPaymentCheckoutActive
+                ? "mt-2"
+                : "ship-now-card mt-10 rounded-lg p-8 shadow-lg transition-all duration-300"
+            }
+          >
             {isResumingPayment && (
                 <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
                   <div className="h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -888,6 +894,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
                     orderData={draftOrder}
                     onBack={handlePrevStep}
                     onPaymentComplete={handlePaymentComplete}
+                    onCheckoutActiveChange={setIsPaymentCheckoutActive}
                     isProcessing={isProcessingPayment}
                 />
             )}

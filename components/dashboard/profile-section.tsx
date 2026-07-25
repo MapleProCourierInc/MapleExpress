@@ -1,16 +1,26 @@
 "use client"
 
-import { useEffect, useState, type ReactNode } from "react"
-import { CreditCard, FileText, Loader2, MapPin, Pencil, Save, User, X } from "lucide-react"
+import { useCallback, useEffect, useState, type ReactNode } from "react"
+import { AlertCircle, CreditCard, FileText, Loader2, MapPin, Pencil, Plus, Save, User, X } from "lucide-react"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { Separator } from "@/components/ui/separator"
+import { Skeleton } from "@/components/ui/skeleton"
 import { AddressManagement } from "@/components/dashboard/address-management"
-import { getIndividualProfile, getOrganizationProfile, updateProfileTaxID } from "@/lib/profile-service"
+import { BillingAddressDialog, BillingAddressSummary } from "@/components/profile/billing-address"
+import {
+  getIndividualProfile,
+  getOrganizationProfile,
+  getProfileBillingAddress,
+  updateProfileTaxID,
+} from "@/lib/profile-service"
 import { isOrganizationAccount, profileAccountTypeLabel } from "@/lib/profile-account-type"
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
+import type { ProfileBillingAddress } from "@/types/profile-billing-address"
 
 interface ProfileSectionProps {
   userId: string
@@ -78,8 +88,26 @@ export function ProfileSection({
   const [taxIDInput, setTaxIDInput] = useState("")
   const [isSavingTaxID, setIsSavingTaxID] = useState(false)
   const [taxIDError, setTaxIDError] = useState<string | null>(null)
+  const [billingAddress, setBillingAddress] = useState<ProfileBillingAddress | null>(null)
+  const [isLoadingBillingAddress, setIsLoadingBillingAddress] = useState(false)
+  const [billingAddressError, setBillingAddressError] = useState<string | null>(null)
+  const [isBillingAddressDialogOpen, setIsBillingAddressDialogOpen] = useState(false)
   const currentTaxID = profileTaxID(profile)
   const payLaterConfiguration = profile?.payLaterConfiguration
+
+  const loadBillingAddress = useCallback(async () => {
+    setIsLoadingBillingAddress(true)
+    setBillingAddressError(null)
+
+    try {
+      setBillingAddress(await getProfileBillingAddress())
+    } catch (error) {
+      console.error("Failed to load billing address:", error)
+      setBillingAddressError(error instanceof Error ? error.message : "Failed to load billing address")
+    } finally {
+      setIsLoadingBillingAddress(false)
+    }
+  }, [])
 
   useEffect(() => {
     async function loadProfile() {
@@ -108,6 +136,12 @@ export function ProfileSection({
       loadProfile()
     }
   }, [activeTab, groups, userId, userType])
+
+  useEffect(() => {
+    if (activeTab === "details" && userId) {
+      void loadBillingAddress()
+    }
+  }, [activeTab, loadBillingAddress, userId])
 
   const startTaxIDEdit = () => {
     setTaxIDInput(currentTaxID)
@@ -206,50 +240,97 @@ export function ProfileSection({
                     <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-maple-soft text-brand-rust">
                       <FileText className="h-4 w-4" />
                     </span>
-                    Tax Information
+                    Tax &amp; Billing
                   </CardTitle>
                 </CardHeader>
-                <CardContent className="px-4 pb-5 pt-2">
-                  <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
-                    GST Registration
-                  </div>
-                  {isEditingTaxID ? (
-                    <div className="mt-3 space-y-3">
-                      <Input
-                        disabled={isSavingTaxID}
-                        onChange={(event) => setTaxIDInput(event.target.value)}
-                        placeholder="Enter GST registration number"
-                        value={taxIDInput}
-                      />
-                      <div className="flex justify-end gap-2">
-                        <Button disabled={isSavingTaxID} onClick={cancelTaxIDEdit} size="sm" type="button" variant="outline">
-                          <X className="h-4 w-4" />
-                          Cancel
-                        </Button>
-                        <Button disabled={isSavingTaxID} onClick={saveTaxID} size="sm" type="button">
-                          {isSavingTaxID ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                          Save
+                <CardContent className="space-y-5 px-4 pb-5 pt-2">
+                  <div>
+                    <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                      GST Registration
+                    </div>
+                    {isEditingTaxID ? (
+                      <div className="mt-3 space-y-3">
+                        <Input
+                          disabled={isSavingTaxID}
+                          onChange={(event) => setTaxIDInput(event.target.value)}
+                          placeholder="Enter GST registration number"
+                          value={taxIDInput}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button disabled={isSavingTaxID} onClick={cancelTaxIDEdit} size="sm" type="button" variant="outline">
+                            <X className="h-4 w-4" />
+                            Cancel
+                          </Button>
+                          <Button disabled={isSavingTaxID} onClick={saveTaxID} size="sm" type="button">
+                            {isSavingTaxID ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+                            Save
+                          </Button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="mt-2 flex items-center justify-between gap-4">
+                        <div className="min-w-0 truncate text-sm font-semibold text-slate-950">
+                          {isLoadingProfile ? "Loading..." : currentTaxID || "Not provided"}
+                        </div>
+                        <Button
+                          className="h-auto gap-1.5 px-0 py-0 text-secondary hover:text-secondary/80"
+                          onClick={startTaxIDEdit}
+                          size="sm"
+                          type="button"
+                          variant="link"
+                        >
+                          <Pencil className="h-4 w-4" />
+                          Edit
                         </Button>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="mt-2 flex items-center justify-between gap-4">
-                      <div className="min-w-0 truncate text-sm font-semibold text-slate-950">
-                        {isLoadingProfile ? "Loading..." : currentTaxID || "Not provided"}
+                    )}
+                    {taxIDError ? <p className="mt-3 text-sm text-destructive">{taxIDError}</p> : null}
+                  </div>
+
+                  <Separator />
+
+                  <div>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">
+                        Billing Address
                       </div>
                       <Button
                         className="h-auto gap-1.5 px-0 py-0 text-secondary hover:text-secondary/80"
-                        onClick={startTaxIDEdit}
+                        onClick={() => setIsBillingAddressDialogOpen(true)}
+                        disabled={isLoadingBillingAddress}
                         size="sm"
                         type="button"
                         variant="link"
                       >
-                        <Pencil className="h-4 w-4" />
-                        Edit
+                        {billingAddress ? <Pencil className="h-4 w-4" /> : <Plus className="h-4 w-4" />}
+                        {billingAddress ? "Edit" : "Add"}
                       </Button>
                     </div>
-                  )}
-                  {taxIDError ? <p className="mt-3 text-sm text-destructive">{taxIDError}</p> : null}
+
+                    {isLoadingBillingAddress ? (
+                      <div className="mt-3 space-y-2">
+                        <Skeleton className="h-4 w-2/3" />
+                        <Skeleton className="h-4 w-full" />
+                        <Skeleton className="h-4 w-4/5" />
+                      </div>
+                    ) : billingAddressError ? (
+                      <Alert variant="destructive" className="mt-3">
+                        <AlertCircle className="h-4 w-4" />
+                        <AlertDescription>
+                          <p>{billingAddressError}</p>
+                          <Button className="mt-3" type="button" variant="outline" size="sm" onClick={() => void loadBillingAddress()}>
+                            Retry
+                          </Button>
+                        </AlertDescription>
+                      </Alert>
+                    ) : billingAddress ? (
+                      <BillingAddressSummary address={billingAddress} className="mt-3" />
+                    ) : (
+                      <p className="mt-3 text-sm leading-5 text-slate-500">
+                        No billing address is saved. Add one for payment checkout and invoices.
+                      </p>
+                    )}
+                  </div>
                 </CardContent>
               </Card>
 
@@ -300,6 +381,18 @@ export function ProfileSection({
           <AddressManagement userId={userId} userType={userType} />
         </TabsContent>
       </Tabs>
+
+      <BillingAddressDialog
+        open={isBillingAddressDialogOpen}
+        onOpenChange={setIsBillingAddressDialogOpen}
+        address={billingAddress}
+        defaultFullName={profile ? profileDisplayName(profile) : ""}
+        defaultPhoneNumber={profile?.phone || ""}
+        onSaved={(updatedAddress) => {
+          setBillingAddress(updatedAddress)
+          setBillingAddressError(null)
+        }}
+      />
     </div>
   )
 }

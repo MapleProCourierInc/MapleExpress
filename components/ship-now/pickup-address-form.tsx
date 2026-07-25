@@ -10,6 +10,7 @@ import { AddressForm } from "@/components/ship-now/address-form"
 import { Plus, Loader2, ArrowRight } from "lucide-react"
 import { getAddresses } from "@/lib/address-service"
 import { useAuth } from "@/lib/auth-context"
+import { useToast } from "@/hooks/use-toast"
 
 interface PickupAddressFormProps {
   selectedAddress: Address | null
@@ -20,16 +21,19 @@ interface PickupAddressFormProps {
 
 export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, onBack }: PickupAddressFormProps) {
   const { user } = useAuth()
+  const { toast } = useToast()
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([])
   const [isLoading, setIsLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
   const [showNewAddressForm, setShowNewAddressForm] = useState(false)
   const [selectedAddressId, setSelectedAddressId] = useState<string | null>(selectedAddress?.id || null)
 
   // Fetch saved addresses when component mounts
   useEffect(() => {
     const fetchAddresses = async () => {
-      if (!user) return
+      if (!user) {
+        setIsLoading(false)
+        return
+      }
 
       try {
         setIsLoading(true)
@@ -37,7 +41,11 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
         setSavedAddresses(addresses)
       } catch (err) {
         console.error("Error fetching addresses:", err)
-        setError("Failed to load saved addresses")
+        toast({
+          title: "Saved addresses unavailable",
+          description: "You can still enter a new pickup address manually.",
+          variant: "destructive",
+        })
       } finally {
         setIsLoading(false)
       }
@@ -110,8 +118,6 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
         <div className="text-center mb-6">
           <h1 className="text-2xl font-bold">Pickup Address</h1>
         </div>
-
-        {error && <p className="text-red-500 text-center">{error}</p>}
 
         {!showNewAddressForm ? (
             <div className="space-y-4">

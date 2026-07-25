@@ -3,18 +3,18 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/lib/auth-context"
-import type { Address } from "@/types/address"
+import type { Address, AddressInput } from "@/types/address"
 import { getAddresses, createAddress, updateAddress, deleteAddress } from "@/lib/address-service"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { AddressCard } from "@/components/address-card"
 import { AddressForm } from "@/components/address-form"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Truck, Plus, ArrowLeft, Loader2 } from "lucide-react"
 import Link from "next/link"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { preventGooglePlacesDialogDismiss } from "@/lib/google-places-dialog"
 
 export default function AddressesPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -25,7 +25,6 @@ export default function AddressesPage() {
   const [isAddingAddress, setIsAddingAddress] = useState(false)
   const [editingAddress, setEditingAddress] = useState<Address | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [activeTab, setActiveTab] = useState("all")
 
   // Fetch addresses when component mounts
   useEffect(() => {
@@ -78,7 +77,7 @@ export default function AddressesPage() {
     }
   }
 
-  const handleSubmitAddress = async (addressData: Omit<Address, "addressId">) => {
+  const handleSubmitAddress = async (addressData: AddressInput) => {
     if (!user) return
 
     setIsSubmitting(true)
@@ -112,8 +111,6 @@ export default function AddressesPage() {
     setIsAddingAddress(false)
     setEditingAddress(null)
   }
-
-  const filteredAddresses = activeTab === "all" ? addresses : addresses.filter((addr) => addr.addressType === activeTab)
 
   if (authLoading) {
     return (
@@ -180,33 +177,25 @@ export default function AddressesPage() {
             </CardContent>
           </Card>
         ) : (
-          <>
-            <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="mb-6">
-              <TabsList>
-                <TabsTrigger value="all">All Addresses</TabsTrigger>
-                <TabsTrigger value="home">Home</TabsTrigger>
-                <TabsTrigger value="work">Work</TabsTrigger>
-                <TabsTrigger value="shipping">Shipping</TabsTrigger>
-                <TabsTrigger value="billing">Billing</TabsTrigger>
-              </TabsList>
-            </Tabs>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredAddresses.map((address) => (
-                <AddressCard
-                  key={address.addressId}
-                  address={address}
-                  onEdit={handleEditAddress}
-                  onDelete={handleDeleteAddress}
-                />
-              ))}
-            </div>
-          </>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {addresses.map((address) => (
+              <AddressCard
+                key={address.addressId}
+                address={address}
+                onEdit={handleEditAddress}
+                onDelete={handleDeleteAddress}
+              />
+            ))}
+          </div>
         )}
       </main>
 
       <Dialog open={isAddingAddress} onOpenChange={(open) => !open && handleCancelAddEdit()}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+          onInteractOutside={preventGooglePlacesDialogDismiss}
+          onPointerDownOutside={preventGooglePlacesDialogDismiss}
+        >
           <DialogHeader>
             <DialogTitle>{editingAddress ? "Edit Address" : "Add New Address"}</DialogTitle>
             <DialogDescription>

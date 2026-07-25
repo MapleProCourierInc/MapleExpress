@@ -4,7 +4,10 @@ import { createContext, useContext, useState, useEffect, type ReactNode } from "
 import { getMe, MeRequestError, type MeResponse } from "@/lib/me-service"
 import { submitOnboarding, type OnboardingPayload } from "@/lib/onboarding-service"
 import { apiFetch, AUTH_INVALID_EVENT, cleanupLegacyTokenStorage, initSessionRefresh } from "@/lib/client-api"
-import { getUserTypeFromGroups, isIndividualAccount } from "@/lib/profile-account-type"
+import { getUserTypeFromGroups, isAdminAccount, isIndividualAccount } from "@/lib/profile-account-type"
+
+const SESSION_REFRESH_INTERVAL_MS = 45 * 60 * 1000
+const SESSION_RECHECK_MIN_INTERVAL_MS = 5 * 60 * 1000
 
 // Update the User type to match your API response
 type User = {
@@ -117,6 +120,18 @@ type AuthContextType = {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined)
 
+function readStoredJson<T>(key: string): T | null {
+  const value = localStorage.getItem(key)
+  if (!value) return null
+
+  try {
+    return JSON.parse(value) as T
+  } catch {
+    localStorage.removeItem(key)
+    return null
+  }
+}
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const GROUP_COOKIE_NAME = "maplexpress_group"
   const GROUP_COOKIE_MAX_AGE = 60 * 60 * 24 * 5
@@ -162,6 +177,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const isSuperAdmin = meData.authenticated && meData.groups?.includes("admin_super")
     const syncedUser = {
       ...activeUser,
+      userId: activeUser.userId || meData.sub,
       userType: getUserTypeFromGroups(meData.groups, activeUser.userType),
     }
 
@@ -170,7 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(syncedUser)
 
       if (window.location.pathname !== "/onboarding") {
-        window.location.href = "/onboarding"
+        window.location.replace("/onboarding")
       }
       return meData
     }
@@ -183,7 +199,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updatedUser)
 
     if (isSuperAdmin && !window.location.pathname.startsWith("/admin")) {
-      window.location.href = "/admin"
+      window.location.replace("/admin")
     }
 
     return meData
@@ -194,19 +210,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const checkAuth = async () => {
       try {
         cleanupLegacyTokenStorage()
-        await initSessionRefresh()
-        const userData = localStorage.getItem("maplexpress_user_data")
-        const cachedMe = localStorage.getItem("maplexpress_me")
+        const cachedMe = readStoredJson<MeResponse>("maplexpress_me")
+        const parsedUser = readStoredJson<NonNullable<User>>("maplexpress_user_data")
 
         if (cachedMe) {
-          try {
-            setMe(JSON.parse(cachedMe))
-          } catch {
-            localStorage.removeItem("maplexpress_me")
-          }
+          setMe(cachedMe)
         }
-
-        const parsedUser = userData ? (JSON.parse(userData) as NonNullable<User>) : null
 
         if (parsedUser) {
           setUser(parsedUser)
@@ -223,7 +232,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         const meData = await syncMe(seedUser)
 
-        if (meData.status === "ACTIVE" && parsedUser?.userStatus === "active") {
+        if (
+          meData.status === "ACTIVE" &&
+          parsedUser?.userStatus === "active" &&
+          !isAdminAccount(meData.groups)
+        ) {
           fetchUserProfile(parsedUser, meData.groups)
         }
       } catch (error) {
@@ -232,7 +245,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
           clearSession()
           if (window.location.pathname !== "/") {
-            window.location.href = "/"
+            window.location.replace("/")
           }
         }
       } finally {
@@ -244,10 +257,117 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, [])
 
   useEffect(() => {
+    if (!user) return
+
+    let disposed = false
+    let refreshInFlight: Promise<void> | null = null
+    let lastRefreshAt = Date.now()
+
+    const refreshAndSyncSession = (force = false) => {
+      if (!force && Date.now() - lastRefreshAt < SESSION_RECHECK_MIN_INTERVAL_MS) {
+        return refreshInFlight || Promise.resolve()
+      }
+
+      if (!refreshInFlight) {
+        lastRefreshAt = Date.now()
+        refreshInFlight = (async () => {
+          const refreshed = await initSessionRefresh()
+          if (!refreshed || disposed) return
+
+          const activeUser = readStoredJson<NonNullable<User>>("maplexpress_user_data") || user
+          await syncMe(activeUser)
+        })()
+          .catch((error) => {
+            console.error("Session revalidation failed:", error)
+            if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
+              clearSession()
+              if (window.location.pathname !== "/") {
+                window.location.replace("/")
+              }
+            }
+          })
+          .finally(() => {
+            refreshInFlight = null
+          })
+      }
+
+      return refreshInFlight
+    }
+
+    const interval = window.setInterval(() => {
+      void refreshAndSyncSession(true)
+    }, SESSION_REFRESH_INTERVAL_MS)
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshAndSyncSession()
+      }
+    }
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+
+      setIsLoading(true)
+      void refreshAndSyncSession(true).finally(() => {
+        if (!disposed) setIsLoading(false)
+      })
+    }
+
+    const handleOnline = () => {
+      void refreshAndSyncSession(true)
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange)
+    window.addEventListener("pageshow", handlePageShow)
+    window.addEventListener("online", handleOnline)
+
+    return () => {
+      disposed = true
+      window.clearInterval(interval)
+      document.removeEventListener("visibilitychange", handleVisibilityChange)
+      window.removeEventListener("pageshow", handlePageShow)
+      window.removeEventListener("online", handleOnline)
+    }
+  }, [user?.userId])
+
+  useEffect(() => {
+    if (user) return
+
+    const handlePageShow = (event: PageTransitionEvent) => {
+      if (!event.persisted) return
+
+      setIsLoading(true)
+      const seedUser: NonNullable<User> = {
+        userId: "",
+        userStatus: "active",
+        userType: "individualUser",
+        tokenExpiration: "",
+        email: "",
+      }
+
+      void syncMe(seedUser)
+        .catch((error) => {
+          console.error("Restored-page authentication check failed:", error)
+          if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
+            clearSession()
+          }
+        })
+        .finally(() => {
+          setIsLoading(false)
+        })
+    }
+
+    window.addEventListener("pageshow", handlePageShow)
+    return () => {
+      window.removeEventListener("pageshow", handlePageShow)
+    }
+  }, [user])
+
+  useEffect(() => {
     const handleAuthInvalid = () => {
       clearSession()
       if (window.location.pathname !== "/") {
-        window.location.href = "/"
+        window.location.replace("/")
       }
     }
 
@@ -308,7 +428,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const meData = await syncMe(user)
 
         // Fetch profile based on user type
-        if (meData.status === "ACTIVE") {
+        if (meData.status === "ACTIVE" && !isAdminAccount(meData.groups)) {
           await fetchUserProfile(user, meData.groups)
         }
 
@@ -322,7 +442,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (error instanceof MeRequestError && (error.status === 401 || error.status === 403)) {
         clearSession()
         if (window.location.pathname !== "/") {
-          window.location.href = "/"
+          window.location.replace("/")
         }
         return { success: false, message: "Session expired. Please sign in again." }
       }
@@ -342,7 +462,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } finally {
       clearSession()
       if (window.location.pathname !== "/") {
-        window.location.href = "/"
+        window.location.replace("/")
       }
     }
   }
@@ -480,7 +600,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (result.statusCode === 401) {
           clearSession()
           if (window.location.pathname !== "/") {
-            window.location.href = "/"
+            window.location.replace("/")
           }
         }
 
@@ -523,7 +643,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (!currentUser) return
 
     try {
-      if (isIndividualAccount(groups || me?.groups, currentUser.userType)) {
+      const activeGroups = groups || me?.groups
+      if (isAdminAccount(activeGroups)) {
+        setIndividualProfile(null)
+        setOrganizationProfile(null)
+        localStorage.removeItem("maplexpress_individual_profile")
+        localStorage.removeItem("maplexpress_organization_profile")
+        return
+      }
+
+      if (isIndividualAccount(activeGroups, currentUser.userType)) {
         const response = await apiFetch(
           "/api/profile/individual",
           {},

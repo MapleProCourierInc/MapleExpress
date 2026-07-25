@@ -1,6 +1,6 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { cookies } from "next/headers"
-import { cognitoRequest, getCognitoClientId } from "@/lib/cognito"
+import { cognitoRequest, decodeJwtPayload, getCognitoClientId } from "@/lib/cognito"
 
 export type AuthTokens = {
   accessToken: string | null
@@ -8,7 +8,7 @@ export type AuthTokens = {
   refreshToken: string | null
 }
 
-type RefreshedTokens = {
+export type RefreshedTokens = {
   accessToken: string
   idToken?: string
   refreshToken?: string
@@ -23,10 +23,11 @@ type AuthenticatedServerFetchOptions = {
   includeIdToken?: boolean
 }
 
-let refreshPromise: Promise<RefreshedTokens | null> | null = null
+const refreshPromises = new Map<string, Promise<RefreshedTokens | null>>()
 
 const ACCESS_TOKEN_MAX_AGE = 60 * 60
 const REFRESH_TOKEN_MAX_AGE = 60 * 60 * 24 * 5
+const TOKEN_REFRESH_SKEW_MS = 60 * 1000
 
 function getCookieOptions(maxAge: number) {
   return {
@@ -68,6 +69,49 @@ async function clearCookiesInStore() {
   }
 }
 
+function tokenExpiresWithin(token: string | null, skewMs: number) {
+  if (!token) return true
+
+  const expiration = decodeJwtPayload(token)?.exp
+  return typeof expiration === "number" && expiration * 1000 <= Date.now() + skewMs
+}
+
+export function shouldRefreshTokens(
+  tokens: AuthTokens,
+  options: { includeIdToken?: boolean; skewMs?: number } = {},
+) {
+  if (!tokens.refreshToken) return false
+
+  const { includeIdToken = false, skewMs = TOKEN_REFRESH_SKEW_MS } = options
+  return (
+    !tokens.accessToken ||
+    tokenExpiresWithin(tokens.accessToken, skewMs) ||
+    (includeIdToken && (!tokens.idToken || tokenExpiresWithin(tokens.idToken, skewMs)))
+  )
+}
+
+export function isRetryableAuthenticationResponse(
+  status: number,
+  tokens: AuthTokens,
+  includeIdToken = false,
+) {
+  if (status === 401) return true
+  if (status !== 403) return false
+
+  return (
+    tokenExpiresWithin(tokens.accessToken, 0) ||
+    (includeIdToken && tokenExpiresWithin(tokens.idToken, 0))
+  )
+}
+
+export function mergeRefreshedTokens(tokens: AuthTokens, refreshed: RefreshedTokens): AuthTokens {
+  return {
+    accessToken: refreshed.accessToken,
+    idToken: refreshed.idToken || tokens.idToken,
+    refreshToken: refreshed.refreshToken || tokens.refreshToken,
+  }
+}
+
 export function getAuthTokensFromRequest(request: NextRequest): AuthTokens {
   const authHeader = request.headers.get("authorization")
   const bearerToken = authHeader?.startsWith("Bearer ") ? authHeader.split(" ")[1] : null
@@ -90,8 +134,10 @@ export async function getAuthTokensFromCookies(): Promise<AuthTokens> {
 }
 
 async function refreshWithToken(refreshToken: string, _forwardedIp?: string | null): Promise<RefreshedTokens | null> {
+  let refreshPromise = refreshPromises.get(refreshToken)
+
   if (!refreshPromise) {
-    refreshPromise = (async () => {
+    const request = (async () => {
       const cognitoResponse = await cognitoRequest<{ AuthenticationResult?: { AccessToken?: string; IdToken?: string } }>(
         "AWSCognitoIdentityProviderService.InitiateAuth",
         {
@@ -113,22 +159,33 @@ async function refreshWithToken(refreshToken: string, _forwardedIp?: string | nu
         idToken: authResult.IdToken,
         refreshToken,
       }
-    })().finally(() => {
-      refreshPromise = null
+    })()
+
+    refreshPromise = request.finally(() => {
+      refreshPromises.delete(refreshToken)
     })
+    refreshPromises.set(refreshToken, refreshPromise)
   }
 
   return refreshPromise
 }
 
-export async function maybeRefreshTokens(tokens: AuthTokens, request: NextRequest) {
+export async function maybeRefreshTokens(tokens: AuthTokens, request?: NextRequest) {
   if (!tokens.refreshToken) return null
-  return refreshWithToken(tokens.refreshToken, request.headers.get("x-forwarded-for"))
+  return refreshWithToken(tokens.refreshToken, request?.headers.get("x-forwarded-for"))
 }
 
 export async function getServerAuthHeaders(options: ServerAuthHeaderOptions = {}): Promise<Record<string, string> | null> {
   const { includeIdToken = false, includeJsonContentType = false } = options
-  const tokens = await getAuthTokensFromCookies()
+  let tokens = await getAuthTokensFromCookies()
+
+  if (shouldRefreshTokens(tokens, { includeIdToken })) {
+    const refreshed = await maybeRefreshTokens(tokens)
+    if (refreshed) {
+      tokens = mergeRefreshedTokens(tokens, refreshed)
+      await persistCookies(refreshed)
+    }
+  }
 
   if (!tokens.accessToken) return null
   if (includeIdToken && !tokens.idToken) return null
@@ -146,7 +203,16 @@ export async function authenticatedServerFetch(
   options: AuthenticatedServerFetchOptions = {},
 ): Promise<Response | null> {
   const { includeIdToken = false } = options
-  const tokens = await getAuthTokensFromCookies()
+  let tokens = await getAuthTokensFromCookies()
+  let refreshedBeforeRequest: RefreshedTokens | null = null
+
+  if (shouldRefreshTokens(tokens, { includeIdToken })) {
+    refreshedBeforeRequest = await maybeRefreshTokens(tokens)
+    if (refreshedBeforeRequest) {
+      tokens = mergeRefreshedTokens(tokens, refreshedBeforeRequest)
+      await persistCookies(refreshedBeforeRequest)
+    }
+  }
 
   if (!tokens.accessToken) return null
   if (includeIdToken && !tokens.idToken) return null
@@ -158,9 +224,17 @@ export async function authenticatedServerFetch(
   }
 
   const first = await fetch(input, { ...init, headers: baseHeaders, cache: init.cache ?? "no-store" })
-  if (first.status !== 401) return first
+  if (
+    refreshedBeforeRequest ||
+    !isRetryableAuthenticationResponse(first.status, tokens, includeIdToken)
+  ) {
+    if (first.status === 401) {
+      await clearCookiesInStore()
+    }
+    return first
+  }
 
-  const refreshed = tokens.refreshToken ? await refreshWithToken(tokens.refreshToken) : null
+  const refreshed = await maybeRefreshTokens(tokens)
   if (!refreshed?.accessToken) {
     await clearCookiesInStore()
     return first

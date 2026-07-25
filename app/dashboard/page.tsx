@@ -42,6 +42,9 @@ export default function Dashboard() {
   const searchParams = useSearchParams()
 
   const requestedSection = searchParams.get("section")
+  const hasAdminSession = Boolean(
+    me?.groups?.includes("admin_super") || user?.userType === "admin_super",
+  )
   const activeSection: SectionType =
     requestedSection === "profile" ||
     requestedSection === "billing" ||
@@ -54,6 +57,11 @@ export default function Dashboard() {
     if (!isLoading) {
       if (!user) {
         router.push("/")
+        return
+      }
+
+      if (hasAdminSession) {
+        router.replace("/admin")
         return
       }
 
@@ -73,7 +81,7 @@ export default function Dashboard() {
         router.replace("/dashboard?section=shipments")
       }
     }
-  }, [user, isLoading, router, requestedSection])
+  }, [user, isLoading, router, requestedSection, hasAdminSession])
 
   const displayName = useMemo(() => {
     return (
@@ -87,7 +95,7 @@ export default function Dashboard() {
     router.push(`/dashboard?section=${section}`)
   }
 
-  if (isLoading) {
+  if (isLoading || hasAdminSession) {
     return (
       <div className="flex min-h-screen items-center justify-center">
         <div className="text-center">

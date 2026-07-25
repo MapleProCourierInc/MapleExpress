@@ -15,6 +15,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { Separator } from "@/components/ui/separator"
 import { Switch } from "@/components/ui/switch"
 import { LegalDocumentLink } from "@/components/platform/legal-document-link"
+import { useToast } from "@/hooks/use-toast"
 import { requestAdminQuote, updateRushPriority, type ChargeMap, type OrderResponse } from "@/lib/order-service"
 
 interface OrderPricingProps {
@@ -57,13 +58,13 @@ export function OrderPricing({
   onOrderUpdate,
 }: OrderPricingProps) {
   const router = useRouter()
+  const { toast } = useToast()
   const [isPriorityDelivery, setIsPriorityDelivery] = useState(orderData.priorityDelivery)
   const [isUpdatingPriority, setIsUpdatingPriority] = useState(false)
   const [removingPackageIndex, setRemovingPackageIndex] = useState<number | null>(null)
   const [isRequestingQuote, setIsRequestingQuote] = useState(false)
   const [quoteRequested, setQuoteRequested] = useState(false)
   const [isQuoteConfirmationOpen, setIsQuoteConfirmationOpen] = useState(false)
-  const [actionError, setActionError] = useState<string | null>(null)
   const [expandedPackages, setExpandedPackages] = useState<Record<string, boolean>>({})
 
   const currency = orderData.aggregatedPricing.currency || "CAD"
@@ -85,9 +86,16 @@ export function OrderPricing({
     }).format(amount)
   }
 
+  const showActionError = (title: string, error: unknown, fallback: string) => {
+    toast({
+      title,
+      description: error instanceof Error && error.message ? error.message : fallback,
+      variant: "destructive",
+    })
+  }
+
   const handlePriorityToggle = async (checked: boolean) => {
     setIsUpdatingPriority(true)
-    setActionError(null)
     try {
       const updatedOrder = await updateRushPriority(orderData.shippingOrderId, checked)
 
@@ -96,7 +104,7 @@ export function OrderPricing({
       onOrderUpdate(updatedOrder)
     } catch (error) {
       console.error("Error updating priority delivery:", error)
-      setActionError(error instanceof Error ? error.message : "Failed to update priority delivery.")
+      showActionError("Priority service was not updated", error, "Failed to update priority delivery.")
     } finally {
       setIsUpdatingPriority(false)
     }
@@ -104,13 +112,12 @@ export function OrderPricing({
 
   const handleRemovePackage = async (packageIndex: number) => {
     setRemovingPackageIndex(packageIndex)
-    setActionError(null)
     try {
       await onRemovePackage(packageIndex)
       setQuoteRequested(false)
     } catch (error) {
       console.error("Error removing package:", error)
-      setActionError(error instanceof Error ? error.message : "Failed to remove package.")
+      showActionError("Package was not removed", error, "Failed to remove package.")
     } finally {
       setRemovingPackageIndex(null)
     }
@@ -118,7 +125,6 @@ export function OrderPricing({
 
   const handleRequestQuote = async () => {
     setIsRequestingQuote(true)
-    setActionError(null)
     try {
       const updatedOrder = await requestAdminQuote(orderData.shippingOrderId)
       if (updatedOrder) {
@@ -128,7 +134,7 @@ export function OrderPricing({
       setIsQuoteConfirmationOpen(true)
     } catch (error) {
       console.error("Error requesting admin quote:", error)
-      setActionError(error instanceof Error ? error.message : "Failed to send your quote request.")
+      showActionError("Quote request was not sent", error, "Failed to send your quote request.")
     } finally {
       setIsRequestingQuote(false)
     }
@@ -161,14 +167,6 @@ export function OrderPricing({
         <h1 className="text-2xl font-bold">Order Summary</h1>
         <p className="text-muted-foreground mt-2">Review your shipping costs before proceeding to payment</p>
       </div>
-
-      {actionError && (
-        <Alert variant="destructive">
-          <AlertCircle className="h-4 w-4" />
-          <AlertTitle>Unable to update order</AlertTitle>
-          <AlertDescription>{actionError}</AlertDescription>
-        </Alert>
-      )}
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <div className="lg:col-span-2 space-y-8">

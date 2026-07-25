@@ -3,7 +3,7 @@
 import type React from "react"
 
 import { useState, useEffect } from "react"
-import type { Address } from "@/types/address"
+import type { Address, AddressInput } from "@/types/address"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -15,7 +15,7 @@ import { AddressAutocomplete } from "@/components/address-autocomplete"
 
 interface AddressFormProps {
   address?: Address
-  onSubmit: (addressData: Omit<Address, "addressId">) => Promise<void>
+  onSubmit: (addressData: AddressInput) => Promise<void>
   onCancel: () => void
   isSubmitting: boolean
 }
@@ -36,14 +36,6 @@ const PROVINCES = [
   { value: "YT", label: "Yukon" },
 ]
 
-const ADDRESS_TYPES = [
-  { value: "home", label: "Home" },
-  { value: "work", label: "Work" },
-  { value: "shipping", label: "Shipping" },
-  { value: "billing", label: "Billing" },
-  { value: "other", label: "Other" },
-]
-
 const COUNTRIES = [
   { value: "Canada", label: "Canada" },
   { value: "USA", label: "United States" },
@@ -51,7 +43,7 @@ const COUNTRIES = [
 
 export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: AddressFormProps) {
   const [isBusinessAddress, setIsBusinessAddress] = useState(!!address?.company)
-  const [formData, setFormData] = useState<Omit<Address, "addressId">>({
+  const [formData, setFormData] = useState<AddressInput>({
     fullName: address?.fullName || "",
     company: address?.company || "",
     streetAddress: address?.streetAddress || "",
@@ -62,7 +54,6 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
     country: address?.country || "Canada",
     phoneNumber: address?.phoneNumber || "",
     deliveryInstructions: address?.deliveryInstructions || "",
-    addressType: address?.addressType || "home",
     isPrimary: address?.isPrimary || false,
     coordinates: address?.coordinates || undefined,
   })
@@ -80,7 +71,6 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
         country: address.country,
         phoneNumber: address.phoneNumber,
         deliveryInstructions: address.deliveryInstructions || "",
-        addressType: address.addressType,
         isPrimary: address.isPrimary || false,
         coordinates: address.coordinates,
       })
@@ -293,29 +283,6 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
               required
               className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
           />
-        </div>
-
-        <div className="space-y-1">
-          <Label htmlFor="addressType">Address Type</Label>
-          <Select
-              value={formData.addressType}
-              onValueChange={(value) => handleSelectChange("addressType", value)}
-              required
-          >
-            <SelectTrigger
-                id="addressType"
-                className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
-            >
-              <SelectValue placeholder="Select address type" />
-            </SelectTrigger>
-            <SelectContent>
-              {ADDRESS_TYPES.map((type) => (
-                  <SelectItem key={type.value} value={type.value}>
-                    {type.label}
-                  </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
         </div>
 
         <div className="space-y-1">

@@ -17,6 +17,7 @@ tags:
   - name: Individual Profile
   - name: Organization Profile
   - name: Profile Address
+  - name: Profile Billing Address
   - name: Internal
   - name: Admin - Billing
   - name: Profile Billing
@@ -789,6 +790,56 @@ paths:
               schema: { $ref: '#/components/schemas/Address' }
         '403':
           $ref: '#/components/responses/ForbiddenError'
+
+  /profile/addresses/billing-address:
+    get:
+      tags: [Profile Billing Address]
+      summary: Get billing address for authenticated profile
+      description: |
+        Returns the dedicated billing address for the authenticated individual or organization profile.
+        Backend derives `userId` from JWT `sub` and profile type from `cognito:groups` (`client_individual` or `client_organization`).
+        This address is separate from the profile's regular address list.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      responses:
+        '200':
+          description: "Billing address"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+    put:
+      tags: [Profile Billing Address]
+      summary: Update billing address for authenticated profile
+      description: |
+        Replaces the dedicated billing address for the authenticated individual or organization profile.
+        Backend derives `userId` from JWT `sub` and profile type from `cognito:groups` (`client_individual` or `client_organization`).
+        The regular profile address list is not modified.
+      parameters:
+        - $ref: '#/components/parameters/AuthorizationHeader'
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+        - $ref: '#/components/parameters/XRequestIdHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Address' }
+      responses:
+        '200':
+          description: "Billing address updated"
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Address' }
+        '403':
+          $ref: '#/components/responses/ForbiddenError'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
 
   /profile/addresses/{addressId}:
     patch:

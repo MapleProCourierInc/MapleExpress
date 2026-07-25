@@ -1,4 +1,7 @@
 import { apiFetch } from "@/lib/client-api"
+
+const ME_REQUEST_TIMEOUT_MS = 15_000
+
 export type MeResponse = {
   authenticated: boolean
   sub: string
@@ -18,13 +21,21 @@ export class MeRequestError extends Error {
 }
 
 export async function getMe(): Promise<MeResponse> {
-  const response = await apiFetch("/api/profile/me", {
-    method: "GET",
-  })
+  const controller = new AbortController()
+  const timeout = window.setTimeout(() => controller.abort(), ME_REQUEST_TIMEOUT_MS)
 
-  if (!response.ok) {
-    throw new MeRequestError("Failed to fetch /me", response.status)
+  try {
+    const response = await apiFetch("/api/profile/me", {
+      method: "GET",
+      signal: controller.signal,
+    })
+
+    if (!response.ok) {
+      throw new MeRequestError("Failed to fetch /me", response.status)
+    }
+
+    return (await response.json()) as MeResponse
+  } finally {
+    window.clearTimeout(timeout)
   }
-
-  return (await response.json()) as MeResponse
 }

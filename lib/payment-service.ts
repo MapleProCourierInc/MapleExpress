@@ -1,5 +1,5 @@
 import { apiFetch } from "@/lib/client-api"
-import type { OrderResponse } from "@/lib/order-service"
+import type { ProfileBillingAddress } from "@/types/profile-billing-address"
 
 export interface BillingAddress {
   fullName: string
@@ -38,31 +38,17 @@ export interface PaymentCheckoutResponse {
   message?: string
 }
 
-export function buildCheckoutBillingAddress(orderData: OrderResponse): BillingAddress {
-  const pickupAddress = orderData.orderItems[0]?.pickup?.address
-
-  if (!pickupAddress) {
-    return {
-      fullName: "Shipping Customer",
-      streetAddress: "Address not provided",
-      city: "Unknown",
-      province: "Unknown",
-      postalCode: "Unknown",
-      country: "CA",
-      phoneNumber: "Unknown",
-    }
-  }
-
+export function toCheckoutBillingAddress(billingAddress: ProfileBillingAddress): BillingAddress {
   return {
-    fullName: pickupAddress.fullName || "Shipping Customer",
-    company: pickupAddress.company || "",
-    streetAddress: pickupAddress.streetAddress || "Address not provided",
-    addressLine2: pickupAddress.addressLine2 || "",
-    city: pickupAddress.city || "Unknown",
-    province: pickupAddress.province || "Unknown",
-    postalCode: pickupAddress.postalCode || "Unknown",
-    country: pickupAddress.country || "CA",
-    phoneNumber: pickupAddress.phoneNumber || "Unknown",
+    fullName: billingAddress.fullName,
+    company: billingAddress.company || "",
+    streetAddress: billingAddress.streetAddress,
+    addressLine2: billingAddress.addressLine2 || "",
+    city: billingAddress.city,
+    province: billingAddress.province,
+    postalCode: billingAddress.postalCode,
+    country: billingAddress.country,
+    phoneNumber: billingAddress.phoneNumber,
   }
 }
 

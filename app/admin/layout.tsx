@@ -5,6 +5,10 @@ import { getServerMe, isSuperAdmin } from "@/lib/server-me"
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const me = await getServerMe()
 
+  if (!me?.authenticated) {
+    redirect("/")
+  }
+
   if (!isSuperAdmin(me)) {
     redirect("/dashboard?section=shipments")
   }

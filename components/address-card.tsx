@@ -4,7 +4,7 @@ import { useState } from "react"
 import type { Address } from "@/types/address"
 import { Card, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-import { MapPin, Edit, Trash2 } from "lucide-react"
+import { Edit, Trash2 } from "lucide-react"
 import {
   AlertDialog,
   AlertDialogAction,
@@ -33,18 +33,6 @@ export function AddressCard({ address, onEdit, onDelete }: AddressCardProps) {
   return (
     <Card className="dashboard-card-surface h-full overflow-hidden border-slate-200">
       <CardContent className="pt-6">
-        <div className="flex justify-between items-start mb-4">
-          <div className="flex items-center gap-2">
-            <MapPin className="h-5 w-5 text-primary" />
-            <h3 className="font-semibold text-lg">
-              {address.addressType
-                ? address.addressType.charAt(0).toUpperCase() + address.addressType.slice(1)
-                : "Default"}{" "}
-              Address
-            </h3>
-          </div>
-        </div>
-
         <div className="space-y-1 text-sm">
           <p className="font-medium">{address.fullName}</p>
           {address.company && <p>{address.company}</p>}

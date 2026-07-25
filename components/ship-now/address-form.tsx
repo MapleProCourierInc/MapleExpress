@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import type { Address } from "@/components/ship-now/ship-now-form"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
 import { checkAddressServiceability } from "@/lib/serviceability-service"
+import { useToast } from "@/hooks/use-toast"
 
 interface AddressFormProps {
     onSubmit: (address: Address, saveForFuture: boolean) => void
@@ -37,6 +38,7 @@ const PROVINCES = [
 ]
 
 export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOption = true }: AddressFormProps) {
+    const { toast } = useToast()
     const [address, setAddress] = useState<Address>(
         initialAddress || {
             fullName: "",
@@ -56,7 +58,6 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
     const [saveForFuture, setSaveForFuture] = useState(false)
     const [serviceabilityState, setServiceabilityState] = useState<"unknown" | "checking" | "serviceable" | "non-serviceable" | "error">("unknown")
     const [serviceabilityMessage, setServiceabilityMessage] = useState<string | null>(null)
-    const [submitError, setSubmitError] = useState<string | null>(null)
     const requestIdRef = useRef(0)
 
     const handleChange = (field: keyof Address, value: string | boolean) => {
@@ -90,8 +91,14 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
             setServiceabilityMessage(result.message || "Location is outside MapleX serviceable area.")
         } catch (error) {
             if (requestId !== requestIdRef.current) return
+            const message = error instanceof Error ? error.message : "Unable to validate this address right now. Please try again."
             setServiceabilityState("error")
-            setServiceabilityMessage(error instanceof Error ? error.message : "Unable to validate this address right now. Please try again.")
+            setServiceabilityMessage(message)
+            toast({
+                title: "Address check unavailable",
+                description: message,
+                variant: "destructive",
+            })
         }
     }
 
@@ -145,7 +152,6 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
 
     const handleAddressChange = (value: string, placeDetails?: any, changeSource?: "selection" | "typing") => {
         handleChange("streetAddress", value)
-        setSubmitError(null)
 
         if (changeSource === "typing") {
             setAddress((prev) => ({
@@ -178,7 +184,11 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
         e.preventDefault()
 
         if (serviceabilityState !== "serviceable") {
-            setSubmitError("Please select a serviceable address from autocomplete before continuing.")
+            toast({
+                title: "Select a serviceable address",
+                description: "Choose an address from the autocomplete suggestions and confirm that MapleX services it.",
+                variant: "destructive",
+            })
             return
         }
 
@@ -278,7 +288,6 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
             )}
 
             {showSaveOption && !canSaveForFuture && <p className="text-sm text-muted-foreground">Only serviceable addresses can be saved for future use.</p>}
-            {submitError && <p className="text-sm text-red-600">{submitError}</p>}
 
             <div className="flex justify-end">
                 <Button type="submit" disabled={serviceabilityState === "checking"}>Continue</Button>

@@ -1,6 +1,8 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import Image from "next/image"
+import { Ruler } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -104,6 +106,7 @@ const getDimensionInputValues = (pkg: PackageItem, unit: DimensionUnit) => ({
 
 export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, onExit, canProceed }: PackageDetailsFormProps) {
   const [showFragileDialog, setShowFragileDialog] = useState(false)
+  const [showMeasurementGuide, setShowMeasurementGuide] = useState(false)
   const [dimensionUnit, setDimensionUnit] = useState<DimensionUnit>(defaultDimensionUnit)
   const [dimensionInputValues, setDimensionInputValues] = useState<Record<DimensionField, string>>(() =>
     getDimensionInputValues(pkg, defaultDimensionUnit)
@@ -202,22 +205,34 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, onEx
           <div className="space-y-3">
             <div className="flex flex-wrap items-end justify-between gap-3">
               <Label>Package Dimensions</Label>
-              <div className="w-24">
-                <Label htmlFor="dimension-unit" className="sr-only">
-                  Dimension unit
-                </Label>
-                <Select value={dimensionUnit} onValueChange={(value) => handleDimensionUnitChange(value as DimensionUnit)}>
-                  <SelectTrigger id="dimension-unit" aria-label="Dimension unit">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {dimensionUnitOptions.map((unit) => (
-                      <SelectItem key={unit.value} value={unit.value}>
-                        {unit.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="flex flex-wrap items-center justify-end gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowMeasurementGuide(true)}
+                  className="gap-2"
+                >
+                  <Ruler className="h-4 w-4" />
+                  How to measure
+                </Button>
+                <div className="w-24">
+                  <Label htmlFor="dimension-unit" className="sr-only">
+                    Dimension unit
+                  </Label>
+                  <Select value={dimensionUnit} onValueChange={(value) => handleDimensionUnitChange(value as DimensionUnit)}>
+                    <SelectTrigger id="dimension-unit" aria-label="Dimension unit">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {dimensionUnitOptions.map((unit) => (
+                        <SelectItem key={unit.value} value={unit.value}>
+                          {unit.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
@@ -314,6 +329,23 @@ export function PackageDetailsForm({ package: pkg, onUpdatePackage, onNext, onEx
           <DialogFooter>
             <Button onClick={() => setShowFragileDialog(false)}>I acknowledge</Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={showMeasurementGuide} onOpenChange={setShowMeasurementGuide}>
+        <DialogContent className="max-h-[92vh] w-[calc(100vw-2rem)] max-w-6xl overflow-auto p-0">
+          <DialogHeader className="sr-only">
+            <DialogTitle>How to measure your package</DialogTitle>
+            <DialogDescription>
+              A visual guide for measuring package length, width, height, and weight.
+            </DialogDescription>
+          </DialogHeader>
+          <Image
+            src="/How_To_Measure_your_Package.png"
+            alt="How to measure package length, width, height, and weight"
+            width={2048}
+            height={1139}
+            className="h-auto max-h-[88vh] w-full object-contain"
+          />
         </DialogContent>
       </Dialog>
     </>

@@ -1,5 +1,14 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { applyAuthCookies, clearAuthCookies, getAuthTokensFromRequest, maybeRefreshTokens } from "@/lib/server-auth"
+import {
+  applyAuthCookies,
+  clearAuthCookies,
+  getAuthTokensFromRequest,
+  isRetryableAuthenticationResponse,
+  maybeRefreshTokens,
+  mergeRefreshedTokens,
+  shouldRefreshTokens,
+  type RefreshedTokens,
+} from "@/lib/server-auth"
 
 type ProxyOptions = {
   url: string
@@ -18,8 +27,38 @@ function headersFor(accessToken: string | null, idToken?: string | null, content
   }
 }
 
+async function upstreamResponse(response: Response, refreshed?: RefreshedTokens | null) {
+  const data = await response.json().catch(() => ({}))
+  const result = NextResponse.json(data, { status: response.status })
+
+  if (refreshed) {
+    applyAuthCookies(result, refreshed)
+  }
+
+  if (response.status === 401) {
+    clearAuthCookies(result)
+  }
+
+  return result
+}
+
 export async function proxyWithAuthRetry(request: NextRequest, options: ProxyOptions) {
-  const tokens = getAuthTokensFromRequest(request)
+  const originalTokens = getAuthTokensFromRequest(request)
+  let tokens = originalTokens
+  let refreshedBeforeRequest: RefreshedTokens | null = null
+
+  if (shouldRefreshTokens(tokens, { includeIdToken: options.includeIdToken })) {
+    refreshedBeforeRequest = await maybeRefreshTokens(tokens, request)
+    if (refreshedBeforeRequest) {
+      tokens = mergeRefreshedTokens(tokens, refreshedBeforeRequest)
+    }
+  }
+
+  if (!tokens.accessToken || (options.includeIdToken && !tokens.idToken)) {
+    const response = NextResponse.json({ message: "Unauthorized" }, { status: 401 })
+    clearAuthCookies(response)
+    return response
+  }
 
   const first = await fetch(options.url, {
     method: options.method,
@@ -28,9 +67,11 @@ export async function proxyWithAuthRetry(request: NextRequest, options: ProxyOpt
     cache: "no-store",
   })
 
-  if (first.status !== 401) {
-    const data = await first.json().catch(() => ({}))
-    return NextResponse.json(data, { status: first.status })
+  if (
+    refreshedBeforeRequest ||
+    !isRetryableAuthenticationResponse(first.status, tokens, Boolean(options.includeIdToken))
+  ) {
+    return upstreamResponse(first, refreshedBeforeRequest)
   }
 
   const refreshed = await maybeRefreshTokens(tokens, request)
@@ -40,20 +81,13 @@ export async function proxyWithAuthRetry(request: NextRequest, options: ProxyOpt
     return response
   }
 
+  tokens = mergeRefreshedTokens(originalTokens, refreshed)
   const second = await fetch(options.url, {
     method: options.method,
-    headers: headersFor(refreshed.accessToken, options.includeIdToken ? refreshed.idToken || tokens.idToken : null, options.contentTypeJson),
+    headers: headersFor(tokens.accessToken, options.includeIdToken ? tokens.idToken : null, options.contentTypeJson),
     ...(options.body ? { body: options.body } : {}),
     cache: "no-store",
   })
 
-  const payload = await second.json().catch(() => ({}))
-  const response = NextResponse.json(payload, { status: second.status })
-  applyAuthCookies(response, refreshed)
-
-  if (second.status === 401) {
-    clearAuthCookies(response)
-  }
-
-  return response
+  return upstreamResponse(second, refreshed)
 }

@@ -1,4 +1,5 @@
 import type { IndividualProfile, OrganizationProfile } from "@/types/profile"
+import type { ProfileBillingAddress } from "@/types/profile-billing-address"
 import { apiFetch } from "@/lib/client-api"
 
 interface ProfilePage<T> {
@@ -133,6 +134,51 @@ export async function updateProfileTaxID(taxID: string): Promise<IndividualProfi
   }
 
   return data as IndividualProfile | OrganizationProfile
+}
+
+export async function getProfileBillingAddress(): Promise<ProfileBillingAddress | null> {
+  const response = await apiFetch("/api/profile/billing-address", {
+    headers: {
+      Accept: "application/json",
+    },
+  })
+
+  if (response.status === 404) {
+    return null
+  }
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to load billing address")
+  }
+
+  if (!data || typeof data !== "object" || Object.keys(data).length === 0) {
+    return null
+  }
+
+  return data as ProfileBillingAddress
+}
+
+export async function updateProfileBillingAddress(
+  billingAddress: ProfileBillingAddress,
+): Promise<ProfileBillingAddress> {
+  const response = await apiFetch("/api/profile/billing-address", {
+    method: "PUT",
+    headers: {
+      Accept: "application/json",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(billingAddress),
+  })
+
+  const data = await response.json().catch(() => null)
+
+  if (!response.ok) {
+    throw new Error(data?.message || "Failed to save billing address")
+  }
+
+  return data && typeof data === "object" ? (data as ProfileBillingAddress) : billingAddress
 }
 
 // Change password

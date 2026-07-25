@@ -3,6 +3,7 @@
 let refreshPromise: Promise<boolean> | null = null
 
 const AUTH_INVALID_EVENT = "maplexpress:auth-invalid"
+const AUTH_REQUEST_TIMEOUT_MS = 15_000
 
 const dispatchAuthInvalidEvent = () => {
   if (typeof window === "undefined") return
@@ -19,11 +20,15 @@ const clearLegacyAuthStorage = () => {
 const refreshSession = async (): Promise<boolean> => {
   if (!refreshPromise) {
     refreshPromise = (async () => {
+      const controller = new AbortController()
+      const timeout = window.setTimeout(() => controller.abort(), AUTH_REQUEST_TIMEOUT_MS)
+
       try {
         const response = await fetch("/api/auth/refresh", {
           method: "POST",
           credentials: "include",
           cache: "no-store",
+          signal: controller.signal,
         })
 
         if (!response.ok) {
@@ -40,6 +45,7 @@ const refreshSession = async (): Promise<boolean> => {
         clearLegacyAuthStorage()
         return false
       } finally {
+        window.clearTimeout(timeout)
         refreshPromise = null
       }
     })()
@@ -61,11 +67,15 @@ export async function apiFetch(input: RequestInfo | URL, init: RequestInit = {},
 
   const refreshed = await refreshSession()
   if (!refreshed) {
-    dispatchAuthInvalidEvent()
     return response
   }
 
-  return apiFetch(input, init, false)
+  const retriedResponse = await apiFetch(input, init, false)
+  if (retriedResponse.status === 401) {
+    dispatchAuthInvalidEvent()
+  }
+
+  return retriedResponse
 }
 
 export function cleanupLegacyTokenStorage() {
@@ -74,8 +84,8 @@ export function cleanupLegacyTokenStorage() {
 }
 
 export async function initSessionRefresh() {
-  if (typeof window === "undefined") return
-  await refreshSession()
+  if (typeof window === "undefined") return false
+  return refreshSession()
 }
 
 export { AUTH_INVALID_EVENT }

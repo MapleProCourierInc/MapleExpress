@@ -11,7 +11,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
-import { CreditCard, FileQuestion, LifeBuoy, LogOut, User, Package } from "lucide-react"
+import { CreditCard, FileQuestion, LayoutDashboard, LifeBuoy, LogOut, User, Package } from "lucide-react"
 import Link from "next/link"
 
 const getInitials = (name?: string | null) => {
@@ -34,6 +34,7 @@ export function UserProfile() {
   if (!user) return null
 
   const displayName = me?.displayName ?? undefined
+  const isAdmin = me?.groups?.includes("admin_super") || user.userType === "admin_super"
 
   return (
     <DropdownMenu>
@@ -54,51 +55,65 @@ export function UserProfile() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link
-            href="/dashboard?section=shipments"
-            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
-          >
-            <Package className="mr-2 h-4 w-4" />
-            <span>Shipments</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link
-            href="/dashboard?section=quotes"
-            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
-          >
-            <FileQuestion className="mr-2 h-4 w-4" />
-            <span>Quotes</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link
-            href="/dashboard?section=billing"
-            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
-          >
-            <CreditCard className="mr-2 h-4 w-4" />
-            <span>Billing</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link
-            href="/dashboard?section=support"
-            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
-          >
-            <LifeBuoy className="mr-2 h-4 w-4" />
-            <span>Support</span>
-          </Link>
-        </DropdownMenuItem>
-        <DropdownMenuItem asChild>
-          <Link
-            href="/dashboard?section=profile"
-            className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
-          >
-            <User className="mr-2 h-4 w-4" />
-            <span>Profile</span>
-          </Link>
-        </DropdownMenuItem>
+        {isAdmin ? (
+          <DropdownMenuItem asChild>
+            <Link
+              href="/admin"
+              className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+            >
+              <LayoutDashboard className="mr-2 h-4 w-4" />
+              <span>Admin Dashboard</span>
+            </Link>
+          </DropdownMenuItem>
+        ) : (
+          <>
+            <DropdownMenuItem asChild>
+              <Link
+                href="/dashboard?section=shipments"
+                className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+              >
+                <Package className="mr-2 h-4 w-4" />
+                <span>Shipments</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                href="/dashboard?section=quotes"
+                className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+              >
+                <FileQuestion className="mr-2 h-4 w-4" />
+                <span>Quotes</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                href="/dashboard?section=billing"
+                className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+              >
+                <CreditCard className="mr-2 h-4 w-4" />
+                <span>Billing</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                href="/dashboard?section=support"
+                className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+              >
+                <LifeBuoy className="mr-2 h-4 w-4" />
+                <span>Support</span>
+              </Link>
+            </DropdownMenuItem>
+            <DropdownMenuItem asChild>
+              <Link
+                href="/dashboard?section=profile"
+                className="cursor-pointer flex w-full items-center rounded-md focus:bg-primary/10 focus:text-primary"
+              >
+                <User className="mr-2 h-4 w-4" />
+                <span>Profile</span>
+              </Link>
+            </DropdownMenuItem>
+          </>
+        )}
         <DropdownMenuSeparator />
         <DropdownMenuItem
           onClick={() => logout()}

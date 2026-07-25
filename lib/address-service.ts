@@ -1,7 +1,5 @@
 import { apiFetch } from "@/lib/client-api"
-import type { Address } from "@/types/address"
-
-type AddressInput = Omit<Address, "addressId" | "isPrimary"> & { isPrimary?: boolean }
+import type { Address, AddressInput } from "@/types/address"
 
 async function getErrorMessage(response: Response, fallback: string) {
   const text = await response.text()

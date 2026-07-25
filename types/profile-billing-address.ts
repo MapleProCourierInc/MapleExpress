@@ -1,5 +1,5 @@
-export type Address = {
-  addressId: string
+export interface ProfileBillingAddress {
+  addressId?: string
   fullName: string
   company?: string
   streetAddress: string
@@ -10,15 +10,10 @@ export type Address = {
   country: string
   phoneNumber: string
   deliveryInstructions?: string
-  addressType: string
+  addressType?: string
   coordinates?: {
     latitude: number
     longitude: number
   }
-  isPrimary: boolean
+  isPrimary?: boolean
 }
-
-export type AddressInput = Omit<Address, "addressId" | "addressType"> & {
-  addressType?: string
-}
-

@@ -1,17 +1,17 @@
 "use client"
 
 import { useState, useEffect } from "react"
-import type { Address } from "@/types/address"
+import type { Address, AddressInput } from "@/types/address"
 import { getAddresses, createAddress, updateAddress, deleteAddress } from "@/lib/address-service"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
 import { AddressCard } from "@/components/address-card"
 import { AddressForm } from "@/components/address-form"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Plus, Loader2 } from "lucide-react"
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle } from "lucide-react"
+import { preventGooglePlacesDialogDismiss } from "@/lib/google-places-dialog"
 
 interface AddressManagementProps {
   userId: string
@@ -25,7 +25,6 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
   const [isAddingAddress, setIsAddingAddress] = useState(false)
   const [editingAddress, setEditingAddress] = useState<Address | null>(null)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [activeTab, setActiveTab] = useState("all")
 
   // Fetch addresses when component mounts
   useEffect(() => {
@@ -68,7 +67,7 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
     }
   }
 
-  const handleSubmitAddress = async (addressData: Omit<Address, "addressId">) => {
+  const handleSubmitAddress = async (addressData: AddressInput) => {
     setIsSubmitting(true)
     setError(null)
 
@@ -101,8 +100,6 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
     setEditingAddress(null)
   }
 
-  const filteredAddresses = activeTab === "all" ? addresses : addresses.filter((addr) => addr.addressType === activeTab)
-
   return (
     <div>
       <div className="flex justify-between items-center mb-6">
@@ -134,32 +131,24 @@ export function AddressManagement({ userId, userType }: AddressManagementProps) 
           </CardContent>
         </Card>
       ) : (
-        <>
-          <Tabs defaultValue="all" value={activeTab} onValueChange={setActiveTab} className="mb-6">
-            <TabsList>
-              <TabsTrigger value="all">All Addresses</TabsTrigger>
-              <TabsTrigger value="home">Home</TabsTrigger>
-              <TabsTrigger value="work">Work</TabsTrigger>
-              <TabsTrigger value="shipping">Shipping</TabsTrigger>
-              <TabsTrigger value="billing">Billing</TabsTrigger>
-            </TabsList>
-          </Tabs>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {filteredAddresses.map((address) => (
-              <AddressCard
-                key={address.addressId}
-                address={address}
-                onEdit={handleEditAddress}
-                onDelete={handleDeleteAddress}
-              />
-            ))}
-          </div>
-        </>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {addresses.map((address) => (
+            <AddressCard
+              key={address.addressId}
+              address={address}
+              onEdit={handleEditAddress}
+              onDelete={handleDeleteAddress}
+            />
+          ))}
+        </div>
       )}
 
       <Dialog open={isAddingAddress} onOpenChange={(open) => !open && handleCancelAddEdit()}>
-        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto">
+        <DialogContent
+          className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto"
+          onInteractOutside={preventGooglePlacesDialogDismiss}
+          onPointerDownOutside={preventGooglePlacesDialogDismiss}
+        >
           <DialogHeader>
             <DialogTitle>{editingAddress ? "Edit Address" : "Add New Address"}</DialogTitle>
             <DialogDescription>
