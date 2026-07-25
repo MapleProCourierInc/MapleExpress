@@ -262,6 +262,15 @@ function findDocument(documents: GeneratedDocument[], type: string) {
   return documents.find((document) => document.documentType?.toUpperCase() === type);
 }
 
+function documentUrl(document?: GeneratedDocument) {
+  return document?.presignedUrl?.trim() || null;
+}
+
+function isPaymentReceipt(document: GeneratedDocument) {
+  const type = document.documentType?.replace(/[^a-z0-9]/gi, "").toUpperCase();
+  return type === "PAYMENTRECEIPT";
+}
+
 function addressTitle(item: OrderItem, stop: "pickup" | "dropoff") {
   const address = item[stop]?.address;
   const cityProvince = [address?.city, address?.province].filter(Boolean).join(", ");
@@ -346,27 +355,17 @@ function DocumentAction({
   primary?: boolean;
   icon: React.ReactNode;
 }) {
+  const url = documentUrl(document);
   const classes = primary
     ? "bg-red-700 text-white border-red-700 hover:bg-red-800"
     : "bg-white text-slate-700 border-slate-200 hover:bg-slate-50";
 
-  if (!document?.presignedUrl) {
-    return (
-      <button
-        className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold opacity-50 ${classes}`}
-        disabled
-        type="button"
-      >
-        {icon}
-        {label}
-      </button>
-    );
-  }
+  if (!url) return null;
 
   return (
     <a
       className={`inline-flex items-center justify-center gap-2 rounded-lg border px-4 py-2 text-sm font-semibold transition-colors ${classes}`}
-      href={document.presignedUrl}
+      href={url}
       target="_blank"
       rel="noreferrer"
     >
@@ -738,6 +737,7 @@ export function Shipments() {
   );
   const selectedOrder = selectedOrderDetail?.shippingOrder ?? null;
   const documents = selectedOrderDetail?.documents ?? [];
+  const visibleDocuments = documents.filter((document) => !isPaymentReceipt(document));
   const invoiceDocument = findDocument(documents, "INVOICE");
   const labelDocument = findDocument(documents, "SHIPPING_LABEL");
 
@@ -1066,36 +1066,38 @@ export function Shipments() {
                     Documents
                   </h3>
 
-                  {documents.length ? (
+                  {visibleDocuments.length ? (
                     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                      {documents.map((document, idx) => (
-                        <div
-                          key={document.s3Key || document.presignedUrl || idx}
-                          className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
-                        >
-                          <div className="min-w-0">
-                            <p className="truncate text-sm font-semibold text-slate-950">
-                              {documentLabel(document)}
-                            </p>
-                            <p className="mt-1 text-xs text-slate-500">
-                              {formatStatusLabel(document.documentType)}
-                            </p>
+                      {visibleDocuments.map((document, idx) => {
+                        const url = documentUrl(document);
+
+                        return (
+                          <div
+                            key={document.s3Key || document.presignedUrl || idx}
+                            className="flex items-center justify-between gap-3 rounded-xl border border-slate-200 bg-white p-4"
+                          >
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-950">
+                                {documentLabel(document)}
+                              </p>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {formatStatusLabel(document.documentType)}
+                              </p>
+                            </div>
+                            {url ? (
+                              <a
+                                className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
+                                href={url}
+                                target="_blank"
+                                rel="noreferrer"
+                                aria-label={`Open ${documentLabel(document)}`}
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            ) : null}
                           </div>
-                          {document.presignedUrl ? (
-                            <a
-                              className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-slate-200 text-slate-600 hover:bg-slate-50"
-                              href={document.presignedUrl}
-                              target="_blank"
-                              rel="noreferrer"
-                              aria-label={`Open ${documentLabel(document)}`}
-                            >
-                              <ExternalLink className="h-4 w-4" />
-                            </a>
-                          ) : (
-                            <span className="text-xs text-slate-400">Unavailable</span>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="rounded-xl border border-slate-200 bg-white p-5 text-sm text-slate-500">
