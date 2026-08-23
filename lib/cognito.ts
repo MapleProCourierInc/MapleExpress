@@ -1,4 +1,4 @@
-import { COGNITO_CLIENT_ID, COGNITO_REGION } from "@/lib/config"
+import { COGNITO_CLIENT_ID, COGNITO_REGION } from "@/lib/config.server"
 
 type CognitoErrorPayload = {
   __type?: string

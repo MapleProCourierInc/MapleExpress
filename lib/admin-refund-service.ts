@@ -1,6 +1,6 @@
 import "server-only"
 
-import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   AdminRefundApiError,

@@ -1,6 +1,6 @@
 import "server-only"
 
-import { AWS_INTEGRATION_INTERNAL_SERVICE_SECRET, AWS_INTEGRATION_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { AWS_INTEGRATION_INTERNAL_SERVICE_SECRET, AWS_INTEGRATION_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   AwsIntegrationApiError,

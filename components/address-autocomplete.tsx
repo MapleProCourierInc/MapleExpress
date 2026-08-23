@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 import { useScript } from "@/hooks/use-script"
-import { GOOGLE_MAPS_API_KEY } from "@/lib/config"
+import { GOOGLE_MAPS_API_KEY } from "@/lib/config.public"
 
 interface AddressAutocompleteProps {
   id?: string

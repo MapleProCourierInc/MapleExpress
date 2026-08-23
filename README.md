@@ -31,17 +31,6 @@ The current signup flow uses AWS Cognito confirmation codes:
 2. Enter the confirmation code and a new password (with confirmation).
 3. Return to login and sign in with the new password.
 
-### Auth Service
-- **AUTH_MICROSERVICE_URL**: URL for the authentication microservice
-  - Default: `http://localhost:30080/usermanagement/auth`
-  - Used in: Authentication-related API calls
-- **AUTH_REFRESH_URL**: URL for refreshing authentication tokens
-  - Default: `${AUTH_MICROSERVICE_URL}/refresh`
-  - Used in: Token refresh operations
-- **AUTH_API_KEY**: API key for authentication service
-  - Default: `''` (empty string)
-  - Used in: Authentication API calls that require an API key
-
 ### Cognito
 - **COGNITO_REGION**: AWS region for the Cognito User Pool
   - Default: `''` (empty string)
@@ -118,8 +107,6 @@ For address autocompletion to work properly, you need to enable:
 
 Example `.env.local` file:
 ```
-AUTH_MICROSERVICE_URL=https://api.example.com/auth
-AUTH_API_KEY=your_auth_api_key
 COGNITO_REGION=ca-central-1
 COGNITO_USER_POOL_ID=ca-central-1_example
 COGNITO_CLIENT_ID=exampleclientid

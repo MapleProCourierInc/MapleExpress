@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { MONERIS_API_CONFIG } from "@/lib/config"
+import { PRICING_PAYMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
 
 export async function POST(request: NextRequest) {
@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
 
     return await proxyWithAuthRetry(request, {
       method: "POST",
-      url: `${MONERIS_API_CONFIG.baseUrl}initiate`,
+      url: getEndpointUrl(PRICING_PAYMENT_SERVICE_URL, "/moneris/initiate"),
       body: JSON.stringify({
         ...body,
         billingAccountId,

@@ -36,7 +36,7 @@ import {
   loadMonerisScript,
   type FinalizePaymentResponse,
 } from "@/lib/moneris/moneris-service"
-import { MONERIS_CHECKOUT_MODE } from "@/lib/config"
+import { MONERIS_CHECKOUT_MODE } from "@/lib/config.public"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"

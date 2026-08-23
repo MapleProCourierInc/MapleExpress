@@ -1,6 +1,6 @@
 import "server-only"
 
-import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 
 export type PublicServiceabilityResponse = {
   serviceable: boolean

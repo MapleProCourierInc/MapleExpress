@@ -1,0 +1,779 @@
+openapi: 3.0.3
+info:
+  title: Notifications MS API
+  version: 1.0.0
+  description: API contract for the notifications microservice.
+servers:
+  - url: http://localhost:8080/notification
+    description: Local server
+tags:
+  - name: Public Quote Requests
+    description: Public landing-page quote request submission.
+  - name: Push Tokens
+    description: Push notification device token registration.
+  - name: Push Notifications
+    description: Push notification send operations.
+  - name: Internal Push Notifications
+    description: Internal service-to-service push notification send operations.
+  - name: Email
+    description: SES email operations.
+  - name: Actuator
+    description: Public actuator endpoints.
+paths:
+  /public/api/v1/quote-requests:
+    post:
+      tags:
+        - Public Quote Requests
+      summary: Submit a public quote request
+      description: |
+        Accepts the unauthenticated Request a Quote form and sends it to the
+        configured administrator email addresses through AWS SES. The submitted
+        email address is set as Reply-To.
+
+        Requests are limited to one accepted attempt per client IP per minute
+        and five accepted attempts per client IP per UTC day. Rate-limit state
+        is shared through MongoDB.
+      operationId: submitPublicQuoteRequest
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicQuoteRequest'
+            example:
+              firstName: Jane
+              lastName: Smith
+              email: jane.smith@example.com
+              phoneNumber: +1 902 555 0142
+              serviceType: Same-day delivery
+              additionalInformation: Two pallets from Halifax to Moncton, ready Friday morning.
+      responses:
+        "202":
+          description: The quote request was accepted by AWS SES and recorded.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicQuoteRequestResponse'
+              example:
+                requestId: 6ac14943-5726-4a9d-8926-7a84028d65fb
+                message: Your quote request has been submitted.
+        "400":
+          description: One or more form fields failed validation.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: about:blank
+                title: Invalid quote request
+                status: 400
+                detail: One or more quote request fields are invalid.
+                errors:
+                  email: must be a well-formed email address
+        "429":
+          description: The per-minute or per-day client IP rate limit was exceeded.
+          headers:
+            Retry-After:
+              description: Number of seconds until the current limiting window expires.
+              required: true
+              schema:
+                type: integer
+                format: int64
+                minimum: 1
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: about:blank
+                title: Quote request rate limit exceeded
+                status: 429
+                detail: Too many quote requests. Please try again later.
+        "502":
+          description: AWS SES could not accept the email.
+          content:
+            application/problem+json:
+              schema:
+                $ref: '#/components/schemas/ProblemDetail'
+              example:
+                type: about:blank
+                title: Quote request delivery failed
+                status: 502
+                detail: The quote request could not be delivered. Please try again later.
+  /api/v1/notifications/push-tokens/register:
+    post:
+      tags:
+        - Push Tokens
+      summary: Register or update a user's push token
+      description: Registers a push token for the authenticated user. The user id is extracted from the JWT and must not be sent in the request body. If the installation was previously registered to another user, ownership transfers to the current user and the current token replaces the previous token.
+      operationId: registerPushToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterPushTokenRequest'
+            example:
+              deviceInstallationId: 9d5a8b63-fd38-4d8e-b5da-3a3f6afef51f
+              appType: DRIVER
+              platform: ANDROID
+              pushProvider: FCM
+              pushToken: fcm-token-value
+              nativeDeviceToken: native-token-value
+              environment: PRODUCTION
+              deviceName: Pixel 8
+              osVersion: Android 15
+              appVersion: 2.4.1
+              buildNumber: "20401"
+      responses:
+        "200":
+          description: Push token registered or updated.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RegisterPushTokenResponse'
+        "400":
+          description: Request body failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Missing, invalid, or expired JWT.
+        "409":
+          description: Conflicting push-token record.
+        "500":
+          description: Unexpected server error.
+  /api/v1/notifications/push-tokens/unregister:
+    post:
+      tags:
+        - Push Tokens
+      summary: Unregister a device from push notifications
+      description: Deactivates push-token registrations for the authenticated user, device installation, and app type. The user id is extracted from the JWT. The operation is idempotent and succeeds when no active registration exists.
+      operationId: unregisterPushToken
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UnregisterPushTokenRequest'
+            example:
+              deviceInstallationId: 9d5a8b63-fd38-4d8e-b5da-3a3f6afef51f
+              appType: DRIVER
+      responses:
+        "204":
+          description: Push-token registration deactivated, or no active matching registration existed.
+        "400":
+          description: Request body failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Missing, invalid, or expired JWT.
+        "500":
+          description: Unexpected server error.
+  /api/v1/notifications/push/driver:
+    post:
+      tags:
+        - Push Notifications
+      summary: Send push notification to a driver user
+      description: Sends a push notification to all active DRIVER app devices registered for the given driver user id. Requires admin role.
+      operationId: sendPushNotificationToDriver
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendDriverPushNotificationRequest'
+            example:
+              driverUserId: user_789
+              notificationType: FULFILLMENT_ASSIGNED
+              title: New delivery assigned
+              body: You have a new delivery task. Tap to view details.
+              priority: HIGH
+              deduplicationKey: FULFILLMENT_ASSIGNED_fulfillment_55501_driver_user_789
+              navigation:
+                target: DRIVER_FULFILLMENT_DETAILS
+                deepLink: maplexdriver://driver/fulfillments/fulfillment_55501
+                params:
+                  orderFulfillmentId: fulfillment_55501
+                  sessionId: session_20260702_000001
+                  trackingNumber: MPX123456789
+              data:
+                orderFulfillmentId: fulfillment_55501
+                sessionId: session_20260702_000001
+                trackingNumber: MPX123456789
+      responses:
+        "200":
+          description: Push delivery tracking started. A successful Expo ticket is reported as EXPO_ACCEPTED until its receipt confirms provider acceptance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendDriverPushNotificationResponse'
+        "400":
+          description: Request body failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Missing, invalid, or expired JWT.
+        "403":
+          description: Authenticated user does not have admin role.
+        "409":
+          description: Duplicate deduplication key or conflicting request.
+        "500":
+          description: Unexpected server error.
+  /api/v1/notifications/push/driver/{notificationId}:
+    get:
+      tags:
+        - Push Notifications
+      summary: Get current driver push delivery status
+      description: Returns the latest persisted ticket, receipt, retry, and provider-acceptance state. Requires admin role.
+      operationId: getDriverPushNotificationStatus
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current push delivery state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendDriverPushNotificationResponse'
+        "401":
+          description: Missing, invalid, or expired JWT.
+        "403":
+          description: Authenticated user does not have admin role.
+        "404":
+          description: Push notification was not found.
+  /internal/api/v1/notifications/push/driver:
+    post:
+      tags:
+        - Internal Push Notifications
+      summary: Send push notification to a driver user from an internal service
+      description: Sends a push notification to all active DRIVER app devices registered for the given driver user id. Requires the internal service secret header.
+      operationId: sendPushNotificationToDriverInternal
+      security:
+        - internalServiceSecret: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SendDriverPushNotificationRequest'
+            example:
+              driverUserId: user_789
+              notificationType: FULFILLMENT_ASSIGNED
+              title: New delivery assigned
+              body: You have a new delivery task. Tap to view details.
+              priority: HIGH
+              deduplicationKey: FULFILLMENT_ASSIGNED_fulfillment_55501_driver_user_789
+              navigation:
+                target: DRIVER_FULFILLMENT_DETAILS
+                deepLink: maplexdriver://driver/fulfillments/fulfillment_55501
+                params:
+                  orderFulfillmentId: fulfillment_55501
+                  sessionId: session_20260702_000001
+                  trackingNumber: MPX123456789
+              data:
+                orderFulfillmentId: fulfillment_55501
+                sessionId: session_20260702_000001
+                trackingNumber: MPX123456789
+      responses:
+        "200":
+          description: Push delivery tracking started. A successful Expo ticket is reported as EXPO_ACCEPTED until its receipt confirms provider acceptance.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendDriverPushNotificationResponse'
+        "400":
+          description: Request body failed validation.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        "401":
+          description: Missing or invalid internal service secret.
+        "409":
+          description: Duplicate deduplication key or conflicting request.
+        "500":
+          description: Unexpected server error.
+  /internal/api/v1/notifications/push/driver/{notificationId}:
+    get:
+      tags:
+        - Internal Push Notifications
+      summary: Get current driver push delivery status from an internal service
+      operationId: getDriverPushNotificationStatusInternal
+      security:
+        - internalServiceSecret: []
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Current push delivery state.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SendDriverPushNotificationResponse'
+        "401":
+          description: Missing or invalid internal service secret.
+        "404":
+          description: Push notification was not found.
+  /email/send:
+    post:
+      tags:
+        - Email
+      summary: Send an email through AWS SES
+      operationId: sendEmail
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: to
+          in: query
+          required: true
+          schema:
+            type: string
+            format: email
+        - name: subject
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: body
+          in: query
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Email send attempt completed.
+          content:
+            text/plain:
+              schema:
+                type: string
+        "401":
+          description: Missing, invalid, or expired JWT.
+        "500":
+          description: Unexpected server error.
+  /actuator:
+    get:
+      tags:
+        - Actuator
+      summary: List actuator endpoint links
+      operationId: actuatorLinks
+      security: []
+      responses:
+        "200":
+          description: Actuator links.
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                type: object
+                additionalProperties: true
+        "404":
+          description: Actuator discovery page is disabled or unavailable.
+  /actuator/health:
+    get:
+      tags:
+        - Actuator
+      summary: Get service health
+      operationId: actuatorHealth
+      security: []
+      responses:
+        "200":
+          description: Service health.
+          content:
+            application/vnd.spring-boot.actuator.v3+json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+    internalServiceSecret:
+      type: apiKey
+      in: header
+      name: X-Internal-Service-Secret
+  schemas:
+    PublicQuoteRequest:
+      type: object
+      required:
+        - firstName
+        - lastName
+        - email
+        - phoneNumber
+        - serviceType
+      properties:
+        firstName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Jane
+        lastName:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Smith
+        email:
+          type: string
+          format: email
+          minLength: 1
+          maxLength: 254
+          example: jane.smith@example.com
+        phoneNumber:
+          type: string
+          minLength: 7
+          maxLength: 30
+          pattern: '^[0-9+() .\-]{7,30}$'
+          example: +1 902 555 0142
+        serviceType:
+          type: string
+          minLength: 1
+          maxLength: 100
+          example: Same-day delivery
+        additionalInformation:
+          type: string
+          maxLength: 4000
+          nullable: true
+          example: Two pallets from Halifax to Moncton, ready Friday morning.
+    PublicQuoteRequestResponse:
+      type: object
+      required:
+        - requestId
+        - message
+      properties:
+        requestId:
+          type: string
+          format: uuid
+          example: 6ac14943-5726-4a9d-8926-7a84028d65fb
+        message:
+          type: string
+          example: Your quote request has been submitted.
+    ProblemDetail:
+      type: object
+      required:
+        - title
+        - status
+        - detail
+      properties:
+        type:
+          type: string
+          format: uri
+          example: about:blank
+        title:
+          type: string
+        status:
+          type: integer
+          format: int32
+        detail:
+          type: string
+        instance:
+          type: string
+          format: uri
+          nullable: true
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+    RegisterPushTokenRequest:
+      type: object
+      required:
+        - deviceInstallationId
+        - appType
+        - platform
+        - pushProvider
+        - pushToken
+        - environment
+      properties:
+        deviceInstallationId:
+          type: string
+          minLength: 1
+        appType:
+          $ref: '#/components/schemas/AppType'
+        platform:
+          $ref: '#/components/schemas/Platform'
+        pushProvider:
+          $ref: '#/components/schemas/PushProvider'
+        pushToken:
+          type: string
+          minLength: 1
+        nativeDeviceToken:
+          type: string
+          nullable: true
+        environment:
+          $ref: '#/components/schemas/Environment'
+        deviceName:
+          type: string
+          nullable: true
+        osVersion:
+          type: string
+          nullable: true
+        appVersion:
+          type: string
+          nullable: true
+        buildNumber:
+          type: string
+          nullable: true
+    RegisterPushTokenResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        userId:
+          type: string
+        deviceInstallationId:
+          type: string
+        appType:
+          $ref: '#/components/schemas/AppType'
+        platform:
+          $ref: '#/components/schemas/Platform'
+        pushProvider:
+          $ref: '#/components/schemas/PushProvider'
+        environment:
+          $ref: '#/components/schemas/Environment'
+        active:
+          type: boolean
+        registeredAt:
+          type: string
+          format: date-time
+    UnregisterPushTokenRequest:
+      type: object
+      required:
+        - deviceInstallationId
+        - appType
+      properties:
+        deviceInstallationId:
+          type: string
+          minLength: 1
+          description: Stable installation identifier generated and retained by the mobile app.
+        appType:
+          $ref: '#/components/schemas/AppType'
+    SendDriverPushNotificationRequest:
+      type: object
+      required:
+        - driverUserId
+        - notificationType
+        - title
+        - body
+      properties:
+        driverUserId:
+          type: string
+          minLength: 1
+        notificationType:
+          $ref: '#/components/schemas/PushNotificationType'
+        title:
+          type: string
+          minLength: 1
+        body:
+          type: string
+          minLength: 1
+        priority:
+          $ref: '#/components/schemas/PushPriority'
+        deduplicationKey:
+          type: string
+          nullable: true
+        navigation:
+          $ref: '#/components/schemas/PushNavigationPayload'
+        data:
+          type: object
+          additionalProperties:
+            type: string
+    SendDriverPushNotificationResponse:
+      type: object
+      properties:
+        notificationId:
+          type: string
+        driverUserId:
+          type: string
+        notificationType:
+          $ref: '#/components/schemas/PushNotificationType'
+        targetDeviceCount:
+          type: integer
+          format: int32
+        successfulCount:
+          type: integer
+          format: int32
+          description: Number of deliveries accepted by FCM or APNs according to Expo receipts.
+        failedCount:
+          type: integer
+          format: int32
+          description: Number of deliveries that have permanently failed.
+        pendingCount:
+          type: integer
+          format: int32
+          description: Number of deliveries awaiting a send retry or Expo receipt.
+        acceptedByExpoCount:
+          type: integer
+          format: int32
+          description: Number of deliveries accepted by Expo and awaiting a receipt.
+        status:
+          $ref: '#/components/schemas/PushSendStatus'
+        deviceResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/PushDeviceSendResult'
+    PushDeviceSendResult:
+      type: object
+      properties:
+        pushTokenId:
+          type: string
+        platform:
+          type: string
+        pushProvider:
+          type: string
+        success:
+          type: boolean
+          nullable: true
+          description: True after FCM/APNs acceptance, false after permanent failure, and null while processing.
+        deliveryStatus:
+          $ref: '#/components/schemas/PushDeliveryStatus'
+        retryable:
+          type: boolean
+          description: Whether background send retry or receipt processing remains scheduled.
+        providerMessageId:
+          type: string
+          nullable: true
+          description: Expo push ticket ID used to retrieve the receipt.
+        errorCode:
+          type: string
+          nullable: true
+        errorMessage:
+          type: string
+          nullable: true
+        sendAttemptCount:
+          type: integer
+          format: int32
+        receiptAttemptCount:
+          type: integer
+          format: int32
+        nextAttemptAt:
+          type: string
+          format: date-time
+          nullable: true
+        receiptCheckedAt:
+          type: string
+          format: date-time
+          nullable: true
+        providerAcceptedAt:
+          type: string
+          format: date-time
+          nullable: true
+    PushNavigationPayload:
+      type: object
+      properties:
+        target:
+          $ref: '#/components/schemas/PushNavigationTarget'
+        deepLink:
+          type: string
+          nullable: true
+        params:
+          type: object
+          additionalProperties:
+            type: string
+    PushNotificationType:
+      type: string
+      enum:
+        - FULFILLMENT_ASSIGNED
+        - FULFILLMENT_UPDATED
+        - SHIFT_REMINDER
+        - GENERAL
+    PushPriority:
+      type: string
+      enum:
+        - LOW
+        - NORMAL
+        - HIGH
+    PushSendStatus:
+      type: string
+      description: EXPO_ACCEPTED means Expo issued tickets; PROVIDER_ACCEPTED means receipts confirmed acceptance by FCM or APNs, not delivery to the physical device.
+      enum:
+        - PROCESSING
+        - EXPO_ACCEPTED
+        - PROVIDER_ACCEPTED
+        - PARTIALLY_ACCEPTED
+        - FAILED
+        - NO_ACTIVE_TOKENS
+    PushDeliveryStatus:
+      type: string
+      description: Durable per-device delivery lifecycle state.
+      enum:
+        - SEND_PENDING
+        - RECEIPT_PENDING
+        - PROVIDER_ACCEPTED
+        - PERMANENT_FAILURE
+    PushNavigationTarget:
+      type: string
+      enum:
+        - DRIVER_HOME
+        - DRIVER_ACTIVE_SESSION
+        - DRIVER_FULFILLMENT_DETAILS
+        - DRIVER_TASK_LIST
+    AppType:
+      type: string
+      enum:
+        - CLIENT
+        - DRIVER
+        - ADMIN
+    Platform:
+      type: string
+      enum:
+        - IOS
+        - ANDROID
+        - WEB
+    PushProvider:
+      type: string
+      enum:
+        - FCM
+        - APNS
+        - EXPO
+    Environment:
+      type: string
+      enum:
+        - DEVELOPMENT
+        - STAGING
+        - PRODUCTION
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: UP
+      additionalProperties: true
+    ErrorResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          example: error
+        message:
+          type: string
+          example: An error occurred
+        errors:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        errorDetails:
+          type: object
+          additionalProperties: true

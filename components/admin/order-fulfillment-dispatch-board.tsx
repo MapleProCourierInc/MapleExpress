@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/pagination"
 import { useScript } from "@/hooks/use-script"
 import { apiFetch } from "@/lib/client-api"
-import { GOOGLE_MAPS_API_KEY } from "@/lib/config"
+import { GOOGLE_MAPS_API_KEY } from "@/lib/config.public"
 import type {
   ActiveDriverSessionsResponse,
   DriverManagementApiError,

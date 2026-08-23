@@ -1,5 +1,5 @@
 import { type NextRequest, NextResponse } from "next/server"
-import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
 
 export async function GET(request: NextRequest) {

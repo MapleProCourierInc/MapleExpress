@@ -1,6 +1,6 @@
 import "server-only"
 
-import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import type {
   PublicContactConfiguration,
   PublicLegalDocument,

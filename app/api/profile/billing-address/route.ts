@@ -1,7 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
-import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 
 const BILLING_ADDRESS_PATH = "/profile/addresses/billing-address"
 

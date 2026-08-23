@@ -15,7 +15,7 @@ import { useAuth } from "@/lib/auth-context"
 import type { OrderResponse } from "@/lib/order-service"
 import { checkoutPayment, toCheckoutBillingAddress } from "@/lib/payment-service"
 import { finalizeMonerisPaymentViaApi, loadMonerisScript, type FinalizePaymentResponse } from "@/lib/moneris/moneris-service"
-import { MONERIS_CHECKOUT_MODE } from "@/lib/config"
+import { MONERIS_CHECKOUT_MODE } from "@/lib/config.public"
 import { getProfileBillingAddress } from "@/lib/profile-service"
 import type { ProfileBillingAddress } from "@/types/profile-billing-address"
 

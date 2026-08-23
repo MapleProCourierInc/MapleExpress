@@ -1,6 +1,6 @@
 import "server-only"
 
-import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config"
+import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   ActivateLegalDocumentRequest,
