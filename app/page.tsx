@@ -1,5 +1,5 @@
 "use client"
-import { useState, useEffect } from "react"
+import { useState, useEffect, type FormEvent } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import Image from "next/image"
@@ -27,6 +27,37 @@ import { ServiceAvailabilitySection } from "@/components/service-availability-se
 import { isIndividualAccount } from "@/lib/profile-account-type"
 import { Footer } from "@/components/shared/footer"
 import { usePlatformConfiguration } from "@/components/platform/platform-configuration-provider"
+import { useToast } from "@/hooks/use-toast"
+
+type QuoteRequestResponse = {
+  requestId?: string
+  message?: string
+}
+
+type QuoteRequestProblem = {
+  title?: string
+  detail?: string
+  message?: string
+  errors?: Record<string, string> | null
+}
+
+const QUOTE_FIELD_LABELS: Record<string, string> = {
+  firstName: "First name",
+  lastName: "Last name",
+  email: "Email",
+  phoneNumber: "Phone number",
+  serviceType: "Service type",
+  additionalInformation: "Additional information",
+}
+
+function quoteRequestErrorDescription(problem: QuoteRequestProblem | null) {
+  const fieldErrors = Object.entries(problem?.errors || {}).map(
+    ([field, message]) => `${QUOTE_FIELD_LABELS[field] || field}: ${message}`,
+  )
+
+  return [problem?.detail || problem?.message, ...fieldErrors].filter(Boolean).join(" ")
+    || "Please try again later."
+}
 
 export default function LandingPage() {
   const { user, isLoading, me } = useAuth()
@@ -243,7 +274,9 @@ export default function LandingPage() {
 // Extract the landing content to a separate component
 function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
   const [trackingInput, setTrackingInput] = useState("")
+  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false)
   const router = useRouter()
+  const { toast } = useToast()
   const { config, isLoading } = usePlatformConfiguration()
   const location = config?.contact?.location || null
   const phoneEntries = (config?.contact?.phones || []).filter((entry) => entry.value)
@@ -264,6 +297,62 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
         location.countryCode === "CA" ? "Canada" : location.countryCode,
       ].filter((line): line is string => Boolean(line))
     : []
+
+  const handleQuoteRequestSubmit = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+
+    if (isSubmittingQuote) return
+
+    const form = event.currentTarget
+    const formData = new FormData(form)
+    const requestBody = {
+      firstName: String(formData.get("firstName") || "").trim(),
+      lastName: String(formData.get("lastName") || "").trim(),
+      email: String(formData.get("email") || "").trim(),
+      phoneNumber: String(formData.get("phoneNumber") || "").trim(),
+      serviceType: String(formData.get("serviceType") || "").trim(),
+      additionalInformation: String(formData.get("additionalInformation") || "").trim() || null,
+    }
+
+    setIsSubmittingQuote(true)
+
+    try {
+      const response = await fetch("/api/public/quote-requests", {
+        method: "POST",
+        headers: {
+          Accept: "application/json, application/problem+json",
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(requestBody),
+      })
+      const payload = await response.json().catch(() => null) as QuoteRequestResponse | QuoteRequestProblem | null
+
+      if (!response.ok) {
+        const problem = payload as QuoteRequestProblem | null
+        toast({
+          variant: "destructive",
+          title: problem?.title || "Unable to submit quote request",
+          description: quoteRequestErrorDescription(problem),
+        })
+        return
+      }
+
+      const result = payload as QuoteRequestResponse | null
+      form.reset()
+      toast({
+        title: "Quote request submitted",
+        description: result?.message || "Your quote request has been submitted.",
+      })
+    } catch {
+      toast({
+        variant: "destructive",
+        title: "Unable to submit quote request",
+        description: "The quote request could not be delivered. Please try again later.",
+      })
+    } finally {
+      setIsSubmittingQuote(false)
+    }
+  }
 
   return (
     <>
@@ -499,48 +588,77 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
                 Fill out the form to get a customized quote for your shipping needs. Our team will get back to you
                 within 24 hours.
               </p>
-              <form className="space-y-6">
+              <form className="space-y-6" onSubmit={handleQuoteRequestSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label htmlFor="firstName" className="text-sm font-medium">
                       First Name
                     </label>
-                    <Input id="firstName" placeholder="Enter your first name" />
+                    <Input
+                      id="firstName"
+                      name="firstName"
+                      placeholder="Enter your first name"
+                      autoComplete="given-name"
+                      maxLength={100}
+                      required
+                    />
                   </div>
                   <div className="space-y-2">
                     <label htmlFor="lastName" className="text-sm font-medium">
                       Last Name
                     </label>
-                    <Input id="lastName" placeholder="Enter your last name" />
+                    <Input
+                      id="lastName"
+                      name="lastName"
+                      placeholder="Enter your last name"
+                      autoComplete="family-name"
+                      maxLength={100}
+                      required
+                    />
                   </div>
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="email" className="text-sm font-medium">
                     Email Address
                   </label>
-                  <Input id="email" type="email" placeholder="Enter your email" />
+                  <Input
+                    id="email"
+                    name="email"
+                    type="email"
+                    placeholder="Enter your email"
+                    autoComplete="email"
+                    maxLength={254}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="phone" className="text-sm font-medium">
                     Phone Number
                   </label>
-                  <Input id="phone" placeholder="Enter your phone number" />
+                  <Input
+                    id="phone"
+                    name="phoneNumber"
+                    type="tel"
+                    placeholder="Enter your phone number"
+                    autoComplete="tel"
+                    minLength={7}
+                    maxLength={30}
+                    pattern="[0-9+() .\-]{7,30}"
+                    title="Enter a valid phone number using numbers, spaces, or + ( ) . -"
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="service" className="text-sm font-medium">
                     Service Type
                   </label>
-                  <select
+                  <Input
                     id="service"
-                    className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                  >
-                    <option value="">Select a service</option>
-                    <option value="express">Express Delivery</option>
-                    <option value="freight">Freight Services</option>
-                    <option value="international">International Shipping</option>
-                    <option value="secure">Secure Handling</option>
-                    <option value="scheduled">Scheduled Deliveries</option>
-                  </select>
+                    name="serviceType"
+                    placeholder="Enter the service you need"
+                    maxLength={100}
+                    required
+                  />
                 </div>
                 <div className="space-y-2">
                   <label htmlFor="message" className="text-sm font-medium">
@@ -548,13 +666,15 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
                   </label>
                   <textarea
                     id="message"
+                    name="additionalInformation"
                     rows={4}
+                    maxLength={4000}
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                     placeholder="Tell us more about your shipping needs"
                   ></textarea>
                 </div>
-                <Button type="submit" className="w-full">
-                  Submit Request
+                <Button type="submit" className="w-full" disabled={isSubmittingQuote}>
+                  {isSubmittingQuote ? "Submitting..." : "Submit Request"}
                 </Button>
               </form>
             </div>
