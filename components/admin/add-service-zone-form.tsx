@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation"
 import { ArrowLeft, Check, Loader2, Trash2, Undo2 } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useScript } from "@/hooks/use-script"
-import { GOOGLE_MAPS_API_KEY } from "@/lib/config.public"
+import { GOOGLE_MAPS_SCRIPT_URL } from "@/lib/google-maps"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -77,7 +77,7 @@ export function AddServiceZoneForm() {
   const vertexMarkerRefs = useRef<any[]>([])
   const polygonRef = useRef<any>(null)
 
-  const scriptStatus = useScript(`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`)
+  const scriptStatus = useScript(GOOGLE_MAPS_SCRIPT_URL)
   const mapError = scriptStatus === "error"
 
   const clearPolygonFieldError = useCallback(() => {

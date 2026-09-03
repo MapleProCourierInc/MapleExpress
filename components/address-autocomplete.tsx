@@ -5,7 +5,7 @@ import { useEffect, useRef, useState } from "react"
 import { Input } from "@/components/ui/input"
 import { Loader2 } from "lucide-react"
 import { useScript } from "@/hooks/use-script"
-import { GOOGLE_MAPS_API_KEY } from "@/lib/config.public"
+import { GOOGLE_MAPS_PLACES_SCRIPT_URL } from "@/lib/google-maps"
 
 interface AddressAutocompleteProps {
   id?: string
@@ -74,7 +74,7 @@ export function AddressAutocomplete({
   }, [onChange])
 
   const scriptStatus = useScript(
-    `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}&libraries=places&callback=initGoogleMapsAutocomplete`,
+    GOOGLE_MAPS_PLACES_SCRIPT_URL,
     { callbackName: "initGoogleMapsAutocomplete" },
   )
 

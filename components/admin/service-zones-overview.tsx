@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react"
 import { Loader2, LocateFixed } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { useScript } from "@/hooks/use-script"
-import { GOOGLE_MAPS_API_KEY } from "@/lib/config.public"
+import { GOOGLE_MAPS_SCRIPT_URL } from "@/lib/google-maps"
 import type { ServiceZone, ToggleServiceZoneActiveResponse } from "@/types/admin-service-zones"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
@@ -39,7 +39,7 @@ export function ServiceZonesOverview({ initialZones }: Props) {
   const mapInstanceRef = useRef<any>(null)
   const polygonRefs = useRef<Map<string, any>>(new Map())
 
-  const scriptStatus = useScript(`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`)
+  const scriptStatus = useScript(GOOGLE_MAPS_SCRIPT_URL)
   const mapError = scriptStatus === "error"
 
   const zonesById = useMemo(() => new Map(zones.map((zone) => [zone.id, zone])), [zones])

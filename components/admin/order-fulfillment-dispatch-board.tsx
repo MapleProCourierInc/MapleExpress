@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/pagination"
 import { useScript } from "@/hooks/use-script"
 import { apiFetch } from "@/lib/client-api"
-import { GOOGLE_MAPS_API_KEY } from "@/lib/config.public"
+import { GOOGLE_MAPS_SCRIPT_URL } from "@/lib/google-maps"
 import type {
   ActiveDriverSessionsResponse,
   DriverManagementApiError,
@@ -898,7 +898,7 @@ export function OrderFulfillmentDispatchBoard({
   const [mappedOrderKey, setMappedOrderKey] = useState(() => orderKey(orders.find((item) => !item.assignedDriverUserId) || orders[0]))
   const [assigningDriverKey, setAssigningDriverKey] = useState<string | null>(null)
   const [assignmentError, setAssignmentError] = useState<string | null>(null)
-  const scriptStatus = useScript(`https://maps.googleapis.com/maps/api/js?key=${GOOGLE_MAPS_API_KEY}`)
+  const scriptStatus = useScript(GOOGLE_MAPS_SCRIPT_URL)
 
   useEffect(() => {
     if (!orders.length) {
