@@ -8,8 +8,8 @@
  */
 
 // Moneris checkout client library. Merchant credentials remain in the backend.
-export const MONERIS_CHECKOUT_SCRIPT_SRC = process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_SCRIPT_SRC || "https://gateway.moneris.com/chkt/js/chkt_v1.00.js"
-export const MONERIS_CHECKOUT_MODE = process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_MODE || "prod"
+export const MONERIS_CHECKOUT_SCRIPT_SRC = process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_SCRIPT_SRC || "https://gatewayt.moneris.com/chkt/js/chkt_v1.00.js"
+export const MONERIS_CHECKOUT_MODE = process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_MODE || "qa"
 
 // Browser-visible key: restrict it by allowed origins and APIs in Google Cloud.
 export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""

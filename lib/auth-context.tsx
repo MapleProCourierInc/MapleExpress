@@ -8,6 +8,8 @@ import { getUserTypeFromGroups, isAdminAccount, isIndividualAccount } from "@/li
 
 const SESSION_REFRESH_INTERVAL_MS = 45 * 60 * 1000
 const SESSION_RECHECK_MIN_INTERVAL_MS = 5 * 60 * 1000
+const ONBOARDING_SESSION_SYNC_ATTEMPTS = 3
+const ONBOARDING_SESSION_SYNC_RETRY_MS = 300
 
 // Update the User type to match your API response
 type User = {
@@ -612,7 +614,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("maplexpress_individual_profile")
       localStorage.removeItem("maplexpress_organization_profile")
 
-      const meData = await getMe()
+      const expectedGroup = payload.userType === "ORGANIZATION" ? "client_organization" : "client_individual"
+      let meData: MeResponse | null = null
+
+      // Cognito group membership changes are only reflected in newly issued JWTs.
+      // Refresh before calling /me so it does not evaluate the pre-onboarding claims.
+      for (let attempt = 0; attempt < ONBOARDING_SESSION_SYNC_ATTEMPTS; attempt += 1) {
+        const refreshed = await initSessionRefresh()
+        if (!refreshed) break
+
+        const refreshedMe = await getMe()
+        if (refreshedMe.status === "ACTIVE" && refreshedMe.groups?.includes(expectedGroup)) {
+          meData = refreshedMe
+          break
+        }
+
+        if (attempt < ONBOARDING_SESSION_SYNC_ATTEMPTS - 1) {
+          await new Promise((resolve) => window.setTimeout(resolve, ONBOARDING_SESSION_SYNC_RETRY_MS * (attempt + 1)))
+        }
+      }
+
+      if (!meData) {
+        return {
+          success: false,
+          message: "Your profile was created, but your session could not be updated. Please sign in again.",
+        }
+      }
+
       setMe(meData)
       localStorage.setItem("maplexpress_me", JSON.stringify(meData))
       setClientGroupCookie(meData.groups)
@@ -625,6 +653,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         }
         setUser(updatedUser)
         localStorage.setItem("maplexpress_user_data", JSON.stringify(updatedUser))
+        await fetchUserProfile(updatedUser, meData.groups)
       }
 
       return { success: true, message: "Onboarding completed" }
