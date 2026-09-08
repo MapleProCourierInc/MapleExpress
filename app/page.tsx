@@ -7,14 +7,20 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Card, CardContent } from "@/components/ui/card"
 import {
-  Truck,
+  BadgeDollarSign,
+  Building2,
+  CalendarClock,
+  ClipboardCheck,
   Package,
   Clock,
-  Globe,
-  Shield,
+  Headphones,
   MapPin,
+  Navigation,
   Phone,
+  Radio,
+  Route,
   Mail,
+  type LucideIcon,
 } from "lucide-react"
 import { useAuth } from "@/lib/auth-context"
 import { LoginModal } from "@/components/login-modal"
@@ -29,19 +35,19 @@ import { Footer } from "@/components/shared/footer"
 import { usePlatformConfiguration } from "@/components/platform/platform-configuration-provider"
 import { useToast } from "@/hooks/use-toast"
 
-type QuoteRequestResponse = {
+type ContactRequestResponse = {
   requestId?: string
   message?: string
 }
 
-type QuoteRequestProblem = {
+type ContactRequestProblem = {
   title?: string
   detail?: string
   message?: string
   errors?: Record<string, string> | null
 }
 
-const QUOTE_FIELD_LABELS: Record<string, string> = {
+const CONTACT_FIELD_LABELS: Record<string, string> = {
   firstName: "First name",
   lastName: "Last name",
   email: "Email",
@@ -50,14 +56,75 @@ const QUOTE_FIELD_LABELS: Record<string, string> = {
   additionalInformation: "Additional information",
 }
 
-function quoteRequestErrorDescription(problem: QuoteRequestProblem | null) {
+function contactRequestErrorDescription(problem: ContactRequestProblem | null) {
   const fieldErrors = Object.entries(problem?.errors || {}).map(
-    ([field, message]) => `${QUOTE_FIELD_LABELS[field] || field}: ${message}`,
+    ([field, message]) => `${CONTACT_FIELD_LABELS[field] || field}: ${message}`,
   )
 
   return [problem?.detail || problem?.message, ...fieldErrors].filter(Boolean).join(" ")
     || "Please try again later."
 }
+
+const HOME_SERVICES: Array<{ title: string; description: string; icon: LucideIcon }> = [
+  {
+    title: "Same-Day Delivery",
+    description: "Time-sensitive documents and parcels picked up and delivered across Greater Moncton on the same day.",
+    icon: Clock,
+  },
+  {
+    title: "Scheduled Business Delivery",
+    description: "Daily or weekly pickup schedules for businesses with recurring delivery needs.",
+    icon: CalendarClock,
+  },
+  {
+    title: "On-Demand Courier",
+    description: "Responsive pickup and delivery for documents, parcels, parts, and supplies.",
+    icon: Package,
+  },
+  {
+    title: "Last-Mile Delivery",
+    description: "Dependable local delivery support for retailers, e-commerce businesses, and their customers.",
+    icon: MapPin,
+  },
+  {
+    title: "Multi-Package Business Routes",
+    description: "Practical route options for businesses sending multiple packages across the region.",
+    icon: Route,
+  },
+  {
+    title: "Local Pickup",
+    description: "Convenient parcel pickup from your home or workplace, ready for delivery across our service area.",
+    icon: Navigation,
+  },
+]
+
+const WHY_CHOOSE_US: Array<{ title: string; description: string; icon: LucideIcon }> = [
+  {
+    title: "Same-Day Means Same-Day",
+    description: "Packages are picked up and delivered locally without spending days in a national sorting network.",
+    icon: Clock,
+  },
+  {
+    title: "Affordable Local Pricing",
+    description: "Straightforward pricing designed around local delivery needs.",
+    icon: BadgeDollarSign,
+  },
+  {
+    title: "Real-Time Tracking",
+    description: "Follow your parcel from pickup through delivery with clear status updates.",
+    icon: Radio,
+  },
+  {
+    title: "Proof of Delivery",
+    description: "Receive confirmation when your delivery has been completed.",
+    icon: ClipboardCheck,
+  },
+  {
+    title: "Local Customer Support",
+    description: "Speak with the MapleXpress team serving the Greater Moncton area.",
+    icon: Headphones,
+  },
+]
 
 export default function LandingPage() {
   const { user, isLoading, me } = useAuth()
@@ -154,7 +221,7 @@ export default function LandingPage() {
     }
 
     if (!user) {
-      return <LandingContent onOpenSignup={() => setIsSignupModalOpen(true)} />
+      return <LandingContent />
     }
 
     switch (user.userStatus) {
@@ -175,25 +242,27 @@ export default function LandingPage() {
           </div>
         )
       case "active":
-        return <LandingContent onOpenSignup={() => setIsSignupModalOpen(true)} />
+        return <LandingContent />
       default:
-        return <LandingContent onOpenSignup={() => setIsSignupModalOpen(true)} />
+        return <LandingContent />
     }
   }
 
   return (
-    <div className="flex flex-col min-h-screen">
+    <div id="top" className="flex flex-col min-h-screen">
       <header className="border-b sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
         <div className="container flex h-16 items-center justify-between py-4">
           <div className="flex items-center gap-2">
-            <img
+            <Link href="#top" aria-label="Scroll to the top of the homepage" className="flex items-center">
+              <img
                 src="/3.svg"
                 alt="MapleXpress Logo"
                 className="h-[175px] w-auto"
-            />
+              />
+            </Link>
           </div>
           <nav className="hidden md:flex items-center gap-6">
-            <Link href="#" className="text-sm font-medium hover:text-primary">
+            <Link href="/" className="text-sm font-medium hover:text-primary">
               Home
             </Link>
             <Link href="/ship-now" className="text-sm font-medium hover:text-primary">
@@ -201,6 +270,12 @@ export default function LandingPage() {
             </Link>
             <Link href="#services" className="text-sm font-medium hover:text-primary">
               Services
+            </Link>
+            <Link
+              href="/rates"
+              className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+            >
+              Rates
             </Link>
             <Link href="#availability" className="text-sm font-medium hover:text-primary">
               Availability
@@ -233,12 +308,6 @@ export default function LandingPage() {
                 </Button>
               </>
             )}
-{/*            <Button
-              className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
-              asChild
-            >
-              <Link href="#quote">Get a Quote</Link>
-            </Button>*/}
           </div>
         </div>
       </header>
@@ -272,9 +341,9 @@ export default function LandingPage() {
 }
 
 // Extract the landing content to a separate component
-function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
+function LandingContent() {
   const [trackingInput, setTrackingInput] = useState("")
-  const [isSubmittingQuote, setIsSubmittingQuote] = useState(false)
+  const [isSubmittingContact, setIsSubmittingContact] = useState(false)
   const router = useRouter()
   const { toast } = useToast()
   const { config, isLoading } = usePlatformConfiguration()
@@ -298,10 +367,10 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
       ].filter((line): line is string => Boolean(line))
     : []
 
-  const handleQuoteRequestSubmit = async (event: FormEvent<HTMLFormElement>) => {
+  const handleContactRequestSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
 
-    if (isSubmittingQuote) return
+    if (isSubmittingContact) return
 
     const form = event.currentTarget
     const formData = new FormData(form)
@@ -314,7 +383,7 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
       additionalInformation: String(formData.get("additionalInformation") || "").trim() || null,
     }
 
-    setIsSubmittingQuote(true)
+    setIsSubmittingContact(true)
 
     try {
       const response = await fetch("/api/public/quote-requests", {
@@ -325,32 +394,31 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
         },
         body: JSON.stringify(requestBody),
       })
-      const payload = await response.json().catch(() => null) as QuoteRequestResponse | QuoteRequestProblem | null
+      const payload = await response.json().catch(() => null) as ContactRequestResponse | ContactRequestProblem | null
 
       if (!response.ok) {
-        const problem = payload as QuoteRequestProblem | null
+        const problem = payload as ContactRequestProblem | null
         toast({
           variant: "destructive",
-          title: problem?.title || "Unable to submit quote request",
-          description: quoteRequestErrorDescription(problem),
+          title: "Unable to send message",
+          description: contactRequestErrorDescription(problem),
         })
         return
       }
 
-      const result = payload as QuoteRequestResponse | null
       form.reset()
       toast({
-        title: "Quote request submitted",
-        description: result?.message || "Your quote request has been submitted.",
+        title: "Message sent",
+        description: "Thanks for reaching out. Your message has been sent to the MapleXpress team.",
       })
     } catch {
       toast({
         variant: "destructive",
-        title: "Unable to submit quote request",
-        description: "The quote request could not be delivered. Please try again later.",
+        title: "Unable to send message",
+        description: "Your message could not be sent. Please try again later.",
       })
     } finally {
-      setIsSubmittingQuote(false)
+      setIsSubmittingContact(false)
     }
   }
 
@@ -360,19 +428,19 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
       <section className="relative py-20 md:py-32 overflow-hidden">
         <div className="container relative z-10 flex flex-col items-center text-center">
           <h1 className="text-4xl md:text-6xl font-bold tracking-tight mb-6">
-            Fast, Reliable Delivery <span className="text-primary">When You Need It</span>
+            Same-Day Delivery Across <span className="text-primary">Greater Moncton</span>
           </h1>
           <p className="text-xl text-muted-foreground max-w-[800px] mb-8">
-            Your trusted partner for all your courier and logistics needs. We deliver packages with care, speed, and
-            reliability.
+            Affordable local courier service for businesses and individuals. We pick up your parcel and deliver it the
+            same day—quickly, safely, and locally.
           </p>
-          <div className="flex flex-col sm:flex-row gap-4">
+          <div className="flex flex-col sm:flex-row sm:flex-wrap sm:justify-center gap-4">
             <Button
               size="lg"
               className="bg-gradient-to-r from-primary to-primary/90 hover:from-primary/90 hover:to-primary"
               asChild
             >
-              <Link href="#quote">Get a Quote</Link>
+              <Link href="/ship-now">Ship Now</Link>
             </Button>
             <Button
               size="lg"
@@ -380,7 +448,17 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
               className="border-secondary text-secondary hover:bg-secondary/10"
               asChild
             >
-              <Link href="/ship-now">Ship Now</Link>
+              <Link href="#get-in-touch">Get in Touch</Link>
+            </Button>
+            <Button
+              size="lg"
+              className="border border-brand-maple/60 bg-gradient-to-r from-brand-forest to-brand-forest/90 text-white shadow-lg shadow-brand-forest/20 transition-transform hover:-translate-y-0.5 hover:from-brand-forest/90 hover:to-brand-forest"
+              asChild
+            >
+              <Link href="/business-solutions" className="inline-flex items-center gap-2">
+                <Building2 className="h-4 w-4" />
+                Business Solutions
+              </Link>
             </Button>
           </div>
         </div>
@@ -393,77 +471,26 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
           <div className="text-center mb-16">
             <h2 className="text-3xl md:text-4xl font-bold mb-4">Our Services</h2>
             <p className="text-muted-foreground max-w-[700px] mx-auto">
-              We offer a comprehensive range of courier and logistics services to meet all your delivery needs.
+              Practical delivery options for everyday parcels and recurring business needs.
             </p>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            <Card className="home-surface-card">
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center text-center">
-                  <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30 mb-4">
-                    <Package className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Express Delivery</h3>
-                  <p className="text-muted-foreground">
-                    Same-day and next-day delivery options for urgent packages and documents.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="home-surface-card">
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center text-center">
-                  <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30 mb-4">
-                    <Truck className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Freight Services</h3>
-                  <p className="text-muted-foreground">
-                    Reliable transportation for larger shipments and palletized goods.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="home-surface-card">
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center text-center">
-                  <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30 mb-4">
-                    <Shield className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Secure Handling</h3>
-                  <p className="text-muted-foreground">
-                    Special care for valuable, fragile, or sensitive items with insurance options.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mt-8 max-w-[800px] mx-auto">
-            <Card className="home-surface-card">
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center text-center">
-                  <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30 mb-4">
-                    <Clock className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Scheduled Deliveries</h3>
-                  <p className="text-muted-foreground">
-                    Regular pickup and delivery schedules for businesses with recurring needs.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-            <Card className="home-surface-card">
-              <CardContent className="pt-6">
-                <div className="flex flex-col items-center text-center">
-                  <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30 mb-4">
-                    <MapPin className="h-8 w-8 text-primary" />
-                  </div>
-                  <h3 className="text-xl font-bold mb-2">Last Mile Delivery</h3>
-                  <p className="text-muted-foreground">
-                    Efficient final-stage delivery to ensure packages reach their destination on time.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
+            {HOME_SERVICES.map((service) => {
+              const Icon = service.icon
+              return (
+                <Card key={service.title} className="home-surface-card h-full">
+                  <CardContent className="pt-6">
+                    <div className="flex flex-col items-center text-center">
+                      <div className="p-3 rounded-full bg-gradient-to-br from-primary/20 to-primary/30 mb-4">
+                        <Icon className="h-8 w-8 text-primary" />
+                      </div>
+                      <h3 className="text-xl font-bold mb-2">{service.title}</h3>
+                      <p className="text-muted-foreground">{service.description}</p>
+                    </div>
+                  </CardContent>
+                </Card>
+              )
+            })}
           </div>
         </div>
       </section>
@@ -484,64 +511,27 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
               />
             </div>
             <div>
+              <p className="mb-3 text-sm font-semibold uppercase tracking-[0.2em] text-primary">
+                Local. Fast. Affordable. Secure.
+              </p>
               <h2 className="text-3xl md:text-4xl font-bold mb-6">Why Choose MapleXpress?</h2>
-              <div className="space-y-6">
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="p-2 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                      <Clock className="h-5 w-5 text-primary" />
+              <div className="space-y-5">
+                {WHY_CHOOSE_US.map((reason) => {
+                  const Icon = reason.icon
+                  return (
+                    <div key={reason.title} className="flex gap-4">
+                      <div className="flex-shrink-0 mt-1">
+                        <div className="p-2 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
+                          <Icon className="h-5 w-5 text-primary" />
+                        </div>
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-bold mb-1">{reason.title}</h3>
+                        <p className="text-muted-foreground">{reason.description}</p>
+                      </div>
                     </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold mb-2">Timely Delivery</h3>
-                    <p className="text-muted-foreground">
-                      We understand the importance of time in logistics. Our commitment to punctuality ensures your
-                      packages arrive when promised.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="p-2 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                      <Shield className="h-5 w-5 text-primary" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold mb-2">Secure Handling</h3>
-                    <p className="text-muted-foreground">
-                      Your packages are treated with the utmost care. We implement strict security measures to ensure
-                      safe delivery.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="p-2 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                      <Globe className="h-5 w-5 text-primary" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold mb-2">Global Network</h3>
-                    <p className="text-muted-foreground">
-                      With partners worldwide, we can deliver your packages to virtually any destination with efficiency
-                      and reliability.
-                    </p>
-                  </div>
-                </div>
-                <div className="flex gap-4">
-                  <div className="flex-shrink-0 mt-1">
-                    <div className="p-2 rounded-full bg-gradient-to-br from-primary/20 to-secondary/20">
-                      <Package className="h-5 w-5 text-primary" />
-                    </div>
-                  </div>
-                  <div>
-                    <h3 className="text-xl font-bold mb-2">Customized Solutions</h3>
-                    <p className="text-muted-foreground">
-                      We tailor our services to meet your specific requirements, whether you're an individual or a large
-                      corporation.
-                    </p>
-                  </div>
-                </div>
+                  )
+                })}
               </div>
             </div>
           </div>
@@ -578,17 +568,17 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
         </div>
       </section>
 
-      {/* Quote Request Section */}
-      <section id="quote" className="py-20 bg-gradient-to-r from-primary/10 to-secondary/10">
+      {/* Get in Touch Section */}
+      <section id="get-in-touch" className="scroll-mt-16 py-20 bg-gradient-to-r from-primary/10 to-secondary/10">
         <div className="container">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
             <div>
-              <h2 className="text-3xl md:text-4xl font-bold mb-6">Request a Quote</h2>
+              <h2 className="text-3xl md:text-4xl font-bold mb-6">Get in Touch</h2>
               <p className="text-muted-foreground mb-8">
-                Fill out the form to get a customized quote for your shipping needs. Our team will get back to you
-                within 24 hours.
+                Tell us what you need delivered or ask us a question. Our team will review your message and get back to
+                you as soon as possible.
               </p>
-              <form className="space-y-6" onSubmit={handleQuoteRequestSubmit}>
+              <form className="space-y-6" onSubmit={handleContactRequestSubmit}>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <label htmlFor="firstName" className="text-sm font-medium">
@@ -673,15 +663,15 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
                     placeholder="Tell us more about your shipping needs"
                   ></textarea>
                 </div>
-                <Button type="submit" className="w-full" disabled={isSubmittingQuote}>
-                  {isSubmittingQuote ? "Submitting..." : "Submit Request"}
+                <Button type="submit" className="w-full" disabled={isSubmittingContact}>
+                  {isSubmittingContact ? "Sending..." : "Send Message"}
                 </Button>
               </form>
             </div>
             <div className="hidden lg:block">
               <Image
                 src="/Request a quote.png?height=600&width=800"
-                alt="Customer service representative"
+                alt="MapleXpress customer support"
                 width={800}
                 height={600}
                 className="rounded-lg shadow-lg"
@@ -797,24 +787,13 @@ function LandingContent({ onOpenSignup }: { onOpenSignup: () => void }) {
       <section className="py-20 bg-gradient-to-r from-primary to-primary/90 text-primary-foreground">
         <div className="container">
           <div className="text-center max-w-[800px] mx-auto">
-            <h2 className="text-3xl md:text-4xl font-bold mb-6">Ready to Ship with Confidence?</h2>
+            <h2 className="text-3xl md:text-4xl font-bold mb-6">Local Delivery Made Simple</h2>
             <p className="text-primary-foreground/80 mb-8">
-              Join thousands of satisfied customers who trust MapleXpress for their shipping needs. Experience the
-              difference today.
+              Whether you&apos;re sending one package or dozens every week, MapleXpress makes local delivery simple.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <Button size="lg" variant="secondary" onClick={onOpenSignup}>
-                Get Started
-              </Button>
-              <Button
-                size="lg"
-                variant="outline"
-                className="bg-transparent text-primary-foreground border-primary-foreground hover:bg-primary-foreground hover:text-primary"
-                asChild
-              >
-                <Link href="#quote">Contact Sales</Link>
-              </Button>
-            </div>
+            <Button size="lg" variant="secondary" asChild>
+              <Link href="/ship-now">Ship Now</Link>
+            </Button>
           </div>
         </div>
       </section>

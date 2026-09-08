@@ -4,11 +4,14 @@ import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.ser
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   ActivateLegalDocumentRequest,
+  AdminFaqResponse,
   AdminLegalDocumentResponse,
   AdminPlatformConfigurationResponse,
+  CreateFaqRequest,
   CreateLegalDocumentVersionRequest,
   PlatformConfigurationApiError,
   UpdateContactConfigurationRequest,
+  UpdateFaqRequest,
   UpdateLegalDocumentDraftRequest,
   UpdateSocialMediaConfigurationRequest,
 } from "@/types/admin-platform-configuration"
@@ -88,6 +91,45 @@ export async function getAdminPlatformConfiguration(): Promise<ServiceResult<Adm
     method: "GET",
     headers: withJsonHeaders(),
   })
+}
+
+export async function getAdminFaqs(): Promise<ServiceResult<AdminFaqResponse[]>> {
+  return platformConfigurationFetch<AdminFaqResponse[]>("/api/v1/admin/platform-configuration/faqs", {
+    method: "GET",
+    headers: withJsonHeaders(),
+  })
+}
+
+export async function createAdminFaq(payload: CreateFaqRequest): Promise<ServiceResult<AdminFaqResponse>> {
+  return platformConfigurationFetch<AdminFaqResponse>("/api/v1/admin/platform-configuration/faqs", {
+    method: "POST",
+    headers: withJsonHeaders(),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateAdminFaq(
+  faqId: string,
+  payload: UpdateFaqRequest,
+): Promise<ServiceResult<AdminFaqResponse>> {
+  return platformConfigurationFetch<AdminFaqResponse>(
+    `/api/v1/admin/platform-configuration/faqs/${encodeURIComponent(faqId)}`,
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function deleteAdminFaq(faqId: string): Promise<ServiceResult<null>> {
+  return platformConfigurationFetch<null>(
+    `/api/v1/admin/platform-configuration/faqs/${encodeURIComponent(faqId)}`,
+    {
+      method: "DELETE",
+      headers: withJsonHeaders(),
+    },
+  )
 }
 
 export async function updateAdminPlatformContactConfiguration(

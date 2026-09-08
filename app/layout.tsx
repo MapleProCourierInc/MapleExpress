@@ -10,8 +10,8 @@ import { PlatformConfigurationProvider } from "@/components/platform/platform-co
 const inter = Inter({ subsets: ["latin"] })
 
 export const metadata: Metadata = {
-  title: "MapleXpress - Fast, Reliable Courier Services",
-  description: "Your trusted partner for all your courier and logistics needs.",
+  title: "MapleXpress - Same-Day Delivery Across Greater Moncton",
+  description: "Affordable same-day courier service for businesses and individuals in Greater Moncton.",
   icons: {
     icon: "/leaf.svg",
     shortcut: "/leaf.svg",

@@ -3,6 +3,7 @@ import "server-only"
 import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import type {
   PublicContactConfiguration,
+  PublicFaq,
   PublicLegalDocument,
   PublicLegalDocumentType,
   PublicPlatformConfiguration,
@@ -69,6 +70,10 @@ export function getPublicPlatformConfiguration() {
 
 export function getPublicPlatformContactConfiguration() {
   return publicPlatformFetch<PublicContactConfiguration>("/api/v1/public/platform-configuration/contact")
+}
+
+export function getPublicFaqs() {
+  return publicPlatformFetch<PublicFaq[]>("/api/v1/public/platform-configuration/faqs")
 }
 
 export function getPublicPlatformSocialMediaProfiles() {

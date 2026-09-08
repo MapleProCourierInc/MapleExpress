@@ -12,8 +12,6 @@ import {
   Youtube,
   type LucideIcon,
 } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
 import { LegalDocumentLink } from "@/components/platform/legal-document-link"
 import { usePlatformConfiguration } from "@/components/platform/platform-configuration-provider"
 import type { PublicSocialMediaPlatform } from "@/types/platform-configuration"
@@ -39,14 +37,14 @@ export function Footer() {
   return (
     <footer className="bg-gradient-to-r from-primary/5 to-secondary/5 py-12">
       <div className="container">
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
-          <div>
+        <div className="grid grid-cols-1 gap-10 md:grid-cols-2 lg:grid-cols-12 lg:gap-12">
+          <div className="md:col-span-2 lg:col-span-4">
             <div className="flex items-center gap-2 mb-4">
               <img src="/leaf.svg" alt="MapleXpress leaf" className="h-9 w-9" />
               <span className="text-xl font-bold">MapleXpress</span>
             </div>
             <p className="text-muted-foreground mb-4">
-              Your trusted partner for all your courier and logistics needs since 2024.
+              Same-day courier service for businesses and individuals across Greater Moncton.
             </p>
             {socialProfiles.length ? (
               <div className="flex flex-wrap gap-4">
@@ -68,9 +66,9 @@ export function Footer() {
               </div>
             ) : null}
           </div>
-          <div>
+          <div className="lg:col-span-5">
             <h3 className="font-bold text-lg mb-4">Quick Links</h3>
-            <ul className="space-y-2">
+            <ul className="grid grid-cols-2 gap-x-8 gap-y-2">
               <li>
                 <Link href="/" className="text-muted-foreground hover:text-primary">
                   Home
@@ -79,6 +77,21 @@ export function Footer() {
               <li>
                 <Link href="/#services" className="text-muted-foreground hover:text-primary">
                   Services
+                </Link>
+              </li>
+              <li>
+                <Link href="/rates" className="text-muted-foreground hover:text-primary">
+                  Rates
+                </Link>
+              </li>
+              <li>
+                <Link href="/business-solutions" className="text-muted-foreground hover:text-primary">
+                  Business Solutions
+                </Link>
+              </li>
+              <li>
+                <Link href="/faq" className="text-muted-foreground hover:text-primary">
+                  FAQs
                 </Link>
               </li>
               <li>
@@ -105,52 +118,35 @@ export function Footer() {
               </li>
             </ul>
           </div>
-          <div>
+          <div className="lg:col-span-3">
             <h3 className="font-bold text-lg mb-4">Services</h3>
             <ul className="space-y-2">
               <li>
-                <Link href="#" className="text-muted-foreground hover:text-primary">
-                  Express Delivery
+                <Link href="/#services" className="text-muted-foreground hover:text-primary">
+                  Same-Day Delivery
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-muted-foreground hover:text-primary">
-                  Freight Services
+                <Link href="/#services" className="text-muted-foreground hover:text-primary">
+                  Scheduled Business Delivery
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-muted-foreground hover:text-primary">
-                  International Shipping
+                <Link href="/#services" className="text-muted-foreground hover:text-primary">
+                  On-Demand Courier
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-muted-foreground hover:text-primary">
-                  Secure Handling
+                <Link href="/#services" className="text-muted-foreground hover:text-primary">
+                  Last-Mile Delivery
                 </Link>
               </li>
               <li>
-                <Link href="#" className="text-muted-foreground hover:text-primary">
-                  Scheduled Deliveries
+                <Link href="/#services" className="text-muted-foreground hover:text-primary">
+                  Local Pickup
                 </Link>
               </li>
             </ul>
-          </div>
-          <div>
-            <h3 className="font-bold text-lg mb-4">Newsletter</h3>
-            <p className="text-muted-foreground mb-4">Subscribe to our newsletter for the latest updates and offers.</p>
-            <div className="flex flex-col gap-2">
-              <Input placeholder="Your email address" />
-              <Button type="submit" className="w-full">
-                Subscribe
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground mt-2">
-              By subscribing, you agree to our{" "}
-              <LegalDocumentLink documentType="PRIVACY_POLICY" className="font-normal text-muted-foreground underline underline-offset-2 hover:text-primary">
-                Privacy Policy
-              </LegalDocumentLink>
-              .
-            </p>
           </div>
         </div>
         <div className="border-t border-border mt-12 pt-6 text-center text-sm text-muted-foreground">

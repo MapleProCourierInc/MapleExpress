@@ -91,8 +91,15 @@ export type PublicLegalDocument = {
   activeUntil?: string | null
 }
 
+export type PublicFaq = {
+  faqId: string
+  question: string
+  answer: string
+}
+
 export type PublicPlatformConfiguration = {
   contact?: PublicContactConfiguration | null
+  faqs?: PublicFaq[] | null
   socialMediaProfiles?: PublicSocialMediaProfile[] | null
   legalDocuments?: PublicLegalDocument[] | null
 }
