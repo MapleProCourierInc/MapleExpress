@@ -71,8 +71,19 @@ async function parseError(response: Response): Promise<{ error: PlatformConfigur
 }
 
 async function platformConfigurationFetch<T>(endpoint: string, init: RequestInit): Promise<ServiceResult<T>> {
+  const billingServiceUrl = BILLING_MANAGEMENT_SERVICE_URL
+  if (!billingServiceUrl) {
+    return {
+      data: null,
+      error: { status: "500", message: "BILLING_SERVICE_BASE_URL is not configured" },
+      textError: null,
+    }
+  }
+
+  const backendUrl = getEndpointUrl(billingServiceUrl, endpoint)
+
   const response = await authenticatedServerFetch(
-    getEndpointUrl(BILLING_MANAGEMENT_SERVICE_URL, endpoint),
+    backendUrl,
     init,
     { includeIdToken: true },
   )

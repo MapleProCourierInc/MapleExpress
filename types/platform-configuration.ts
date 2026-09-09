@@ -1,3 +1,5 @@
+import type { NextSevenDaysWorkingHoursResponse } from "@/types/working-hours"
+
 export const PUBLIC_CONTACT_EMAIL_TYPES = [
   "SUPPORT_INQUIRIES",
   "GENERAL_INQUIRIES",
@@ -102,6 +104,7 @@ export type PublicPlatformConfiguration = {
   faqs?: PublicFaq[] | null
   socialMediaProfiles?: PublicSocialMediaProfile[] | null
   legalDocuments?: PublicLegalDocument[] | null
+  nextSevenDaysWorkingHours?: NextSevenDaysWorkingHoursResponse | null
 }
 
 export type PublicPlatformConfigurationApiError = {

@@ -618,8 +618,14 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         total: draftOrder.aggregatedPricing.totalAmount.toString(),
         items: draftOrder.orderItems.length.toString(),
         createdAt: draftOrder.createdAt,
-      }).toString();
-      router.push(`/order-confirmation?${queryParams}`);
+      });
+
+      if (pickupWindow.type === "SCHEDULED") {
+        queryParams.set("pickupWindowStartDateTime", pickupWindow.startDateTime)
+        queryParams.set("pickupWindowEndDateTime", pickupWindow.endDateTime)
+      }
+
+      router.push(`/order-confirmation?${queryParams.toString()}`);
     } else {
       // Fallback if draftOrder is somehow null, though it shouldn't be at this stage.
       // Redirect with minimal info.

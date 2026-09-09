@@ -29,7 +29,16 @@ type Props = {
 
 const HOUR_MS = 60 * 60 * 1000
 
-function slotsForDay(day: WorkingHoursDayResponse, schedule: NextSevenDaysWorkingHoursResponse): PickupSlot[] {
+function scheduleReferenceTime(schedule: NextSevenDaysWorkingHoursResponse, now: number) {
+  const generatedAt = new Date(schedule.generatedAt).getTime()
+  return Math.max(Number.isNaN(generatedAt) ? 0 : generatedAt, now)
+}
+
+function slotsForDay(
+  day: WorkingHoursDayResponse,
+  schedule: NextSevenDaysWorkingHoursResponse,
+  now = Date.now(),
+): PickupSlot[] {
   if (day.closed || !day.opensAt || !day.closesAt) return []
 
   const opensAt = new Date(day.opensAt)
@@ -38,7 +47,7 @@ function slotsForDay(day: WorkingHoursDayResponse, schedule: NextSevenDaysWorkin
 
   let cursor = opensAt.getTime()
   const latestPickupEnd = closesAt.getTime() - HOUR_MS
-  const referenceTime = Math.max(new Date(schedule.generatedAt).getTime(), Date.now())
+  const referenceTime = scheduleReferenceTime(schedule, now)
   const scheduleToday = atlanticDate(new Date(referenceTime))
 
   if (day.date === scheduleToday) {
@@ -60,6 +69,21 @@ function slotsForDay(day: WorkingHoursDayResponse, schedule: NextSevenDaysWorkin
   return slots
 }
 
+type AsapAvailability = "AVAILABLE" | "BEFORE_OPEN" | "UNAVAILABLE"
+
+function getAsapAvailability(schedule: NextSevenDaysWorkingHoursResponse, now: number): AsapAvailability {
+  const referenceTime = scheduleReferenceTime(schedule, now)
+  const today = schedule.days.find((day) => day.date === atlanticDate(new Date(referenceTime)))
+  if (!today || today.closed || !today.opensAt || !today.closesAt) return "UNAVAILABLE"
+
+  const opensAt = new Date(today.opensAt).getTime()
+  const closesAt = new Date(today.closesAt).getTime()
+  if (Number.isNaN(opensAt) || Number.isNaN(closesAt)) return "UNAVAILABLE"
+  if (referenceTime < opensAt) return "BEFORE_OPEN"
+
+  return referenceTime < closesAt - HOUR_MS ? "AVAILABLE" : "UNAVAILABLE"
+}
+
 function formatDateLabel(date: string, part: "weekday" | "monthDay") {
   const value = new Date(`${date}T12:00:00Z`)
   return new Intl.DateTimeFormat("en-CA", {
@@ -73,6 +97,7 @@ export function PickupWindowSelection({ selection, onChange, onNext, onBack }: P
   const [activeDate, setActiveDate] = useState(selection.type === "SCHEDULED" ? selection.date : "")
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
+  const [now, setNow] = useState(() => Date.now())
 
   const loadSchedule = async () => {
     setIsLoading(true)
@@ -100,12 +125,34 @@ export function PickupWindowSelection({ selection, onChange, onNext, onBack }: P
     void loadSchedule()
   }, [])
 
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(Date.now()), 30_000)
+    return () => window.clearInterval(interval)
+  }, [])
+
   const daysWithSlots = useMemo(() => {
     if (!schedule) return new Map<string, PickupSlot[]>()
-    return new Map(schedule.days.map((day) => [day.date, slotsForDay(day, schedule)]))
-  }, [schedule])
+    return new Map(schedule.days.map((day) => [day.date, slotsForDay(day, schedule, now)]))
+  }, [schedule, now])
+  const asapAvailability = schedule ? getAsapAvailability(schedule, now) : "UNAVAILABLE"
+  const asapAvailable = asapAvailability === "AVAILABLE"
+  const scheduleToday = schedule
+    ? schedule.days.find((day) => day.date === atlanticDate(new Date(scheduleReferenceTime(schedule, now))))
+    : undefined
   const activeDay = schedule?.days.find((day) => day.date === activeDate)
   const activeSlots = activeDate ? daysWithSlots.get(activeDate) || [] : []
+  const nextAvailableDay = schedule?.days.find((day) => (daysWithSlots.get(day.date) || []).length > 0)
+  const selectionIsValid =
+    selection.type === "ASAP"
+      ? asapAvailable
+      : (daysWithSlots.get(selection.date) || []).some(
+          (slot) => slot.startDateTime === selection.startDateTime && slot.endDateTime === selection.endDateTime,
+        )
+
+  useEffect(() => {
+    if (!schedule || activeSlots.length || !nextAvailableDay || activeDate === nextAvailableDay.date) return
+    setActiveDate(nextAvailableDay.date)
+  }, [activeDate, activeSlots.length, nextAvailableDay, schedule])
 
   return (
     <div className="space-y-7">
@@ -114,32 +161,61 @@ export function PickupWindowSelection({ selection, onChange, onNext, onBack }: P
           <CalendarDays className="h-6 w-6" />
         </span>
         <h1 className="mt-4 text-2xl font-bold">Choose a Pickup Time</h1>
-        <p className="mt-2 text-muted-foreground">Send it as soon as possible or reserve a one-hour pickup window.</p>
+        <p className="mt-2 text-muted-foreground">
+          {schedule && asapAvailability === "BEFORE_OPEN"
+            ? "Choose a one-hour pickup window for today or another available day."
+            : schedule && !asapAvailable
+            ? "Choose a one-hour pickup window on the next available working day."
+            : "Send it as soon as possible or reserve a one-hour pickup window."}
+        </p>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onChange({ type: "ASAP" })}
-        className={cn(
-          "flex w-full items-center gap-4 rounded-2xl border-2 p-5 text-left transition-all",
-          selection.type === "ASAP" ? "border-primary bg-brand-wine-soft/60 shadow-sm" : "border-border bg-white hover:border-primary/35",
-        )}
-      >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white"><Zap className="h-5 w-5" /></span>
-        <span className="flex-1">
-          <span className="block font-bold">Earliest Available Pickup</span>
-          <span className="mt-1 block text-sm text-muted-foreground">Dispatch as soon as your order is confirmed.</span>
-        </span>
-        <span className={cn("flex h-6 w-6 items-center justify-center rounded-full border", selection.type === "ASAP" ? "border-primary bg-primary text-white" : "border-muted-foreground/30")}>
-          {selection.type === "ASAP" && <Check className="h-4 w-4" />}
-        </span>
-      </button>
+      {schedule && asapAvailable ? (
+        <>
+          <button
+            type="button"
+            onClick={() => onChange({ type: "ASAP" })}
+            className={cn(
+              "flex w-full items-center gap-4 rounded-2xl border-2 p-5 text-left transition-all",
+              selection.type === "ASAP" ? "border-primary bg-brand-wine-soft/60 shadow-sm" : "border-border bg-white hover:border-primary/35",
+            )}
+          >
+            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white"><Zap className="h-5 w-5" /></span>
+            <span className="flex-1">
+              <span className="block font-bold">Earliest Available Pickup</span>
+              <span className="mt-1 block text-sm text-muted-foreground">Dispatch as soon as your order is confirmed.</span>
+            </span>
+            <span className={cn("flex h-6 w-6 items-center justify-center rounded-full border", selection.type === "ASAP" ? "border-primary bg-primary text-white" : "border-muted-foreground/30")}>
+              {selection.type === "ASAP" && <Check className="h-4 w-4" />}
+            </span>
+          </button>
 
-      <div className="relative flex items-center gap-3">
-        <div className="h-px flex-1 bg-border" />
-        <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">or schedule ahead</span>
-        <div className="h-px flex-1 bg-border" />
-      </div>
+          <div className="relative flex items-center gap-3">
+            <div className="h-px flex-1 bg-border" />
+            <span className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">or schedule ahead</span>
+            <div className="h-px flex-1 bg-border" />
+          </div>
+        </>
+      ) : schedule ? (
+        <Alert className="border-brand-maple/35 bg-brand-maple-soft/45">
+          <Clock3 className="h-4 w-4 text-primary" />
+          <AlertDescription className="text-foreground">
+            {asapAvailability === "BEFORE_OPEN" ? (
+              <>
+                We’re not open yet. Please select one of today’s pickup windows
+                {scheduleToday?.opensAt ? `, beginning at ${formatAtlanticTime(scheduleToday.opensAt)}.` : "."}
+              </>
+            ) : (
+              <>
+                Same-day pickup is no longer available today. Please select a pickup window
+                {nextAvailableDay
+                  ? ` for ${formatDateLabel(nextAvailableDay.date, "weekday")}, ${formatDateLabel(nextAvailableDay.date, "monthDay")}, or another available day.`
+                  : " on the next available working day."}
+              </>
+            )}
+          </AlertDescription>
+        </Alert>
+      ) : null}
 
       {isLoading ? (
         <div className="flex items-center justify-center gap-2 rounded-xl border bg-muted/20 py-12 text-sm text-muted-foreground">
@@ -148,7 +224,7 @@ export function PickupWindowSelection({ selection, onChange, onNext, onBack }: P
       ) : error ? (
         <Alert variant="destructive">
           <AlertDescription className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-            <span>{error} You can still choose the earliest available pickup.</span>
+            <span>{error} Please retry before choosing a pickup time.</span>
             <Button type="button" size="sm" variant="outline" onClick={() => void loadSchedule()}>
               <RefreshCw className="mr-2 h-4 w-4" /> Retry
             </Button>
@@ -224,7 +300,7 @@ export function PickupWindowSelection({ selection, onChange, onNext, onBack }: P
 
       <div className="flex justify-between border-t pt-5">
         <Button variant="outline" onClick={onBack}><ArrowLeft className="mr-2 h-4 w-4" /> Back</Button>
-        <Button onClick={onNext} disabled={!selection}><span>Continue</span><ArrowRight className="ml-2 h-4 w-4" /></Button>
+        <Button onClick={onNext} disabled={!selectionIsValid || isLoading || Boolean(error)}><span>Continue</span><ArrowRight className="ml-2 h-4 w-4" /></Button>
       </div>
     </div>
   )
