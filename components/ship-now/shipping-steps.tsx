@@ -1,4 +1,4 @@
-import { Check, Package, MapPin, Truck, ClipboardList, CreditCard } from "lucide-react"
+import { CalendarClock, Check, Package, MapPin, Truck, ClipboardList, CreditCard } from "lucide-react"
 
 interface ShippingStepsProps {
     currentStep: number
@@ -9,6 +9,7 @@ export function ShippingSteps({ currentStep }: ShippingStepsProps) {
         { name: "Package Details", icon: Package },
         { name: "Pickup Address", icon: MapPin },
         { name: "Delivery Address", icon: Truck },
+        { name: "Pickup Time", icon: CalendarClock },
         { name: "Review", icon: ClipboardList },
         { name: "Payment", icon: CreditCard },
     ]

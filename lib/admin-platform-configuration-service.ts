@@ -15,6 +15,13 @@ import type {
   UpdateLegalDocumentDraftRequest,
   UpdateSocialMediaConfigurationRequest,
 } from "@/types/admin-platform-configuration"
+import type {
+  AdminWorkingHoursResponse,
+  CreateSpecialWorkingHoursRequest,
+  SpecialWorkingHoursResponse,
+  UpdateRegularWorkingHoursRequest,
+  UpdateSpecialWorkingHoursRequest,
+} from "@/types/working-hours"
 
 type ServiceResult<T> = {
   data: T | null
@@ -91,6 +98,59 @@ export async function getAdminPlatformConfiguration(): Promise<ServiceResult<Adm
     method: "GET",
     headers: withJsonHeaders(),
   })
+}
+
+export async function getAdminWorkingHours(): Promise<ServiceResult<AdminWorkingHoursResponse>> {
+  return platformConfigurationFetch<AdminWorkingHoursResponse>("/api/v1/admin/platform-configuration/working-hours", {
+    method: "GET",
+    headers: withJsonHeaders(),
+  })
+}
+
+export async function updateAdminRegularWorkingHours(
+  payload: UpdateRegularWorkingHoursRequest,
+): Promise<ServiceResult<AdminWorkingHoursResponse>> {
+  return platformConfigurationFetch<AdminWorkingHoursResponse>("/api/v1/admin/platform-configuration/working-hours/regular", {
+    method: "PUT",
+    headers: withJsonHeaders(),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createAdminSpecialWorkingHours(
+  payload: CreateSpecialWorkingHoursRequest,
+): Promise<ServiceResult<SpecialWorkingHoursResponse>> {
+  return platformConfigurationFetch<SpecialWorkingHoursResponse>("/api/v1/admin/platform-configuration/working-hours/special", {
+    method: "POST",
+    headers: withJsonHeaders(),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateAdminSpecialWorkingHours(
+  specialWorkingHoursId: string,
+  payload: UpdateSpecialWorkingHoursRequest,
+): Promise<ServiceResult<SpecialWorkingHoursResponse>> {
+  return platformConfigurationFetch<SpecialWorkingHoursResponse>(
+    `/api/v1/admin/platform-configuration/working-hours/special/${encodeURIComponent(specialWorkingHoursId)}`,
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function deleteAdminSpecialWorkingHours(
+  specialWorkingHoursId: string,
+): Promise<ServiceResult<null>> {
+  return platformConfigurationFetch<null>(
+    `/api/v1/admin/platform-configuration/working-hours/special/${encodeURIComponent(specialWorkingHoursId)}`,
+    {
+      method: "DELETE",
+      headers: withJsonHeaders(),
+    },
+  )
 }
 
 export async function getAdminFaqs(): Promise<ServiceResult<AdminFaqResponse[]>> {

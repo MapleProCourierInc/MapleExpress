@@ -2428,6 +2428,18 @@ components:
         customerContact:
           $ref: '#/components/schemas/ShippingOrderCustomerContact'
         priorityDelivery: { type: boolean }
+        pickupWindowStartDateTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional scheduled pickup-window start as an RFC 3339 timestamp with an explicit UTC offset. Omit with pickupWindowEndDateTime for ASAP orders.
+          example: '2026-09-08T15:00:00-03:00'
+        pickupWindowEndDateTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional scheduled pickup-window end as an RFC 3339 timestamp with an explicit UTC offset. Omit with pickupWindowStartDateTime for ASAP orders.
+          example: '2026-09-08T17:00:00-03:00'
         needsAdminAttention:
           type: boolean
           description: Indicates whether this shipping order requires admin review.

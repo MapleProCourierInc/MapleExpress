@@ -1,3 +1,5 @@
+import type { AdminWorkingHoursResponse } from "@/types/working-hours"
+
 export const CONTACT_EMAIL_TYPE_OPTIONS = [
   { value: "SUPPORT_INQUIRIES", label: "Support Inquiries" },
   { value: "GENERAL_INQUIRIES", label: "General Inquiries" },
@@ -129,6 +131,7 @@ export type AdminPlatformConfigurationResponse = {
   faqs?: AdminFaqResponse[] | null
   socialMediaProfiles?: AdminSocialMediaProfileResponse[] | null
   legalDocuments?: AdminLegalDocumentResponse[] | null
+  workingHours?: AdminWorkingHoursResponse | null
 }
 
 export type CreateFaqRequest = {

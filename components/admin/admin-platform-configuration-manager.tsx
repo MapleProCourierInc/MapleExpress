@@ -33,6 +33,7 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
+import { AdminWorkingHoursManager } from "@/components/admin/working-hours-manager"
 import type { S3UploadType } from "@/types/aws-s3"
 import type {
   ActivateLegalDocumentRequest,
@@ -51,6 +52,7 @@ import type {
   UpdateLegalDocumentDraftRequest,
   UpdateSocialMediaConfigurationRequest,
 } from "@/types/admin-platform-configuration"
+import type { AdminWorkingHoursResponse } from "@/types/working-hours"
 import {
   CONTACT_EMAIL_TYPE_OPTIONS,
   CONTACT_PHONE_TYPE_OPTIONS,
@@ -63,6 +65,8 @@ type Props = {
   initialError: PlatformConfigurationApiError | null
   initialFaqs: AdminFaqResponse[] | null
   initialFaqError: PlatformConfigurationApiError | null
+  initialWorkingHours: AdminWorkingHoursResponse | null
+  initialWorkingHoursError: PlatformConfigurationApiError | null
 }
 
 type AddressForm = {
@@ -464,7 +468,14 @@ function LegalDatePicker({
   )
 }
 
-export function AdminPlatformConfigurationManager({ initialData, initialError, initialFaqs, initialFaqError }: Props) {
+export function AdminPlatformConfigurationManager({
+  initialData,
+  initialError,
+  initialFaqs,
+  initialFaqError,
+  initialWorkingHours,
+  initialWorkingHoursError,
+}: Props) {
   const { toast } = useToast()
   const [config, setConfig] = useState(initialData)
   const [loadError, setLoadError] = useState(initialError?.message || "")
@@ -1018,7 +1029,7 @@ export function AdminPlatformConfigurationManager({ initialData, initialError, i
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Platform Configuration</h1>
-          <p className="text-muted-foreground">Manage website FAQs, contact details, social profiles, and legal-document versions.</p>
+          <p className="text-muted-foreground">Manage website content, contact details, working hours, social profiles, and legal-document versions.</p>
         </div>
         <Button variant="outline" onClick={() => refreshConfig()} disabled={busyAction === "refresh"}>
           <RefreshCw className={`mr-2 h-4 w-4 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
@@ -1035,8 +1046,9 @@ export function AdminPlatformConfigurationManager({ initialData, initialError, i
       )}
 
       <Tabs defaultValue="contact" className="space-y-4">
-        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-4 md:w-auto">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-5 md:w-auto">
           <TabsTrigger value="contact">Contact</TabsTrigger>
+          <TabsTrigger value="hours">Working Hours</TabsTrigger>
           <TabsTrigger value="social">Social Media</TabsTrigger>
           <TabsTrigger value="faqs">FAQs</TabsTrigger>
           <TabsTrigger value="legal">Legal Documents</TabsTrigger>
@@ -1334,6 +1346,10 @@ export function AdminPlatformConfigurationManager({ initialData, initialError, i
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="hours" className="space-y-4">
+          <AdminWorkingHoursManager initialData={initialWorkingHours} initialError={initialWorkingHoursError} />
         </TabsContent>
 
         <TabsContent value="social" className="space-y-4">

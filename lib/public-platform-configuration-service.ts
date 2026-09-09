@@ -10,6 +10,7 @@ import type {
   PublicPlatformConfigurationApiError,
   PublicSocialMediaProfile,
 } from "@/types/platform-configuration"
+import type { NextSevenDaysWorkingHoursResponse } from "@/types/working-hours"
 
 type ServiceResult<T> = {
   data: T | null
@@ -74,6 +75,10 @@ export function getPublicPlatformContactConfiguration() {
 
 export function getPublicFaqs() {
   return publicPlatformFetch<PublicFaq[]>("/api/v1/public/platform-configuration/faqs")
+}
+
+export function getPublicWorkingHours() {
+  return publicPlatformFetch<NextSevenDaysWorkingHoursResponse>("/api/v1/public/platform-configuration/working-hours")
 }
 
 export function getPublicPlatformSocialMediaProfiles() {

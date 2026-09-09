@@ -4,6 +4,7 @@ import type {
 } from "@/components/ship-now/ship-now-form";
 
 import { apiFetch } from "@/lib/client-api";
+import type { PickupWindowSelection } from "@/types/working-hours";
 
 // Define the API response types based on the actual response format
 export interface OrderResponse {
@@ -15,6 +16,8 @@ export interface OrderResponse {
     email: string;
   };
   priorityDelivery: boolean;
+  pickupWindowStartDateTime?: string | null;
+  pickupWindowEndDateTime?: string | null;
   isFragile?: boolean;
   orderStatus: string;
   paymentStatus: string;
@@ -199,6 +202,8 @@ export interface ShippingOrder {
     email?: string | null;
   } | null;
   priorityDelivery?: boolean | null;
+  pickupWindowStartDateTime?: string | null;
+  pickupWindowEndDateTime?: string | null;
   orderStatus?: string | null;
   assignedDriverId?: string | null;
   paymentStatus?: string | null;
@@ -285,6 +290,8 @@ interface OrderRequestItem {
 interface OrderRequest {
   customerId: string;
   priorityDelivery: boolean;
+  pickupWindowStartDateTime?: string;
+  pickupWindowEndDateTime?: string;
   isFragile?: boolean;
   orderItems: OrderRequestItem[];
   shippingOrderId?: string;
@@ -309,6 +316,7 @@ export async function createDraftOrder(
   userId: string,
   priorityDelivery = false,
   existingOrderId?: string,
+  pickupWindow?: PickupWindowSelection,
 ): Promise<OrderResponse> {
   try {
     if (!userId) {
@@ -321,6 +329,7 @@ export async function createDraftOrder(
       userId,
       priorityDelivery,
       existingOrderId,
+      pickupWindow,
     );
 
     console.log(
@@ -362,6 +371,7 @@ function formatOrderRequest(
   userId: string,
   priorityDelivery: boolean,
   existingOrderId?: string,
+  pickupWindow?: PickupWindowSelection,
 ): OrderRequest {
   // Format the order items
   const orderItems = order.packages.map((pkg) => {
@@ -396,6 +406,11 @@ function formatOrderRequest(
     isFragile: orderItems.some((item) => item.isFragile),
     orderItems,
   };
+
+  if (pickupWindow?.type === "SCHEDULED") {
+    requestBody.pickupWindowStartDateTime = pickupWindow.startDateTime;
+    requestBody.pickupWindowEndDateTime = pickupWindow.endDateTime;
+  }
 
   // If updating an existing order, include the shippingOrderId
   if (existingOrderId) {

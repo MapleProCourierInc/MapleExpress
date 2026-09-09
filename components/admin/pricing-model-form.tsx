@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea"
 import type {
   CreatePricingV2Request,
   PricingV2DistanceSlab,
+  PricingV2Model,
   PricingV2PackageSlab,
   PricingV2SignatureRequiredFee,
   PricingV2Surcharge,
@@ -110,6 +111,32 @@ export const emptyPricingTemplate: CreatePricingV2Request = {
 }
 
 export const freshPricingTemplate = () => structuredClone(emptyPricingTemplate)
+
+export function pricingTemplateFromModel(source: PricingV2Model): CreatePricingV2Request {
+  const template = freshPricingTemplate()
+
+  return {
+    ...template,
+    name: "",
+    description: null,
+    pricingType: blankPricingType,
+    ownerId: null,
+    zoneCode: "",
+    zoneDisplayName: null,
+    currency: "",
+    effectiveFrom: null,
+    effectiveTo: null,
+    dimensionalWeight: structuredClone(source.dimensionalWeight),
+    chargeableWeight: structuredClone(source.chargeableWeight),
+    packageSlabs: structuredClone(source.packageSlabs),
+    distancePricing: structuredClone(source.distancePricing),
+    surcharges: structuredClone(source.surcharges),
+    signatureRequiredFee: structuredClone(source.signatureRequiredFee),
+    taxes: structuredClone(source.taxes),
+    customQuoteRules: structuredClone(source.customQuoteRules),
+    rounding: structuredClone(source.rounding),
+  }
+}
 
 const nullableNumber = (value: string) => value === "" ? null : Number(value)
 const textOrNull = (value: string) => value.trim() ? value : null
@@ -481,13 +508,17 @@ export function PricingModelForm({ value, onChange }: { value: CreatePricingV2Re
                   }
                 >
                   <SelectTrigger><SelectValue placeholder="Select calculation" /></SelectTrigger>
-                  <SelectContent><SelectItem value="FLAT">Flat</SelectItem><SelectItem value="PERCENTAGE">Percentage</SelectItem></SelectContent>
+                  <SelectContent>
+                    <SelectItem value="FLAT">Flat</SelectItem>
+                    <SelectItem value="PER_KM">Per km</SelectItem>
+                    <SelectItem value="PERCENTAGE">Percentage</SelectItem>
+                  </SelectContent>
                 </Select>
               </Field>
               {rushPriority.calculationType === "PERCENTAGE" ? (
                 <>
                   <Field label="Percentage"><NumberInput value={rushPriority.percentage} onChange={(next) => setRushPriority((rule) => { rule.percentage = next })} /></Field>
-                  <Field label="Percentage base"><PercentageBaseSelect value={rushPriority.percentageBase || "SUBTOTAL"} onChange={(base) => setRushPriority((rule) => { rule.percentageBase = base })} /></Field>
+                  <Field label="Percentage base"><SurchargePercentageBaseSelect value={surchargePercentageBase(rushPriority.percentageBase)} onChange={(base) => setRushPriority((rule) => { rule.percentageBase = base })} /></Field>
                 </>
               ) : (
                 <Field label="Amount"><NumberInput value={rushPriority.amount} onChange={(next) => setRushPriority((rule) => { rule.amount = next })} /></Field>
@@ -555,16 +586,20 @@ export function PricingModelForm({ value, onChange }: { value: CreatePricingV2Re
                     }
                   >
                     <SelectTrigger><SelectValue placeholder="Select calculation" /></SelectTrigger>
-                    <SelectContent><SelectItem value="FLAT">Flat</SelectItem><SelectItem value="PERCENTAGE">Percentage</SelectItem></SelectContent>
+                    <SelectContent>
+                      <SelectItem value="FLAT">Flat</SelectItem>
+                      <SelectItem value="PER_KM">Per km</SelectItem>
+                      <SelectItem value="PERCENTAGE">Percentage</SelectItem>
+                    </SelectContent>
                   </Select>
                 </Field>
-                {rule.calculationType === "FLAT" ? (
-                  <Field label="Amount"><NumberInput value={rule.amount} onChange={(next) => setSurcharge(index, (item) => { item.amount = next })} /></Field>
-                ) : (
+                {rule.calculationType === "PERCENTAGE" ? (
                   <>
                     <Field label="Percentage"><NumberInput value={rule.percentage} onChange={(next) => setSurcharge(index, (item) => { item.percentage = next })} /></Field>
-                    <Field label="Percentage base"><PercentageBaseSelect value={rule.percentageBase || "SUBTOTAL"} onChange={(base) => setSurcharge(index, (item) => { item.percentageBase = base })} /></Field>
+                    <Field label="Percentage base"><SurchargePercentageBaseSelect value={surchargePercentageBase(rule.percentageBase)} onChange={(base) => setSurcharge(index, (item) => { item.percentageBase = base })} /></Field>
                   </>
+                ) : (
+                  <Field label="Amount"><NumberInput value={rule.amount} onChange={(next) => setSurcharge(index, (item) => { item.amount = next })} /></Field>
                 )}
                 {rule.triggerType === "SERVICE_TYPE" || rule.triggerType === "CUSTOMER_TYPE" ? (
                   <Field label={rule.triggerType === "CUSTOMER_TYPE" ? "Customer type value" : "Service type value"}>
@@ -669,6 +704,30 @@ function PercentageBaseSelect({
         <SelectItem value="BASE_PACKAGE_PRICE">Base package price</SelectItem>
         <SelectItem value="DISTANCE_CHARGE">Distance charge</SelectItem>
         <SelectItem value="PRE_TAX_TOTAL">Pre-tax total</SelectItem>
+      </SelectContent>
+    </Select>
+  )
+}
+
+type SurchargePercentageBase = "SUBTOTAL" | "BASE_PACKAGE_PRICE"
+
+function surchargePercentageBase(value: PricingV2Surcharge["percentageBase"]): SurchargePercentageBase {
+  return value === "BASE_PACKAGE_PRICE" ? value : "SUBTOTAL"
+}
+
+function SurchargePercentageBaseSelect({
+  value,
+  onChange,
+}: {
+  value: SurchargePercentageBase
+  onChange: (value: SurchargePercentageBase) => void
+}) {
+  return (
+    <Select value={value} onValueChange={onChange}>
+      <SelectTrigger><SelectValue /></SelectTrigger>
+      <SelectContent>
+        <SelectItem value="SUBTOTAL">Subtotal</SelectItem>
+        <SelectItem value="BASE_PACKAGE_PRICE">Base package price</SelectItem>
       </SelectContent>
     </Select>
   )

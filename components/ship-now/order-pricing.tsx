@@ -69,6 +69,7 @@ export function OrderPricing({
 
   const currency = orderData.aggregatedPricing.currency || "CAD"
   const quoteRequired = orderData.aggregatedPricing.customQuoteRequired
+  const hasScheduledPickup = Boolean(orderData.pickupWindowStartDateTime && orderData.pickupWindowEndDateTime)
   const isBusy = isLoading || isUpdatingPriority || removingPackageIndex !== null || isRequestingQuote
 
   useEffect(() => {
@@ -352,7 +353,7 @@ export function OrderPricing({
                   </span>
                 </div>
 
-                {!quoteRequired && (
+                {!quoteRequired && !hasScheduledPickup && (
                   <div className="ship-now-summary-detail-cell flex items-center justify-between gap-3 p-3 rounded-md">
                     <div className="flex items-center space-x-2">
                       <Switch

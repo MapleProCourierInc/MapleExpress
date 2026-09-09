@@ -35,7 +35,7 @@ export interface PricingV2Surcharge {
   startTime: string | null
   endTime: string | null
   timezone: string | null
-  calculationType: "FLAT" | "PERCENTAGE"
+  calculationType: "FLAT" | "PER_KM" | "PERCENTAGE"
   amount: number | null
   percentage: number | null
   percentageBase: PricingV2PercentageBase | null
