@@ -13,6 +13,7 @@ import {
   FileText,
   LifeBuoy,
   Map,
+  PackageSearch,
   PanelLeftClose,
   PanelLeftOpen,
   RefreshCcw,
@@ -24,6 +25,7 @@ import {
 
 const navItems = [
   { href: "/admin/drivers", label: "Drivers", icon: Truck, disabled: false },
+  { href: "/admin/orders", label: "Orders", icon: PackageSearch, disabled: false },
   { href: "/admin/order-fulfillments", label: "Fulfilments", icon: ClipboardList, disabled: false },
   { href: "/admin/customers", label: "Users", icon: Users, disabled: false },
   { href: "/admin/pricing", label: "Pricing", icon: BadgeDollarSign, disabled: false },
