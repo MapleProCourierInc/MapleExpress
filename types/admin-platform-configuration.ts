@@ -1,3 +1,5 @@
+import type { AdminWorkingHoursResponse } from "@/types/working-hours"
+
 export const CONTACT_EMAIL_TYPE_OPTIONS = [
   { value: "SUPPORT_INQUIRIES", label: "Support Inquiries" },
   { value: "GENERAL_INQUIRIES", label: "General Inquiries" },
@@ -109,6 +111,16 @@ export type AdminLegalDocumentResponse = {
   archivedBy?: string | null
 }
 
+export type AdminFaqResponse = {
+  faqId: string
+  question: string
+  answer: string
+  createdAt?: string | null
+  createdBy?: string | null
+  updatedAt?: string | null
+  updatedBy?: string | null
+}
+
 export type AdminPlatformConfigurationResponse = {
   id?: string | null
   mongoVersion?: number | null
@@ -116,8 +128,20 @@ export type AdminPlatformConfigurationResponse = {
   updatedAt?: string | null
   updatedBy?: string | null
   contact?: ContactConfigurationResponse | null
+  faqs?: AdminFaqResponse[] | null
   socialMediaProfiles?: AdminSocialMediaProfileResponse[] | null
   legalDocuments?: AdminLegalDocumentResponse[] | null
+  workingHours?: AdminWorkingHoursResponse | null
+}
+
+export type CreateFaqRequest = {
+  question: string
+  answer: string
+}
+
+export type UpdateFaqRequest = {
+  question?: string
+  answer?: string
 }
 
 export type UpdateContactConfigurationRequest = {

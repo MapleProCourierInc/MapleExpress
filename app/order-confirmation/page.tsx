@@ -1,6 +1,6 @@
 "use client"
 
-import { Suspense, useEffect, useState } from "react"
+import { Suspense } from "react"
 import { useRouter, useSearchParams } from "next/navigation"
 import { Header } from "@/components/shared/header"
 import { Footer } from "@/components/shared/footer"
@@ -8,29 +8,40 @@ import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { CheckCircle2, Clock3, Home, Mail, PackageCheck, Send } from "lucide-react"
 
-function formatPickupWindow(createdAt: string) {
-  const createdDate = new Date(createdAt)
-  if (Number.isNaN(createdDate.getTime())) return null
+function formatPickupWindow(startDateTime: string, endDateTime: string) {
+  const pickupStart = new Date(startDateTime)
+  const pickupEnd = new Date(endDateTime)
+  if (Number.isNaN(pickupStart.getTime()) || Number.isNaN(pickupEnd.getTime())) return null
 
-  const pickupStart = new Date(createdDate.getTime() + 30 * 60 * 1000)
-  const pickupEnd = new Date(createdDate.getTime() + 90 * 60 * 1000)
   const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Halifax",
     weekday: "long",
     month: "long",
     day: "numeric",
   })
   const timeFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Halifax",
     hour: "numeric",
     minute: "2-digit",
   })
 
-  if (pickupStart.toDateString() === pickupEnd.toDateString()) {
-    return `${dateFormatter.format(pickupStart)}, ${timeFormatter.format(pickupStart)} and ${timeFormatter.format(pickupEnd)}`
+  if (dateFormatter.format(pickupStart) === dateFormatter.format(pickupEnd)) {
+    return `${dateFormatter.format(pickupStart)}, ${timeFormatter.format(pickupStart)} – ${timeFormatter.format(pickupEnd)}`
   }
 
-  return `${dateFormatter.format(pickupStart)} at ${timeFormatter.format(pickupStart)} and ${dateFormatter.format(
+  return `${dateFormatter.format(pickupStart)} at ${timeFormatter.format(pickupStart)} – ${dateFormatter.format(
     pickupEnd,
   )} at ${timeFormatter.format(pickupEnd)}`
+}
+
+function formatEstimatedPickupWindow(createdAt: string) {
+  const createdDate = new Date(createdAt)
+  if (Number.isNaN(createdDate.getTime())) return null
+
+  return formatPickupWindow(
+    new Date(createdDate.getTime() + 30 * 60 * 1000).toISOString(),
+    new Date(createdDate.getTime() + 90 * 60 * 1000).toISOString(),
+  )
 }
 
 function OrderConfirmationContent() {
@@ -41,11 +52,13 @@ function OrderConfirmationContent() {
   const totalAmount = searchParams.get("total")
   const itemCount = searchParams.get("items")
   const createdAt = searchParams.get("createdAt")
-  const [pickupWindow, setPickupWindow] = useState<string | null>(null)
-
-  useEffect(() => {
-    setPickupWindow(createdAt ? formatPickupWindow(createdAt) : null)
-  }, [createdAt])
+  const pickupWindowStartDateTime = searchParams.get("pickupWindowStartDateTime")
+  const pickupWindowEndDateTime = searchParams.get("pickupWindowEndDateTime")
+  const selectedPickupWindow =
+    pickupWindowStartDateTime && pickupWindowEndDateTime
+      ? formatPickupWindow(pickupWindowStartDateTime, pickupWindowEndDateTime)
+      : null
+  const estimatedPickupWindow = !selectedPickupWindow && createdAt ? formatEstimatedPickupWindow(createdAt) : null
 
   const parsedTotal = totalAmount ? Number.parseFloat(totalAmount) : Number.NaN
   const formattedTotal = Number.isFinite(parsedTotal)
@@ -95,11 +108,15 @@ function OrderConfirmationContent() {
                   <div className="flex items-start gap-3">
                     <Clock3 className="mt-0.5 h-5 w-5 shrink-0 text-primary" />
                     <div>
-                      <h2 className="font-semibold text-gray-800">Estimated pickup window</h2>
+                      <h2 className="font-semibold text-gray-800">
+                        {selectedPickupWindow ? "Your selected pickup window" : "Estimated pickup window"}
+                      </h2>
                       <p className="mt-1 text-sm leading-6 text-muted-foreground">
-                        {pickupWindow
-                          ? `Your driver may arrive between ${pickupWindow}.`
-                          : "We are scheduling your pickup and will confirm the timing by email."}{" "}
+                        {selectedPickupWindow
+                          ? `We’ll pick up your shipment during your selected window: ${selectedPickupWindow} Atlantic time.`
+                          : estimatedPickupWindow
+                            ? `Your driver may arrive between ${estimatedPickupWindow}.`
+                            : "We are scheduling your pickup and will confirm the timing by email."}{" "}
                         Please have every package securely packed and labelled before the pickup window begins.
                       </p>
                     </div>

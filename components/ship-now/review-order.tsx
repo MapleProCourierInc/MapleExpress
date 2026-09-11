@@ -5,10 +5,13 @@ import { Card, CardContent } from "@/components/ui/card"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Label } from "@/components/ui/label"
 import type { PackageItem, ShippingOrder } from "@/components/ship-now/ship-now-form"
-import { Package, MapPin, Truck, Loader2, Edit, Trash2 } from "lucide-react"
+import type { PickupWindowSelection } from "@/types/working-hours"
+import { formatAtlanticTime } from "@/lib/halifax-datetime"
+import { CalendarClock, Package, MapPin, Truck, Loader2, Edit, Trash2 } from "lucide-react"
 
 interface ReviewOrderProps {
     order: ShippingOrder
+    pickupWindow: PickupWindowSelection
     onSubmit: () => void
     onBack: () => void
     onEditPackage: (packageIndex: number) => void
@@ -20,6 +23,7 @@ interface ReviewOrderProps {
 
 export function ReviewOrder({
                                 order,
+                                pickupWindow,
                                 onSubmit,
                                 onBack,
                                 onEditPackage,
@@ -32,10 +36,28 @@ export function ReviewOrder({
         <div className="space-y-6">
             <div className="text-center mb-6">
                 <h1 className="text-2xl font-bold">Review Your Order</h1>
-                <p className="text-muted-foreground mt-2">Please review your shipping details before submitting</p>
+                <p className="text-muted-foreground mt-2">Review your shipping details before checking the price.</p>
             </div>
 
             <div className="space-y-6">
+                {pickupWindow.type === "SCHEDULED" && (
+                    <Card className="overflow-hidden border-primary/20 bg-brand-wine-soft/45">
+                        <CardContent className="flex items-center gap-4 p-5">
+                            <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-primary text-white">
+                                <CalendarClock className="h-5 w-5" />
+                            </span>
+                            <div>
+                                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-primary">Scheduled pickup</p>
+                                <p className="mt-1 font-bold">
+                                    {new Intl.DateTimeFormat("en-CA", { timeZone: "America/Halifax", weekday: "long", month: "long", day: "numeric" }).format(new Date(pickupWindow.startDateTime))}
+                                </p>
+                                <p className="mt-0.5 text-sm text-muted-foreground">
+                                    {formatAtlanticTime(pickupWindow.startDateTime)} – {formatAtlanticTime(pickupWindow.endDateTime)} Atlantic time
+                                </p>
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
                 <div>
                     <div className="flex items-center justify-between mb-3">
                         <h2 className="text-lg font-semibold flex items-center gap-2">
@@ -204,10 +226,10 @@ export function ReviewOrder({
                     {isSubmitting ? (
                         <>
                             <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                            Submitting Order...
+                            Calculating Pricing...
                         </>
                     ) : (
-                        "Submit Order"
+                        "See Pricing"
                     )}
                 </Button>
             </div>

@@ -9,6 +9,7 @@ import {
   ExternalLink,
   FilePlus2,
   Loader2,
+  Pencil,
   Plus,
   RefreshCw,
   Save,
@@ -32,13 +33,16 @@ import { Switch } from "@/components/ui/switch"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
+import { AdminWorkingHoursManager } from "@/components/admin/working-hours-manager"
 import type { S3UploadType } from "@/types/aws-s3"
 import type {
   ActivateLegalDocumentRequest,
+  AdminFaqResponse,
   AdminLegalDocumentResponse,
   AdminPlatformConfigurationResponse,
   ContactEmailType,
   ContactPhoneType,
+  CreateFaqRequest,
   CreateLegalDocumentVersionRequest,
   LegalDocumentStatus,
   LegalDocumentType,
@@ -48,6 +52,7 @@ import type {
   UpdateLegalDocumentDraftRequest,
   UpdateSocialMediaConfigurationRequest,
 } from "@/types/admin-platform-configuration"
+import type { AdminWorkingHoursResponse } from "@/types/working-hours"
 import {
   CONTACT_EMAIL_TYPE_OPTIONS,
   CONTACT_PHONE_TYPE_OPTIONS,
@@ -58,6 +63,10 @@ import {
 type Props = {
   initialData: AdminPlatformConfigurationResponse | null
   initialError: PlatformConfigurationApiError | null
+  initialFaqs: AdminFaqResponse[] | null
+  initialFaqError: PlatformConfigurationApiError | null
+  initialWorkingHours: AdminWorkingHoursResponse | null
+  initialWorkingHoursError: PlatformConfigurationApiError | null
 }
 
 type AddressForm = {
@@ -87,6 +96,11 @@ type SocialProfileForm = {
 }
 
 type SocialForm = Record<SocialMediaPlatform, SocialProfileForm>
+
+type FaqForm = {
+  question: string
+  answer: string
+}
 
 type LegalDraftForm = {
   title: string
@@ -157,6 +171,8 @@ const freshLegalForm = (): CreateLegalDocumentVersionRequest => ({
   documentUrl: "",
   changeSummary: "",
 })
+
+const freshFaqForm = (): FaqForm => ({ question: "", answer: "" })
 
 function formatDate(value?: string | null) {
   if (!value) return "-"
@@ -452,7 +468,14 @@ function LegalDatePicker({
   )
 }
 
-export function AdminPlatformConfigurationManager({ initialData, initialError }: Props) {
+export function AdminPlatformConfigurationManager({
+  initialData,
+  initialError,
+  initialFaqs,
+  initialFaqError,
+  initialWorkingHours,
+  initialWorkingHoursError,
+}: Props) {
   const { toast } = useToast()
   const [config, setConfig] = useState(initialData)
   const [loadError, setLoadError] = useState(initialError?.message || "")
@@ -463,6 +486,11 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
   const [newPhoneType, setNewPhoneType] = useState<ContactPhoneType | "">("")
   const [newPhoneValue, setNewPhoneValue] = useState("")
   const [socialForm, setSocialForm] = useState(() => socialFormFromConfig(initialData))
+  const [faqs, setFaqs] = useState<AdminFaqResponse[]>(() => initialFaqs || initialData?.faqs || [])
+  const [faqLoadError, setFaqLoadError] = useState(initialFaqError?.message || "")
+  const [faqForm, setFaqForm] = useState<FaqForm>(() => freshFaqForm())
+  const [editingFaqId, setEditingFaqId] = useState<string | null>(null)
+  const [editingFaqForm, setEditingFaqForm] = useState<FaqForm>(() => freshFaqForm())
   const [legalForm, setLegalForm] = useState(() => freshLegalForm())
   const [legalCreateUpload, setLegalCreateUpload] = useState<LegalUploadState>(() => emptyLegalUploadState())
   const [draftUploadStates, setDraftUploadStates] = useState<Record<string, LegalUploadState>>({})
@@ -599,21 +627,35 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
 
   const refreshConfig = async (silent = false) => {
     setBusyAction("refresh")
-    const response = await apiFetch("/api/admin/platform-configuration")
+    const [response, faqResponse] = await Promise.all([
+      apiFetch("/api/admin/platform-configuration"),
+      apiFetch("/api/admin/platform-configuration/faqs"),
+    ])
     setBusyAction(null)
 
+    let configurationLoaded = true
     if (!response.ok) {
       const message = await readSummary(response, "Failed to fetch platform configuration")
       setLoadError(message)
       if (!silent) toast({ title: "Unable to refresh configuration", description: message, variant: "destructive" })
-      return false
+      configurationLoaded = false
+    } else {
+      const payload = (await response.json()) as AdminPlatformConfigurationResponse
+      setConfig(payload)
+      setLoadError("")
     }
 
-    const payload = (await response.json()) as AdminPlatformConfigurationResponse
-    setConfig(payload)
-    setLoadError("")
-    if (!silent) toast({ title: "Configuration refreshed" })
-    return true
+    if (!faqResponse.ok) {
+      const message = await readSummary(faqResponse, "Failed to fetch FAQs")
+      setFaqLoadError(message)
+      if (!silent) toast({ title: "Unable to refresh FAQs", description: message, variant: "destructive" })
+    } else {
+      setFaqs((await faqResponse.json()) as AdminFaqResponse[])
+      setFaqLoadError("")
+    }
+
+    if (!silent && configurationLoaded && faqResponse.ok) toast({ title: "Configuration refreshed" })
+    return configurationLoaded
   }
 
   const saveContact = async () => {
@@ -704,6 +746,113 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
 
     setConfig((await response.json()) as AdminPlatformConfigurationResponse)
     toast({ title: "Social-media configuration saved" })
+  }
+
+  const createFaq = async () => {
+    const payload: CreateFaqRequest = {
+      question: faqForm.question.trim(),
+      answer: faqForm.answer.trim(),
+    }
+
+    if (!payload.question || !payload.answer) {
+      toast({
+        title: "Question and answer are required",
+        description: "Complete both fields before adding the FAQ.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setBusyAction("faq-create")
+    const response = await apiFetch("/api/admin/platform-configuration/faqs", {
+      method: "POST",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    })
+    setBusyAction(null)
+
+    if (!response.ok) {
+      toast({
+        title: "Unable to add FAQ",
+        description: await readSummary(response, "FAQ creation failed"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    const createdFaq = (await response.json()) as AdminFaqResponse
+    setFaqs((current) => [...current, createdFaq])
+    setFaqForm(freshFaqForm())
+    setFaqLoadError("")
+    toast({ title: "FAQ added" })
+  }
+
+  const startEditingFaq = (faq: AdminFaqResponse) => {
+    setEditingFaqId(faq.faqId)
+    setEditingFaqForm({ question: faq.question, answer: faq.answer })
+  }
+
+  const cancelEditingFaq = () => {
+    setEditingFaqId(null)
+    setEditingFaqForm(freshFaqForm())
+  }
+
+  const updateFaq = async (faqId: string) => {
+    const question = editingFaqForm.question.trim()
+    const answer = editingFaqForm.answer.trim()
+    if (!question || !answer) {
+      toast({
+        title: "Question and answer are required",
+        description: "FAQ fields cannot be left blank.",
+        variant: "destructive",
+      })
+      return
+    }
+
+    setBusyAction(`faq-update-${faqId}`)
+    const response = await apiFetch(`/api/admin/platform-configuration/faqs/${encodeURIComponent(faqId)}`, {
+      method: "PATCH",
+      headers: { Accept: "application/json", "Content-Type": "application/json" },
+      body: JSON.stringify({ question, answer }),
+    })
+    setBusyAction(null)
+
+    if (!response.ok) {
+      toast({
+        title: "Unable to update FAQ",
+        description: await readSummary(response, "FAQ update failed"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    const updatedFaq = (await response.json()) as AdminFaqResponse
+    setFaqs((current) => current.map((faq) => (faq.faqId === faqId ? updatedFaq : faq)))
+    cancelEditingFaq()
+    toast({ title: "FAQ updated" })
+  }
+
+  const deleteFaq = async (faq: AdminFaqResponse) => {
+    if (!window.confirm(`Delete the FAQ “${faq.question}”?`)) return
+
+    setBusyAction(`faq-delete-${faq.faqId}`)
+    const response = await apiFetch(`/api/admin/platform-configuration/faqs/${encodeURIComponent(faq.faqId)}`, {
+      method: "DELETE",
+    })
+    setBusyAction(null)
+
+    if (!response.ok) {
+      toast({
+        title: "Unable to delete FAQ",
+        description: await readSummary(response, "FAQ deletion failed"),
+        variant: "destructive",
+      })
+      return
+    }
+
+    setFaqs((current) => current.filter((item) => item.faqId !== faq.faqId))
+    if (editingFaqId === faq.faqId) cancelEditingFaq()
+    toast({ title: "FAQ deleted" })
   }
 
   const createLegalDocument = async () => {
@@ -880,7 +1029,7 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <h1 className="text-2xl font-bold">Platform Configuration</h1>
-          <p className="text-muted-foreground">Manage public contact details, social profiles, and legal-document versions.</p>
+          <p className="text-muted-foreground">Manage website content, contact details, working hours, social profiles, and legal-document versions.</p>
         </div>
         <Button variant="outline" onClick={() => refreshConfig()} disabled={busyAction === "refresh"}>
           <RefreshCw className={`mr-2 h-4 w-4 ${busyAction === "refresh" ? "animate-spin" : ""}`} />
@@ -897,9 +1046,11 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
       )}
 
       <Tabs defaultValue="contact" className="space-y-4">
-        <TabsList className="grid w-full grid-cols-3 md:w-auto">
+        <TabsList className="grid h-auto w-full grid-cols-2 sm:grid-cols-5 md:w-auto">
           <TabsTrigger value="contact">Contact</TabsTrigger>
+          <TabsTrigger value="hours">Working Hours</TabsTrigger>
           <TabsTrigger value="social">Social Media</TabsTrigger>
+          <TabsTrigger value="faqs">FAQs</TabsTrigger>
           <TabsTrigger value="legal">Legal Documents</TabsTrigger>
         </TabsList>
 
@@ -1197,6 +1348,10 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
           </Card>
         </TabsContent>
 
+        <TabsContent value="hours" className="space-y-4">
+          <AdminWorkingHoursManager initialData={initialWorkingHours} initialError={initialWorkingHoursError} />
+        </TabsContent>
+
         <TabsContent value="social" className="space-y-4">
           <Card>
             <CardHeader>
@@ -1279,6 +1434,172 @@ export function AdminPlatformConfigurationManager({ initialData, initialError }:
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="faqs" className="space-y-4">
+          {faqLoadError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Failed to load FAQs</AlertTitle>
+              <AlertDescription>{faqLoadError}</AlertDescription>
+            </Alert>
+          ) : null}
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Add Website FAQ</CardTitle>
+              <CardDescription>Add a question and answer to the public FAQ page.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="faq-question">Question</Label>
+                <Input
+                  id="faq-question"
+                  value={faqForm.question}
+                  onChange={(event) => setFaqForm((current) => ({ ...current, question: event.target.value }))}
+                  placeholder="What would customers like to know?"
+                  disabled={busyAction === "faq-create"}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="faq-answer">Answer</Label>
+                <Textarea
+                  id="faq-answer"
+                  value={faqForm.answer}
+                  onChange={(event) => setFaqForm((current) => ({ ...current, answer: event.target.value }))}
+                  placeholder="Provide a clear, customer-friendly answer."
+                  rows={4}
+                  disabled={busyAction === "faq-create"}
+                />
+              </div>
+              <div className="flex justify-end">
+                <Button
+                  onClick={createFaq}
+                  disabled={busyAction === "faq-create" || !faqForm.question.trim() || !faqForm.answer.trim()}
+                >
+                  {busyAction === "faq-create" ? (
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  ) : (
+                    <Plus className="mr-2 h-4 w-4" />
+                  )}
+                  Add FAQ
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+
+          <div className="space-y-3">
+            {faqs.length ? (
+              faqs.map((faq, index) => {
+                const isEditing = editingFaqId === faq.faqId
+                const isUpdating = busyAction === `faq-update-${faq.faqId}`
+                const isDeleting = busyAction === `faq-delete-${faq.faqId}`
+
+                return (
+                  <Card key={faq.faqId}>
+                    <CardHeader className="pb-3">
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <div className="flex items-center gap-2">
+                            <Badge variant="secondary">FAQ {index + 1}</Badge>
+                          </div>
+                          {!isEditing ? <CardTitle className="mt-3 text-lg leading-7">{faq.question}</CardTitle> : null}
+                        </div>
+                        {!isEditing ? (
+                          <div className="flex shrink-0 gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => startEditingFaq(faq)}
+                              disabled={isDeleting}
+                            >
+                              <Pencil className="mr-2 h-4 w-4" />
+                              Edit
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => deleteFaq(faq)}
+                              disabled={isDeleting}
+                            >
+                              {isDeleting ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Trash2 className="mr-2 h-4 w-4" />
+                              )}
+                              Delete
+                            </Button>
+                          </div>
+                        ) : null}
+                      </div>
+                    </CardHeader>
+                    <CardContent className="space-y-4">
+                      {isEditing ? (
+                        <>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`faq-question-${faq.faqId}`}>Question</Label>
+                            <Input
+                              id={`faq-question-${faq.faqId}`}
+                              value={editingFaqForm.question}
+                              onChange={(event) =>
+                                setEditingFaqForm((current) => ({ ...current, question: event.target.value }))
+                              }
+                              disabled={isUpdating}
+                            />
+                          </div>
+                          <div className="space-y-1.5">
+                            <Label htmlFor={`faq-answer-${faq.faqId}`}>Answer</Label>
+                            <Textarea
+                              id={`faq-answer-${faq.faqId}`}
+                              value={editingFaqForm.answer}
+                              onChange={(event) =>
+                                setEditingFaqForm((current) => ({ ...current, answer: event.target.value }))
+                              }
+                              rows={5}
+                              disabled={isUpdating}
+                            />
+                          </div>
+                          <div className="flex justify-end gap-2">
+                            <Button type="button" variant="outline" onClick={cancelEditingFaq} disabled={isUpdating}>
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => updateFaq(faq.faqId)}
+                              disabled={isUpdating || !editingFaqForm.question.trim() || !editingFaqForm.answer.trim()}
+                            >
+                              {isUpdating ? (
+                                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                              ) : (
+                                <Save className="mr-2 h-4 w-4" />
+                              )}
+                              Save Changes
+                            </Button>
+                          </div>
+                        </>
+                      ) : (
+                        <p className="whitespace-pre-line text-sm leading-7 text-muted-foreground">{faq.answer}</p>
+                      )}
+
+                      <div className="flex flex-wrap gap-x-6 gap-y-1 border-t pt-3 text-xs text-muted-foreground">
+                        <span>Created {formatDate(faq.createdAt)} by {faq.createdBy || "-"}</span>
+                        <span>Updated {formatDate(faq.updatedAt)} by {faq.updatedBy || "-"}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                )
+              })
+            ) : (
+              <Card>
+                <CardHeader>
+                  <CardTitle>No FAQs configured</CardTitle>
+                  <CardDescription>Add the first question above to publish it on the website.</CardDescription>
+                </CardHeader>
+              </Card>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="legal" className="space-y-4">

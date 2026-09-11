@@ -12,6 +12,7 @@ import {
   type OrderItem,
   type TrackingEvent,
 } from "@/lib/order-service";
+import { ATLANTIC_TIME_ZONE } from "@/lib/halifax-datetime";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -204,6 +205,34 @@ function formatOrderDateTime(value?: string | null) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "N/A";
   return format(date, "MMM d, yyyy, h:mm a");
+}
+
+function formatScheduledPickupWindow(startValue?: string | null, endValue?: string | null) {
+  if (!startValue || !endValue) return null;
+
+  const start = new Date(startValue);
+  const end = new Date(endValue);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end <= start) return null;
+
+  const dateFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ATLANTIC_TIME_ZONE,
+    weekday: "long",
+    month: "long",
+    day: "numeric",
+  });
+  const timeFormatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: ATLANTIC_TIME_ZONE,
+    hour: "numeric",
+    minute: "2-digit",
+  });
+  const startDate = dateFormatter.format(start);
+  const endDate = dateFormatter.format(end);
+
+  if (startDate === endDate) {
+    return `${startDate}, ${timeFormatter.format(start)} – ${timeFormatter.format(end)}`;
+  }
+
+  return `${startDate}, ${timeFormatter.format(start)} – ${endDate}, ${timeFormatter.format(end)}`;
 }
 
 function formatTrackingDate(value?: string | null) {
@@ -740,6 +769,10 @@ export function Shipments() {
   const visibleDocuments = documents.filter((document) => !isPaymentReceipt(document));
   const invoiceDocument = findDocument(documents, "INVOICE");
   const labelDocument = findDocument(documents, "SHIPPING_LABEL");
+  const scheduledPickupWindow = formatScheduledPickupWindow(
+    selectedOrder?.pickupWindowStartDateTime,
+    selectedOrder?.pickupWindowEndDateTime,
+  );
 
   const visibleOrders = useMemo(
     () =>
@@ -972,6 +1005,15 @@ export function Shipments() {
                       Order #{displayOrderId(selectedOrder.shippingOrderId)}
                     </h2>
                     {statusBadge(selectedOrder.orderStatus)}
+                    {scheduledPickupWindow ? (
+                      <Badge
+                        variant="outline"
+                        className="gap-1.5 rounded-md border-primary/20 bg-brand-wine-soft px-2.5 py-1 text-[11px] font-bold uppercase text-primary"
+                      >
+                        <CalendarClock className="h-3.5 w-3.5" />
+                        Scheduled Pickup
+                      </Badge>
+                    ) : null}
                   </div>
                   <p className="mt-2 flex items-center gap-2 text-sm text-slate-500">
                     <MapPin className="h-4 w-4" />
@@ -995,6 +1037,21 @@ export function Shipments() {
               </div>
 
               <div className="space-y-7 p-6">
+                {scheduledPickupWindow ? (
+                  <div className="flex items-start gap-4 rounded-xl border border-primary/15 bg-brand-wine-soft/45 px-5 py-4">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-white text-primary shadow-sm">
+                      <CalendarClock className="h-5 w-5" />
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-primary">Pickup Window</p>
+                      <p className="mt-1 font-semibold text-slate-950">{scheduledPickupWindow}</p>
+                      <p className="mt-1 text-xs text-slate-600">
+                        Your shipment is scheduled for pickup during this selected window. Times are shown in Atlantic time.
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <p className="mb-1 text-[10px] font-bold uppercase text-slate-500">Total Price</p>

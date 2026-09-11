@@ -467,11 +467,14 @@ paths:
       security:
         - bearerAuth: []
       description: |
+        Admin-only testing operation. The bearer JWT must include the `admin_super` authority.
+
         Generates one invoice per billing account from `UNBILLED` billing account charges and `UNBILLED` refund credits in the target calendar month.
         Generation starts from charges, not from ACTIVE billing accounts, so old postpay charges are still invoiced even if an account is now prepaid or disabled.
         Refund credits are rendered as negative invoice line items and reduce current-period totals.
         Credit balance is auto-applied to the new invoice and a `CREDIT_BALANCE` BillingPayment record is created when credit is used.
         Previous unpaid balances are stored separately as `previousBalance` and are not duplicated as invoice line items.
+        For every generated invoice, the billing account's unbilled amount, outstanding amount, credit balance, `lastBilledDate`, and `nextBillingDate` are persisted. `nextBillingDate` is the next configured scheduler execution after generation time.
       parameters:
         - $ref: '#/components/parameters/AuthorizationHeader'
       requestBody:
@@ -487,6 +490,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/MonthlyInvoiceGenerationResult'
+        '400':
+          description: Year/month is incomplete or outside its supported range
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '401':
+          description: Bearer authentication is missing or invalid
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '403':
+          description: Authenticated user does not have the `admin_super` authority
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
   /billingmanagement/internal/invoices/{invoiceId}:
     get:
       summary: Internal invoice detail lookup
@@ -1215,6 +1236,42 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/public/platform-configuration/faqs:
+    get:
+      summary: Get public FAQs
+      operationId: getPublicFaqs
+      tags: [Platform Configuration]
+      description: Returns all FAQ questions and answers for direct display by the public website. No authentication is required.
+      responses:
+        '200':
+          description: FAQs returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/PublicFaqResponse'
+        '500':
+          description: Unexpected server failure
+  /billingmanagement/api/v1/public/platform-configuration/working-hours:
+    get:
+      summary: Get working hours for the next seven days
+      operationId: getNextSevenDaysWorkingHours
+      tags: [Platform Configuration]
+      description: |
+        Returns today and the following six calendar days in `America/Halifax`.
+        Date-specific special hours override the regular weekday schedule. Opening and closing
+        timestamps contain the applicable Atlantic UTC offset (`-03:00` or `-04:00`).
+        This endpoint is public and requires no authentication.
+      responses:
+        '200':
+          description: Compiled seven-day working-hours schedule returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NextSevenDaysWorkingHoursResponse'
+        '500':
+          description: Unexpected server failure
   /billingmanagement/api/v1/public/platform-configuration/social-media:
     get:
       summary: Get enabled public social-media profiles
@@ -1349,12 +1406,226 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/faqs:
+    get:
+      summary: Get all FAQs for administration
+      operationId: getAdminFaqs
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: FAQs including audit metadata returned
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdminFaqResponse'
+        '401':
+          description: Unauthorized
+        '403':
+          description: Authenticated user does not have `admin_super`
+    post:
+      summary: Create FAQ
+      operationId: createFaq
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateFaqRequest'
+      responses:
+        '201':
+          description: FAQ created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFaqResponse'
+        '400':
+          description: Question or answer is blank
+        '401':
+          description: Unauthorized
+        '403':
+          description: Authenticated user does not have `admin_super`
+        '409':
+          description: Concurrent platform-configuration update conflict
+  /billingmanagement/api/v1/admin/platform-configuration/faqs/{faqId}:
+    parameters:
+      - name: faqId
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+    patch:
+      summary: Update FAQ
+      operationId: updateFaq
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateFaqRequest'
+      responses:
+        '200':
+          description: FAQ updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminFaqResponse'
+        '400':
+          description: No fields supplied or a supplied field is blank
+        '401':
+          description: Unauthorized
+        '403':
+          description: Authenticated user does not have `admin_super`
+        '404':
+          description: FAQ not found
+        '409':
+          description: Concurrent platform-configuration update conflict
+    delete:
+      summary: Delete FAQ
+      operationId: deleteFaq
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      responses:
+        '204':
+          description: FAQ deleted
+        '401':
+          description: Unauthorized
+        '403':
+          description: Authenticated user does not have `admin_super`
+        '404':
+          description: FAQ not found
+        '409':
+          description: Concurrent platform-configuration update conflict
         '500':
           description: Unexpected server failure
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /billingmanagement/api/v1/admin/platform-configuration/working-hours:
+    get:
+      summary: Get complete working-hours configuration
+      operationId: getAdminWorkingHours
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Regular and special working-hours configuration returned
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWorkingHoursResponse'
+        '401': { description: Unauthorized }
+        '403': { description: Authenticated user does not have `admin_super` }
+  /billingmanagement/api/v1/admin/platform-configuration/working-hours/regular:
+    put:
+      summary: Replace regular Monday-to-Sunday working hours
+      operationId: updateRegularWorkingHours
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: |
+        All seven weekdays are required. For open days, the frontend sends RFC 3339 timestamps
+        with the explicit UTC offset applicable in `America/Halifax`. The backend validates the
+        offset and stores the recurring local wall-clock time so daylight-saving transitions are
+        applied correctly when future schedules are compiled. The timestamp date is representative;
+        its local time is the recurring value.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRegularWorkingHoursRequest'
+      responses:
+        '200':
+          description: Regular working hours replaced
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminWorkingHoursResponse'
+        '400': { description: Invalid or incomplete weekly schedule }
+        '401': { description: Unauthorized }
+        '403': { description: Authenticated user does not have `admin_super` }
+        '409': { description: Concurrent platform-configuration update conflict }
+  /billingmanagement/api/v1/admin/platform-configuration/working-hours/special:
+    post:
+      summary: Create special-date working hours
+      operationId: createSpecialWorkingHours
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      description: Creates a future-date override for a closure or different opening hours.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateSpecialWorkingHoursRequest'
+      responses:
+        '201':
+          description: Special-date working hours created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialWorkingHoursResponse'
+        '400': { description: Invalid date, hours, or Atlantic UTC offset }
+        '401': { description: Unauthorized }
+        '403': { description: Authenticated user does not have `admin_super` }
+        '409': { description: Override already exists for date or concurrent update conflict }
+  /billingmanagement/api/v1/admin/platform-configuration/working-hours/special/{specialWorkingHoursId}:
+    parameters:
+      - name: specialWorkingHoursId
+        in: path
+        required: true
+        schema: { type: string, format: uuid }
+    patch:
+      summary: Update special-date working hours
+      operationId: updateSpecialWorkingHours
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateSpecialWorkingHoursRequest'
+      responses:
+        '200':
+          description: Special-date working hours updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SpecialWorkingHoursResponse'
+        '400': { description: Invalid date, hours, or Atlantic UTC offset }
+        '401': { description: Unauthorized }
+        '403': { description: Authenticated user does not have `admin_super` }
+        '404': { description: Special working hours not found }
+        '409': { description: Override already exists for date or concurrent update conflict }
+    delete:
+      summary: Delete special-date working hours
+      operationId: deleteSpecialWorkingHours
+      tags: [Admin Platform Configuration]
+      security:
+        - bearerAuth: []
+      responses:
+        '204': { description: Special-date override deleted }
+        '401': { description: Unauthorized }
+        '403': { description: Authenticated user does not have `admin_super` }
+        '404': { description: Special working hours not found }
+        '409': { description: Concurrent platform-configuration update conflict }
   /billingmanagement/api/v1/admin/platform-configuration/contact:
     put:
       summary: Replace public contact configuration
@@ -2244,6 +2515,10 @@ components:
       properties:
         contact:
           $ref: '#/components/schemas/ContactConfigurationResponse'
+        faqs:
+          type: array
+          items:
+            $ref: '#/components/schemas/PublicFaqResponse'
         socialMediaProfiles:
           type: array
           description: Enabled social profiles sorted by `displayOrder`.
@@ -2254,6 +2529,8 @@ components:
           description: Current effective legal documents only.
           items:
             $ref: '#/components/schemas/PublicLegalDocumentResponse'
+        nextSevenDaysWorkingHours:
+          $ref: '#/components/schemas/NextSevenDaysWorkingHoursResponse'
     AdminPlatformConfigurationResponse:
       type: object
       description: Complete admin projection of the singleton platform configuration.
@@ -2284,6 +2561,10 @@ components:
           example: Admin_1
         contact:
           $ref: '#/components/schemas/ContactConfigurationResponse'
+        faqs:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminFaqResponse'
         socialMediaProfiles:
           type: array
           description: Complete social-media profile list, including disabled profiles.
@@ -2294,6 +2575,176 @@ components:
           description: Full legal-document history, including drafts, scheduled, active, expired, and archived versions.
           items:
             $ref: '#/components/schemas/AdminLegalDocumentResponse'
+        workingHours:
+          $ref: '#/components/schemas/AdminWorkingHoursResponse'
+    CreateFaqRequest:
+      type: object
+      required: [question, answer]
+      properties:
+        question:
+          type: string
+          minLength: 1
+          example: How can I track my delivery?
+        answer:
+          type: string
+          minLength: 1
+          example: Use the tracking number from your confirmation email on our tracking page.
+    UpdateFaqRequest:
+      type: object
+      description: At least one property must be supplied. Supplied values cannot be blank.
+      minProperties: 1
+      properties:
+        question:
+          type: string
+          minLength: 1
+        answer:
+          type: string
+          minLength: 1
+    PublicFaqResponse:
+      type: object
+      properties:
+        faqId:
+          type: string
+          format: uuid
+        question:
+          type: string
+        answer:
+          type: string
+    AdminFaqResponse:
+      allOf:
+        - $ref: '#/components/schemas/PublicFaqResponse'
+        - type: object
+          properties:
+            createdAt:
+              type: string
+              format: date-time
+            createdBy:
+              type: string
+            updatedAt:
+              type: string
+              format: date-time
+            updatedBy:
+              type: string
+    UpdateRegularWorkingHoursRequest:
+      type: object
+      required: [regularHours]
+      properties:
+        regularHours:
+          type: object
+          description: Must contain MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, and SUNDAY.
+          additionalProperties:
+            $ref: '#/components/schemas/DayWorkingHoursRequest'
+          example:
+            MONDAY:
+              closed: false
+              opensAt: '2026-09-14T09:00:00-03:00'
+              closesAt: '2026-09-14T17:00:00-03:00'
+            SUNDAY:
+              closed: true
+    DayWorkingHoursRequest:
+      type: object
+      required: [closed]
+      description: Open days require opensAt and closesAt. Closed days must omit both timestamps.
+      properties:
+        closed: { type: boolean }
+        opensAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: RFC 3339 timestamp with the correct America/Halifax offset for its date.
+        closesAt:
+          type: string
+          format: date-time
+          nullable: true
+          description: RFC 3339 timestamp with the correct America/Halifax offset for its date.
+    CreateSpecialWorkingHoursRequest:
+      type: object
+      required: [date, closed]
+      properties:
+        date:
+          type: string
+          format: date
+          description: Future date in America/Halifax.
+          example: '2026-10-12'
+        description:
+          type: string
+          nullable: true
+          example: Labour Day holiday hours
+        closed: { type: boolean }
+        opensAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-10-12T10:00:00-03:00'
+        closesAt:
+          type: string
+          format: date-time
+          nullable: true
+          example: '2026-10-12T14:00:00-03:00'
+    UpdateSpecialWorkingHoursRequest:
+      type: object
+      minProperties: 1
+      properties:
+        date: { type: string, format: date }
+        description: { type: string, nullable: true }
+        closed: { type: boolean }
+        opensAt: { type: string, format: date-time, nullable: true }
+        closesAt: { type: string, format: date-time, nullable: true }
+    RegularWorkingHoursResponse:
+      type: object
+      properties:
+        closed: { type: boolean }
+        opensAt: { type: string, format: time, nullable: true, example: '09:00:00' }
+        closesAt: { type: string, format: time, nullable: true, example: '17:00:00' }
+    SpecialWorkingHoursResponse:
+      type: object
+      properties:
+        specialWorkingHoursId: { type: string, format: uuid }
+        date: { type: string, format: date }
+        description: { type: string, nullable: true }
+        closed: { type: boolean }
+        opensAt: { type: string, format: time, nullable: true }
+        closesAt: { type: string, format: time, nullable: true }
+        createdAt: { type: string, format: date-time }
+        createdBy: { type: string }
+        updatedAt: { type: string, format: date-time }
+        updatedBy: { type: string }
+    AdminWorkingHoursResponse:
+      type: object
+      properties:
+        timeZone: { type: string, example: America/Halifax }
+        regularHours:
+          type: object
+          additionalProperties:
+            $ref: '#/components/schemas/RegularWorkingHoursResponse'
+        specialHours:
+          type: array
+          items:
+            $ref: '#/components/schemas/SpecialWorkingHoursResponse'
+    NextSevenDaysWorkingHoursResponse:
+      type: object
+      properties:
+        timeZone: { type: string, example: America/Halifax }
+        generatedAt:
+          type: string
+          format: date-time
+          example: '2026-09-08T13:00:00-03:00'
+        days:
+          type: array
+          minItems: 7
+          maxItems: 7
+          items:
+            $ref: '#/components/schemas/WorkingHoursDayResponse'
+    WorkingHoursDayResponse:
+      type: object
+      properties:
+        date: { type: string, format: date, example: '2026-09-08' }
+        dayOfWeek: { type: string, enum: [MONDAY, TUESDAY, WEDNESDAY, THURSDAY, FRIDAY, SATURDAY, SUNDAY] }
+        closed: { type: boolean }
+        opensAt: { type: string, format: date-time, nullable: true, example: '2026-09-08T09:00:00-03:00' }
+        closesAt: { type: string, format: date-time, nullable: true, example: '2026-09-08T17:00:00-03:00' }
+        specialHours: { type: boolean }
+        description: { type: string, nullable: true, example: Labour Day holiday hours }
     ContactConfigurationResponse:
       type: object
       properties:
@@ -3101,9 +3552,12 @@ components:
         trackingNumber: { type: string, nullable: true, example: MAPLEX4M2TD0YI }
     GenerateMonthlyInvoicesRequest:
       type: object
+      description: Provide both `year` and `month`, or omit both to generate invoices for the previous UTC calendar month.
       properties:
         year:
           type: integer
+          minimum: 2000
+          maximum: 9999
           example: 2026
         month:
           type: integer
@@ -3137,6 +3591,26 @@ components:
         creditApplied: { type: number, format: decimal }
         amountDue: { type: number, format: decimal }
         totalAccountBalanceDue: { type: number, format: decimal }
+        currentUnbilledAmount:
+          type: number
+          format: decimal
+          description: Billing account unbilled amount after this invoice was generated.
+        totalOutstandingAmount:
+          type: number
+          format: decimal
+          description: Billing account outstanding amount after this invoice was generated.
+        creditBalance:
+          type: number
+          format: decimal
+          description: Billing account credit balance remaining after automatic credit application.
+        lastBilledDate:
+          type: string
+          format: date-time
+          description: Actual UTC time at which this invoice updated the billing account.
+        nextBillingDate:
+          type: string
+          format: date-time
+          description: Next execution of the configured monthly invoice scheduler after `lastBilledDate`.
         lineItemCount: { type: integer }
     BillingPayment:
       type: object

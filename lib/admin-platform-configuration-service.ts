@@ -4,14 +4,24 @@ import { BILLING_MANAGEMENT_SERVICE_URL, getEndpointUrl } from "@/lib/config.ser
 import { authenticatedServerFetch } from "@/lib/server-auth"
 import type {
   ActivateLegalDocumentRequest,
+  AdminFaqResponse,
   AdminLegalDocumentResponse,
   AdminPlatformConfigurationResponse,
+  CreateFaqRequest,
   CreateLegalDocumentVersionRequest,
   PlatformConfigurationApiError,
   UpdateContactConfigurationRequest,
+  UpdateFaqRequest,
   UpdateLegalDocumentDraftRequest,
   UpdateSocialMediaConfigurationRequest,
 } from "@/types/admin-platform-configuration"
+import type {
+  AdminWorkingHoursResponse,
+  CreateSpecialWorkingHoursRequest,
+  SpecialWorkingHoursResponse,
+  UpdateRegularWorkingHoursRequest,
+  UpdateSpecialWorkingHoursRequest,
+} from "@/types/working-hours"
 
 type ServiceResult<T> = {
   data: T | null
@@ -61,8 +71,19 @@ async function parseError(response: Response): Promise<{ error: PlatformConfigur
 }
 
 async function platformConfigurationFetch<T>(endpoint: string, init: RequestInit): Promise<ServiceResult<T>> {
+  const billingServiceUrl = BILLING_MANAGEMENT_SERVICE_URL
+  if (!billingServiceUrl) {
+    return {
+      data: null,
+      error: { status: "500", message: "BILLING_SERVICE_BASE_URL is not configured" },
+      textError: null,
+    }
+  }
+
+  const backendUrl = getEndpointUrl(billingServiceUrl, endpoint)
+
   const response = await authenticatedServerFetch(
-    getEndpointUrl(BILLING_MANAGEMENT_SERVICE_URL, endpoint),
+    backendUrl,
     init,
     { includeIdToken: true },
   )
@@ -88,6 +109,98 @@ export async function getAdminPlatformConfiguration(): Promise<ServiceResult<Adm
     method: "GET",
     headers: withJsonHeaders(),
   })
+}
+
+export async function getAdminWorkingHours(): Promise<ServiceResult<AdminWorkingHoursResponse>> {
+  return platformConfigurationFetch<AdminWorkingHoursResponse>("/api/v1/admin/platform-configuration/working-hours", {
+    method: "GET",
+    headers: withJsonHeaders(),
+  })
+}
+
+export async function updateAdminRegularWorkingHours(
+  payload: UpdateRegularWorkingHoursRequest,
+): Promise<ServiceResult<AdminWorkingHoursResponse>> {
+  return platformConfigurationFetch<AdminWorkingHoursResponse>("/api/v1/admin/platform-configuration/working-hours/regular", {
+    method: "PUT",
+    headers: withJsonHeaders(),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function createAdminSpecialWorkingHours(
+  payload: CreateSpecialWorkingHoursRequest,
+): Promise<ServiceResult<SpecialWorkingHoursResponse>> {
+  return platformConfigurationFetch<SpecialWorkingHoursResponse>("/api/v1/admin/platform-configuration/working-hours/special", {
+    method: "POST",
+    headers: withJsonHeaders(),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateAdminSpecialWorkingHours(
+  specialWorkingHoursId: string,
+  payload: UpdateSpecialWorkingHoursRequest,
+): Promise<ServiceResult<SpecialWorkingHoursResponse>> {
+  return platformConfigurationFetch<SpecialWorkingHoursResponse>(
+    `/api/v1/admin/platform-configuration/working-hours/special/${encodeURIComponent(specialWorkingHoursId)}`,
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function deleteAdminSpecialWorkingHours(
+  specialWorkingHoursId: string,
+): Promise<ServiceResult<null>> {
+  return platformConfigurationFetch<null>(
+    `/api/v1/admin/platform-configuration/working-hours/special/${encodeURIComponent(specialWorkingHoursId)}`,
+    {
+      method: "DELETE",
+      headers: withJsonHeaders(),
+    },
+  )
+}
+
+export async function getAdminFaqs(): Promise<ServiceResult<AdminFaqResponse[]>> {
+  return platformConfigurationFetch<AdminFaqResponse[]>("/api/v1/admin/platform-configuration/faqs", {
+    method: "GET",
+    headers: withJsonHeaders(),
+  })
+}
+
+export async function createAdminFaq(payload: CreateFaqRequest): Promise<ServiceResult<AdminFaqResponse>> {
+  return platformConfigurationFetch<AdminFaqResponse>("/api/v1/admin/platform-configuration/faqs", {
+    method: "POST",
+    headers: withJsonHeaders(),
+    body: JSON.stringify(payload),
+  })
+}
+
+export async function updateAdminFaq(
+  faqId: string,
+  payload: UpdateFaqRequest,
+): Promise<ServiceResult<AdminFaqResponse>> {
+  return platformConfigurationFetch<AdminFaqResponse>(
+    `/api/v1/admin/platform-configuration/faqs/${encodeURIComponent(faqId)}`,
+    {
+      method: "PATCH",
+      headers: withJsonHeaders(),
+      body: JSON.stringify(payload),
+    },
+  )
+}
+
+export async function deleteAdminFaq(faqId: string): Promise<ServiceResult<null>> {
+  return platformConfigurationFetch<null>(
+    `/api/v1/admin/platform-configuration/faqs/${encodeURIComponent(faqId)}`,
+    {
+      method: "DELETE",
+      headers: withJsonHeaders(),
+    },
+  )
 }
 
 export async function updateAdminPlatformContactConfiguration(

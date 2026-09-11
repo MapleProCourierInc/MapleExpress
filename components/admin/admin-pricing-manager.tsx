@@ -2,38 +2,337 @@
 
 import { useMemo, useState } from "react"
 import { useRouter } from "next/navigation"
-import { AlertCircle, CalendarClock, CheckCircle2, CircleDollarSign, Plus, RefreshCw, Rocket } from "lucide-react"
-import { apiFetch } from "@/lib/client-api"
-import { useToast } from "@/hooks/use-toast"
+import {
+  AlertCircle,
+  CalendarClock,
+  CheckCircle2,
+  CircleDollarSign,
+  Copy,
+  Plus,
+  RefreshCw,
+  Rocket,
+} from "lucide-react"
+import { PricingModelDetails } from "@/components/admin/pricing-model-details"
+import {
+  freshPricingTemplate,
+  PricingModelForm,
+  pricingTemplateFromModel,
+} from "@/components/admin/pricing-model-form"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Badge } from "@/components/ui/badge"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { PricingModelDetails } from "@/components/admin/pricing-model-details"
-import { freshPricingTemplate, PricingModelForm } from "@/components/admin/pricing-model-form"
-import type { CreatePricingV2Request, PricingApiError, PricingV2Model, PricingV2Page, PricingV2Status, PricingV2Type } from "@/types/pricing"
+import { useToast } from "@/hooks/use-toast"
+import { apiFetch } from "@/lib/client-api"
+import type {
+  CreatePricingV2Request,
+  PricingApiError,
+  PricingV2Model,
+  PricingV2Page,
+  PricingV2Status,
+  PricingV2Type,
+} from "@/types/pricing"
 
-type Props = { initialData: PricingV2Page | null; initialError: PricingApiError | null }
-const formatDate = (value?: string | null) => value ? new Date(value).toLocaleString() : "—"
-const badgeVariant = (status: PricingV2Status) => status === "ACTIVE" ? "default" : status === "DRAFT" ? "secondary" : "outline"
-async function apiError(response: Response) { const payload = await response.json().catch(() => null) as PricingApiError | null; const details = payload?.errors?.map((error) => `${error.field || "Field"}: ${error.message || "Invalid value"}`).join(" · "); return [payload?.message || `Request failed with ${response.status}`, details].filter(Boolean).join(" ") }
+type Props = {
+  initialData: PricingV2Page | null
+  initialError: PricingApiError | null
+}
 
-function PricingCard({ item, activating, onActivate }: { item: PricingV2Model; activating: boolean; onActivate: (item: PricingV2Model) => void }) {
-  return <Card className={item.status === "ACTIVE" ? "border-primary/50" : ""}><CardHeader className="pb-3"><div className="flex flex-wrap items-start justify-between gap-2"><div><CardTitle className="text-lg">{item.name}</CardTitle><CardDescription>{item.description || "No description"}</CardDescription></div><div className="flex gap-2"><Badge variant={badgeVariant(item.status)}>{item.status}</Badge>{item.isLatest && <Badge variant="outline">Latest</Badge>}</div></div></CardHeader><CardContent className="space-y-3 text-sm"><div className="grid gap-2 md:grid-cols-4"><p><span className="text-muted-foreground">Scope:</span> {item.pricingType}</p><p><span className="text-muted-foreground">Zone:</span> {item.zoneDisplayName || item.zoneCode}</p><p><span className="text-muted-foreground">Version:</span> {item.version}</p><p><span className="text-muted-foreground">Currency:</span> {item.currency}</p></div><PricingModelDetails item={item} /><div className="flex flex-wrap items-center justify-between gap-3 pt-1"><p className="text-muted-foreground">Created {formatDate(item.audit?.createdAt)} by {item.audit?.createdBy || "unknown"}</p>{item.status !== "ACTIVE" && <Button size="sm" onClick={() => onActivate(item)} disabled={activating}><Rocket className="mr-2 h-4 w-4" />{activating ? "Activating..." : "Activate"}</Button>}</div></CardContent></Card>
+const formatDate = (value?: string | null) => (value ? new Date(value).toLocaleString() : "—")
+
+const badgeVariant = (status: PricingV2Status) =>
+  status === "ACTIVE" ? "default" : status === "DRAFT" ? "secondary" : "outline"
+
+async function apiError(response: Response) {
+  const payload = (await response.json().catch(() => null)) as PricingApiError | null
+  const details = payload?.errors
+    ?.map((error) => `${error.field || "Field"}: ${error.message || "Invalid value"}`)
+    .join(" · ")
+  return [payload?.message || `Request failed with ${response.status}`, details].filter(Boolean).join(" ")
+}
+
+function PricingCard({
+  item,
+  activating,
+  onActivate,
+  onUseTemplate,
+}: {
+  item: PricingV2Model
+  activating: boolean
+  onActivate: (item: PricingV2Model) => void
+  onUseTemplate: (item: PricingV2Model) => void
+}) {
+  return (
+    <Card className={item.status === "ACTIVE" ? "border-primary/50" : ""}>
+      <CardHeader className="pb-3">
+        <div className="flex flex-wrap items-start justify-between gap-2">
+          <div>
+            <CardTitle className="text-lg">{item.name}</CardTitle>
+            <CardDescription>{item.description || "No description"}</CardDescription>
+          </div>
+          <div className="flex gap-2">
+            <Badge variant={badgeVariant(item.status)}>{item.status}</Badge>
+            {item.isLatest ? <Badge variant="outline">Latest</Badge> : null}
+          </div>
+        </div>
+      </CardHeader>
+      <CardContent className="space-y-3 text-sm">
+        <div className="grid gap-2 md:grid-cols-4">
+          <p><span className="text-muted-foreground">Scope:</span> {item.pricingType}</p>
+          <p><span className="text-muted-foreground">Zone:</span> {item.zoneDisplayName || item.zoneCode}</p>
+          <p><span className="text-muted-foreground">Version:</span> {item.version}</p>
+          <p><span className="text-muted-foreground">Currency:</span> {item.currency}</p>
+        </div>
+        <PricingModelDetails item={item} />
+        <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+          <p className="text-muted-foreground">
+            Created {formatDate(item.audit?.createdAt)} by {item.audit?.createdBy || "unknown"}
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" onClick={() => onUseTemplate(item)}>
+              <Copy className="mr-2 h-4 w-4" />
+              Use as Template
+            </Button>
+            {item.status !== "ACTIVE" ? (
+              <Button type="button" size="sm" onClick={() => onActivate(item)} disabled={activating}>
+                <Rocket className="mr-2 h-4 w-4" />
+                {activating ? "Activating..." : "Activate"}
+              </Button>
+            ) : null}
+          </div>
+        </div>
+      </CardContent>
+    </Card>
+  )
 }
 
 export function AdminPricingManager({ initialData, initialError }: Props) {
-  const router = useRouter(); const { toast } = useToast()
-  const [open, setOpen] = useState(false); const [form, setForm] = useState<CreatePricingV2Request>(freshPricingTemplate); const [formError, setFormError] = useState("")
-  const [submitting, setSubmitting] = useState(false); const [activatingId, setActivatingId] = useState<string | null>(null); const [refreshing, setRefreshing] = useState(false)
-  const [status, setStatus] = useState<"ALL" | PricingV2Status>("ALL"); const [pricingType, setPricingType] = useState<"ALL" | PricingV2Type>("ALL"); const [search, setSearch] = useState("")
+  const router = useRouter()
+  const { toast } = useToast()
+  const [open, setOpen] = useState(false)
+  const [form, setForm] = useState<CreatePricingV2Request>(freshPricingTemplate)
+  const [formError, setFormError] = useState("")
+  const [templateSource, setTemplateSource] = useState<PricingV2Model | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [activatingId, setActivatingId] = useState<string | null>(null)
+  const [refreshing, setRefreshing] = useState(false)
+  const [status, setStatus] = useState<"ALL" | PricingV2Status>("ALL")
+  const [pricingType, setPricingType] = useState<"ALL" | PricingV2Type>("ALL")
+  const [search, setSearch] = useState("")
+
   const models = initialData?.content || []
-  const filtered = useMemo(() => models.filter((item) => (status === "ALL" || item.status === status) && (pricingType === "ALL" || item.pricingType === pricingType) && `${item.name} ${item.zoneCode} ${item.ownerId || ""}`.toLowerCase().includes(search.toLowerCase())), [models, pricingType, search, status])
-  const refresh = () => { setRefreshing(true); router.refresh(); setTimeout(() => setRefreshing(false), 500) }
-  const submit = async () => { setSubmitting(true); setFormError(""); const response = await apiFetch("/api/admin/pricing", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(form) }); setSubmitting(false); if (!response.ok) { setFormError(await apiError(response)); return }; setOpen(false); setForm(freshPricingTemplate()); toast({ title: "Draft pricing model created", description: "Review quote previews before activating this model." }); router.refresh() }
-  const activate = async (item: PricingV2Model) => { if (!window.confirm(`Activate ${item.name} v${item.version}? This expires the currently active model in the same scope.`)) return; setActivatingId(item.id); const response = await apiFetch(`/api/admin/pricing/${encodeURIComponent(item.id)}/activate`, { method: "POST" }); setActivatingId(null); if (!response.ok) { toast({ variant: "destructive", title: "Activation failed", description: await apiError(response) }); return }; toast({ title: "Pricing model activated", description: `${item.name} v${item.version} is now active.` }); router.refresh() }
-  return <div className="space-y-6"><div className="flex flex-wrap items-start justify-between gap-3"><div><h1 className="text-2xl font-bold">Pricing Models</h1><p className="text-muted-foreground">Create guided V2 pricing drafts, review every configured rule, and activate approved models.</p></div><div className="flex gap-2"><Button variant="outline" onClick={refresh} disabled={refreshing}><RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />Refresh</Button><Dialog open={open} onOpenChange={(value) => { setOpen(value); setFormError(""); if (value) setForm(freshPricingTemplate()) }}><DialogTrigger asChild><Button><Plus className="mr-2 h-4 w-4" />Create Draft</Button></DialogTrigger><DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto"><DialogHeader><DialogTitle>Create V2 pricing draft</DialogTitle><DialogDescription>Complete the guided sections below. Models are always saved as drafts so you can test quotes before activation.</DialogDescription></DialogHeader><PricingModelForm value={form} onChange={setForm} />{formError && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>Could not save draft</AlertTitle><AlertDescription>{formError}</AlertDescription></Alert>}<DialogFooter><Button variant="outline" onClick={() => setOpen(false)} disabled={submitting}>Cancel</Button><Button onClick={submit} disabled={submitting}>{submitting ? "Saving..." : "Save Draft"}</Button></DialogFooter></DialogContent></Dialog></div></div><Alert><CheckCircle2 className="h-4 w-4" /><AlertTitle>Activation checklist</AlertTitle><AlertDescription>Before activation, preview quotes at package and distance boundaries, verify rush, signature-required, other surcharge fees, taxes, and manual-quote outcomes. Activating replaces the active model for the same scope.</AlertDescription></Alert>{initialError && <Alert variant="destructive"><AlertCircle className="h-4 w-4" /><AlertTitle>{initialError.message || "Failed to load pricing"}</AlertTitle><AlertDescription><Button className="mt-2" variant="outline" size="sm" onClick={refresh}>Retry</Button></AlertDescription></Alert>}{!initialError && <><Card><CardContent className="grid gap-3 pt-6 md:grid-cols-[1fr_180px_180px]"><Input placeholder="Search name, zone, or owner" value={search} onChange={(event) => setSearch(event.target.value)} /><Select value={status} onValueChange={(value) => setStatus(value as typeof status)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent>{["ALL", "DRAFT", "ACTIVE", "EXPIRED", "ARCHIVED"].map((value) => <SelectItem key={value} value={value}>{value === "ALL" ? "All statuses" : value}</SelectItem>)}</SelectContent></Select><Select value={pricingType} onValueChange={(value) => setPricingType(value as typeof pricingType)}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="ALL">All scopes</SelectItem><SelectItem value="GLOBAL">Global</SelectItem><SelectItem value="CUSTOMER_SPECIFIC">Customer-specific</SelectItem></SelectContent></Select></CardContent></Card>{filtered.length ? <div className="space-y-3">{filtered.map((item) => <PricingCard key={item.id} item={item} activating={activatingId === item.id} onActivate={activate} />)}</div> : <Card><CardHeader><CardTitle>No pricing models found</CardTitle><CardDescription>Create a quote-safe draft or adjust the filters.</CardDescription></CardHeader></Card>}</>}<div className="flex items-center gap-2 text-sm text-muted-foreground"><CalendarClock className="h-4 w-4" /><span>{initialData?.totalElements || 0} total pricing models</span><CircleDollarSign className="ml-2 h-4 w-4" /></div></div>
+  const filtered = useMemo(
+    () =>
+      models.filter(
+        (item) =>
+          (status === "ALL" || item.status === status) &&
+          (pricingType === "ALL" || item.pricingType === pricingType) &&
+          `${item.name} ${item.zoneCode} ${item.ownerId || ""}`.toLowerCase().includes(search.toLowerCase()),
+      ),
+    [models, pricingType, search, status],
+  )
+
+  const refresh = () => {
+    setRefreshing(true)
+    router.refresh()
+    setTimeout(() => setRefreshing(false), 500)
+  }
+
+  const openBlankDraft = () => {
+    setTemplateSource(null)
+    setForm(freshPricingTemplate())
+    setFormError("")
+    setOpen(true)
+  }
+
+  const openDraftFromTemplate = (item: PricingV2Model) => {
+    setTemplateSource(item)
+    setForm(pricingTemplateFromModel(item))
+    setFormError("")
+    setOpen(true)
+  }
+
+  const closeDraftDialog = () => {
+    setOpen(false)
+    setFormError("")
+    setTemplateSource(null)
+  }
+
+  const submit = async () => {
+    setSubmitting(true)
+    setFormError("")
+    const response = await apiFetch("/api/admin/pricing", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(form),
+    })
+    setSubmitting(false)
+
+    if (!response.ok) {
+      setFormError(await apiError(response))
+      return
+    }
+
+    closeDraftDialog()
+    setForm(freshPricingTemplate())
+    toast({ title: "Draft pricing model created", description: "Review quote previews before activating this model." })
+    router.refresh()
+  }
+
+  const activate = async (item: PricingV2Model) => {
+    if (!window.confirm(`Activate ${item.name} v${item.version}? This expires the currently active model in the same scope.`)) {
+      return
+    }
+
+    setActivatingId(item.id)
+    const response = await apiFetch(`/api/admin/pricing/${encodeURIComponent(item.id)}/activate`, { method: "POST" })
+    setActivatingId(null)
+
+    if (!response.ok) {
+      toast({ variant: "destructive", title: "Activation failed", description: await apiError(response) })
+      return
+    }
+
+    toast({ title: "Pricing model activated", description: `${item.name} v${item.version} is now active.` })
+    router.refresh()
+  }
+
+  return (
+    <div className="space-y-6">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <h1 className="text-2xl font-bold">Pricing Models</h1>
+          <p className="text-muted-foreground">
+            Create guided V2 pricing drafts, review every configured rule, and activate approved models.
+          </p>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={refresh} disabled={refreshing}>
+            <RefreshCw className={`mr-2 h-4 w-4 ${refreshing ? "animate-spin" : ""}`} />
+            Refresh
+          </Button>
+          <Button onClick={openBlankDraft}>
+            <Plus className="mr-2 h-4 w-4" />
+            Create Draft
+          </Button>
+        </div>
+      </div>
+
+      <Dialog open={open} onOpenChange={(value) => (value ? setOpen(true) : closeDraftDialog())}>
+        <DialogContent className="max-h-[94vh] max-w-6xl overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{templateSource ? "Create pricing draft from template" : "Create V2 pricing draft"}</DialogTitle>
+            <DialogDescription>
+              {templateSource
+                ? `Rate settings were copied from ${templateSource.name} v${templateSource.version}. Complete the blank model details, then adjust any rates that should differ.`
+                : "Complete the guided sections below. Models are always saved as drafts so you can test quotes before activation."}
+            </DialogDescription>
+          </DialogHeader>
+
+          {templateSource ? (
+            <Alert>
+              <Copy className="h-4 w-4" />
+              <AlertTitle>Rate configuration copied</AlertTitle>
+              <AlertDescription>
+                Package and distance rates, surcharges, fees, taxes, weight settings, quote rules, and rounding were
+                copied. Name, description, scope, owner, zone, currency, and effective dates were intentionally left blank.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+
+          <PricingModelForm value={form} onChange={setForm} />
+          {formError ? (
+            <Alert variant="destructive">
+              <AlertCircle className="h-4 w-4" />
+              <AlertTitle>Could not save draft</AlertTitle>
+              <AlertDescription>{formError}</AlertDescription>
+            </Alert>
+          ) : null}
+          <DialogFooter>
+            <Button variant="outline" onClick={closeDraftDialog} disabled={submitting}>Cancel</Button>
+            <Button onClick={submit} disabled={submitting}>{submitting ? "Saving..." : "Save Draft"}</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Alert>
+        <CheckCircle2 className="h-4 w-4" />
+        <AlertTitle>Activation checklist</AlertTitle>
+        <AlertDescription>
+          Before activation, preview quotes at package and distance boundaries, verify rush, signature-required, other
+          surcharge fees, taxes, and manual-quote outcomes. Activating replaces the active model for the same scope.
+        </AlertDescription>
+      </Alert>
+
+      {initialError ? (
+        <Alert variant="destructive">
+          <AlertCircle className="h-4 w-4" />
+          <AlertTitle>{initialError.message || "Failed to load pricing"}</AlertTitle>
+          <AlertDescription>
+            <Button className="mt-2" variant="outline" size="sm" onClick={refresh}>Retry</Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+
+      {!initialError ? (
+        <>
+          <Card>
+            <CardContent className="grid gap-3 pt-6 md:grid-cols-[1fr_180px_180px]">
+              <Input
+                placeholder="Search name, zone, or owner"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+              />
+              <Select value={status} onValueChange={(value) => setStatus(value as typeof status)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  {["ALL", "DRAFT", "ACTIVE", "EXPIRED", "ARCHIVED"].map((value) => (
+                    <SelectItem key={value} value={value}>{value === "ALL" ? "All statuses" : value}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select value={pricingType} onValueChange={(value) => setPricingType(value as typeof pricingType)}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All scopes</SelectItem>
+                  <SelectItem value="GLOBAL">Global</SelectItem>
+                  <SelectItem value="CUSTOMER_SPECIFIC">Customer-specific</SelectItem>
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </Card>
+
+          {filtered.length ? (
+            <div className="space-y-3">
+              {filtered.map((item) => (
+                <PricingCard
+                  key={item.id}
+                  item={item}
+                  activating={activatingId === item.id}
+                  onActivate={activate}
+                  onUseTemplate={openDraftFromTemplate}
+                />
+              ))}
+            </div>
+          ) : (
+            <Card>
+              <CardHeader>
+                <CardTitle>No pricing models found</CardTitle>
+                <CardDescription>Create a quote-safe draft or adjust the filters.</CardDescription>
+              </CardHeader>
+            </Card>
+          )}
+        </>
+      ) : null}
+
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <CalendarClock className="h-4 w-4" />
+        <span>{initialData?.totalElements || 0} total pricing models</span>
+        <CircleDollarSign className="ml-2 h-4 w-4" />
+      </div>
+    </div>
+  )
 }

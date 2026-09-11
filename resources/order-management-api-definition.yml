@@ -5,7 +5,8 @@ info:
   description: |
     OpenAPI contract for APIs exposed by the `ordermanagement-order-ms` service.
     Base servlet context path is `/ordermanagement`. This service exposes order APIs under `/orders`
-    and support ticket APIs under `/api/v1/support-tickets` and `/api/v1/admin/support-tickets`.
+    support ticket APIs under `/api/v1/support-tickets` and `/api/v1/admin/support-tickets`, and
+    anonymous website APIs under `/public`.
 servers:
   - url: /ordermanagement
     description: Service base path
@@ -926,6 +927,115 @@ paths:
                     message: Location is outside MapleX serviceable area.
         '400':
           description: Bad request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /public/rates/estimate:
+    post:
+      tags: [Public Rates]
+      summary: Estimate anonymous standard and priority parcel rates
+      description: |
+        Public unauthenticated endpoint for the website rate checker. It geocodes the pickup and
+        delivery addresses, validates both locations against active MapleX service zones, obtains
+        the Google driving distance, and returns separate STANDARD and PRIORITY pricing options.
+
+        No draft order or order item is created. Pricing is calculated with the active GLOBAL
+        pricing model through pricing-payment-ms; customer-specific pricing is never selected.
+        Geocodes and route distances are looked up in MongoDB before Google is called. New Google
+        results are persisted without a TTL so the same known address or coordinate route can be
+        reused permanently.
+      operationId: estimatePublicParcelRates
+      security: []
+      parameters:
+        - $ref: '#/components/parameters/AcceptHeader'
+        - $ref: '#/components/parameters/ContentTypeHeader'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicRateEstimateRequest'
+            example:
+              pickupAddress:
+                streetAddress: 1505 Barrington Street
+                addressLine2: Suite 200
+                city: Halifax
+                province: NS
+                postalCode: B3J 1Z2
+                country: CA
+              deliveryAddress:
+                streetAddress: 100 Portland Street
+                city: Dartmouth
+                province: NS
+                postalCode: B2Y 1H8
+                country: CA
+              weightKg: 2.5
+              dimensionsCm:
+                length: 30
+                width: 20
+                height: 15
+              signatureRequired: false
+      responses:
+        '200':
+          description: Standard and priority estimates returned. No order is persisted.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PublicRateEstimateResponse'
+              example:
+                distanceKm: 12.345
+                options:
+                  - serviceLevel: STANDARD
+                    available: true
+                    pricing:
+                      pricingModelId: Pricing_2
+                      pricingModelVersion: 2
+                      pricingTypeApplied: GLOBAL
+                      ownerIdApplied: null
+                      zoneCode: GLOBAL
+                      currency: CAD
+                      customQuoteRequired: false
+                      customQuoteReason: null
+                      charges:
+                        Small Parcel Base Charge: 12.00
+                        Distance Charge: 4.00
+                        Subtotal: 16.00
+                        HST: 2.40
+                        Total: 18.40
+                  - serviceLevel: PRIORITY
+                    available: true
+                    pricing:
+                      pricingModelId: Pricing_2
+                      pricingModelVersion: 2
+                      pricingTypeApplied: GLOBAL
+                      ownerIdApplied: null
+                      zoneCode: GLOBAL
+                      currency: CAD
+                      customQuoteRequired: false
+                      customQuoteReason: null
+                      charges:
+                        Small Parcel Base Charge: 12.00
+                        Distance Charge: 4.00
+                        Rush / Priority Fee: 5.00
+                        Subtotal: 21.00
+                        HST: 3.15
+                        Total: 24.15
+        '400':
+          description: Validation failed, an address could not be geocoded, or either address is outside the serviceable area.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '502':
+          description: Google Maps or pricing-payment-ms returned an invalid response.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Google Maps or pricing-payment-ms is unavailable or timed out.
           content:
             application/json:
               schema:
@@ -2003,6 +2113,104 @@ components:
         example: <secret>
 
   schemas:
+    PublicRateAddress:
+      type: object
+      required: [streetAddress, city, province, postalCode, country]
+      properties:
+        streetAddress:
+          type: string
+          maxLength: 200
+          example: 1505 Barrington Street
+        addressLine2:
+          type: string
+          maxLength: 100
+          nullable: true
+          example: Suite 200
+        city:
+          type: string
+          maxLength: 100
+          example: Halifax
+        province:
+          type: string
+          maxLength: 100
+          example: NS
+        postalCode:
+          type: string
+          maxLength: 20
+          example: B3J 1Z2
+        country:
+          type: string
+          maxLength: 100
+          example: CA
+
+    PublicRateDimensions:
+      type: object
+      required: [length, width, height]
+      description: Parcel dimensions in centimetres.
+      properties:
+        length:
+          type: number
+          minimum: 0.01
+          example: 30
+        width:
+          type: number
+          minimum: 0.01
+          example: 20
+        height:
+          type: number
+          minimum: 0.01
+          example: 15
+
+    PublicRateEstimateRequest:
+      type: object
+      required: [pickupAddress, deliveryAddress, weightKg, dimensionsCm]
+      properties:
+        pickupAddress:
+          $ref: '#/components/schemas/PublicRateAddress'
+        deliveryAddress:
+          $ref: '#/components/schemas/PublicRateAddress'
+        weightKg:
+          type: number
+          minimum: 0.01
+          description: Actual parcel weight in kilograms.
+          example: 2.5
+        dimensionsCm:
+          $ref: '#/components/schemas/PublicRateDimensions'
+        signatureRequired:
+          type: boolean
+          nullable: true
+          default: false
+
+    PublicRateOption:
+      type: object
+      required: [serviceLevel, available, pricing]
+      properties:
+        serviceLevel:
+          type: string
+          enum: [STANDARD, PRIORITY]
+        available:
+          type: boolean
+          description: False when pricing requires a manual/custom quote.
+        pricing:
+          $ref: '#/components/schemas/OrderItemPricing'
+
+    PublicRateEstimateResponse:
+      type: object
+      required: [distanceKm, options]
+      properties:
+        distanceKm:
+          type: number
+          minimum: 0
+          description: Google driving distance in kilometres.
+          example: 12.345
+        options:
+          type: array
+          minItems: 2
+          maxItems: 2
+          description: STANDARD is returned first, followed by PRIORITY.
+          items:
+            $ref: '#/components/schemas/PublicRateOption'
+
     CreateOrderResponse:
       type: object
       properties:
@@ -2132,6 +2340,11 @@ components:
       properties:
         shippingOrderId: { type: string }
         createdAt: { type: string, format: date-time }
+        completedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the shipping order was completed after all order items were delivered.
+          readOnly: true
         orderStatus: { type: string }
         needsAdminAttention:
           type: boolean
@@ -2215,6 +2428,18 @@ components:
         customerContact:
           $ref: '#/components/schemas/ShippingOrderCustomerContact'
         priorityDelivery: { type: boolean }
+        pickupWindowStartDateTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional scheduled pickup-window start as an RFC 3339 timestamp with an explicit UTC offset. Omit with pickupWindowEndDateTime for ASAP orders.
+          example: '2026-09-08T15:00:00-03:00'
+        pickupWindowEndDateTime:
+          type: string
+          format: date-time
+          nullable: true
+          description: Optional scheduled pickup-window end as an RFC 3339 timestamp with an explicit UTC offset. Omit with pickupWindowStartDateTime for ASAP orders.
+          example: '2026-09-08T17:00:00-03:00'
         needsAdminAttention:
           type: boolean
           description: Indicates whether this shipping order requires admin review.
@@ -2223,6 +2448,16 @@ components:
         isFragile: { type: boolean }
         paymentStatus: { type: string }
         paymentId: { type: string }
+        confirmedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the shipping order payment was first confirmed.
+          readOnly: true
+        completedAt:
+          type: string
+          format: date-time
+          description: Timestamp when the shipping order was completed after all order items were delivered.
+          readOnly: true
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         aggregatedPricing:
@@ -2300,6 +2535,11 @@ components:
         signatureStatus:
           $ref: '#/components/schemas/SignatureStatus'
         estimatedDeliveryTime: { type: string, format: date-time }
+        deliveredAt:
+          type: string
+          format: date-time
+          description: Timestamp when this order item was delivered.
+          readOnly: true
         createdAt: { type: string, format: date-time }
         updatedAt: { type: string, format: date-time }
         specialIncidents:

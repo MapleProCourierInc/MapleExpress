@@ -7,6 +7,7 @@ import { ShippingSteps } from "@/components/ship-now/shipping-steps"
 import { PackageDetailsForm } from "@/components/ship-now/package-details-form"
 import { PickupAddressForm } from "@/components/ship-now/pickup-address-form"
 import { DropoffAddressForm } from "@/components/ship-now/dropoff-address-form"
+import { PickupWindowSelection } from "@/components/ship-now/pickup-window-selection"
 import { ReviewOrder } from "@/components/ship-now/review-order"
 import { OrderPricing } from "@/components/ship-now/order-pricing"
 import { PaymentForm } from "@/components/ship-now/payment-form"
@@ -15,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
+import type { PickupWindowSelection as PickupWindowSelectionValue } from "@/types/working-hours"
 import {
   cancelOrder,
   createDraftOrder,
@@ -94,6 +96,7 @@ type ShippingStep =
     | "PICKUP_ADDRESS"
     | "DROPOFF_ADDRESS"
     | "ADD_MORE"
+    | "PICKUP_WINDOW"
     | "REVIEW"
     | "PRICING"
     | "PAYMENT"
@@ -203,6 +206,8 @@ function storedOrderToDraftOrder(order: StoredShippingOrder): OrderResponse {
       email: order.customerContact?.email || "",
     },
     priorityDelivery: Boolean(order.priorityDelivery),
+    pickupWindowStartDateTime: order.pickupWindowStartDateTime || null,
+    pickupWindowEndDateTime: order.pickupWindowEndDateTime || null,
     orderStatus: order.orderStatus || "",
     paymentStatus: order.paymentStatus || "",
     createdAt: order.createdAt || "",
@@ -250,6 +255,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
   const [showDeleteDialog, setShowDeleteDialog] = useState(false)
   const [packageToDelete, setPackageToDelete] = useState<number | null>(null)
   const [isPriorityDelivery, setIsPriorityDelivery] = useState(false)
+  const [pickupWindow, setPickupWindow] = useState<PickupWindowSelectionValue>({ type: "ASAP" })
   const [draftOrder, setDraftOrder] = useState<OrderResponse | null>(null)
   const [hasDraftChanges, setHasDraftChanges] = useState(false)
   const [packageAddingIndex, setPackageAddingIndex] = useState<number | null>(null)
@@ -293,6 +299,16 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         setDraftOrder(resumedDraftOrder)
         setOrder(storedOrderToFormOrder(detail.shippingOrder))
         setIsPriorityDelivery(Boolean(resumedDraftOrder.priorityDelivery))
+        setPickupWindow(
+          resumedDraftOrder.pickupWindowStartDateTime && resumedDraftOrder.pickupWindowEndDateTime
+            ? {
+                type: "SCHEDULED",
+                date: resumedDraftOrder.pickupWindowStartDateTime.slice(0, 10),
+                startDateTime: resumedDraftOrder.pickupWindowStartDateTime,
+                endDateTime: resumedDraftOrder.pickupWindowEndDateTime,
+              }
+            : { type: "ASAP" },
+        )
         setHasDraftChanges(false)
         setCurrentStep("PAYMENT")
       })
@@ -469,7 +485,14 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       }
 
       // Call the API to create a draft order
-      const draftOrderResponse = await createDraftOrder(order, user.userId, isPriorityDelivery, draftOrder?.shippingOrderId)
+      const priorityDelivery = pickupWindow.type === "SCHEDULED" ? false : isPriorityDelivery
+      const draftOrderResponse = await createDraftOrder(
+        order,
+        user.userId,
+        priorityDelivery,
+        draftOrder?.shippingOrderId,
+        pickupWindow,
+      )
       setDraftOrder(draftOrderResponse)
       setHasDraftChanges(false)
 
@@ -557,6 +580,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     })
     setCurrentPackageIndex(0)
     setIsPriorityDelivery(false)
+    setPickupWindow({ type: "ASAP" })
     setDraftOrder(null)
     setHasDraftChanges(false)
     setPackageAddingIndex(null)
@@ -594,8 +618,14 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         total: draftOrder.aggregatedPricing.totalAmount.toString(),
         items: draftOrder.orderItems.length.toString(),
         createdAt: draftOrder.createdAt,
-      }).toString();
-      router.push(`/order-confirmation?${queryParams}`);
+      });
+
+      if (pickupWindow.type === "SCHEDULED") {
+        queryParams.set("pickupWindowStartDateTime", pickupWindow.startDateTime)
+        queryParams.set("pickupWindowEndDateTime", pickupWindow.endDateTime)
+      }
+
+      router.push(`/order-confirmation?${queryParams.toString()}`);
     } else {
       // Fallback if draftOrder is somehow null, though it shouldn't be at this stage.
       // Redirect with minimal info.
@@ -611,11 +641,19 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     setCurrentStep("ADD_MORE")
   }
 
-  // Handle skipping add more and going to review
-  const handleGoToReview = () => {
+  // Handle skipping add more and choosing a pickup time
+  const handleGoToPickupWindow = () => {
     setPackageAddingIndex(null)
     setHasDraftChangesBeforePackageAdd(null)
-    setCurrentStep("REVIEW")
+    setCurrentStep("PICKUP_WINDOW")
+  }
+
+  const handlePickupWindowChange = (selection: PickupWindowSelectionValue) => {
+    setPickupWindow(selection)
+    if (selection.type === "SCHEDULED") {
+      setIsPriorityDelivery(false)
+    }
+    setHasDraftChanges(true)
   }
 
   // Handle editing a package from the review step
@@ -671,11 +709,13 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       case "DROPOFF_ADDRESS":
         return 2
       case "ADD_MORE":
-      case "REVIEW":
+      case "PICKUP_WINDOW":
         return 3
+      case "REVIEW":
+        return 4
       case "PRICING":
       case "PAYMENT":
-        return 4
+        return 5
       default:
         return 0
     }
@@ -700,6 +740,9 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         setCurrentStep("ADD_MORE")
         break
       case "ADD_MORE":
+        setCurrentStep("PICKUP_WINDOW")
+        break
+      case "PICKUP_WINDOW":
         setCurrentStep("REVIEW")
         break
     }
@@ -721,8 +764,11 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       case "ADD_MORE":
         setCurrentStep("DROPOFF_ADDRESS")
         break
-      case "REVIEW":
+      case "PICKUP_WINDOW":
         setCurrentStep("ADD_MORE")
+        break
+      case "REVIEW":
+        setCurrentStep("PICKUP_WINDOW")
         break
       case "PRICING":
         setCurrentStep("REVIEW")
@@ -846,12 +892,12 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
                       <Button
                           variant="outline"
-                          onClick={handleGoToReview}
+                          onClick={handleGoToPickupWindow}
                           className="flex items-center justify-center gap-2 h-auto py-6"
                       >
                         <div>
                           <div className="font-semibold">Continue</div>
-                          <div className="text-xs">Review your order</div>
+                          <div className="text-xs">Choose a pickup time</div>
                         </div>
                         <ArrowRight className="h-5 w-5 ml-2" />
                       </Button>
@@ -864,9 +910,19 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
                 </div>
             )}
 
+            {currentStep === "PICKUP_WINDOW" && (
+                <PickupWindowSelection
+                    selection={pickupWindow}
+                    onChange={handlePickupWindowChange}
+                    onNext={() => setCurrentStep("REVIEW")}
+                    onBack={handlePrevStep}
+                />
+            )}
+
             {currentStep === "REVIEW" && (
                 <ReviewOrder
                     order={order}
+                    pickupWindow={pickupWindow}
                     onSubmit={handleCreateDraftOrder}
                     onBack={handlePrevStep}
                     onEditPackage={handleEditPackage}

@@ -35,6 +35,12 @@ export function Header() {
           <Link href="/#services" className="text-sm font-medium hover:text-primary">
             Services
           </Link>
+          <Link
+            href="/rates"
+            className="rounded-full border border-primary/20 bg-primary/5 px-3 py-1.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+          >
+            Rates
+          </Link>
           <Link href="/#about" className="text-sm font-medium hover:text-primary">
             About Us
           </Link>
