@@ -16,7 +16,7 @@ import { LegalDocumentLink } from "@/components/platform/legal-document-link"
 type SignupModalProps = {
   isOpen: boolean
   onClose: () => void
-  onSignupSuccess: (email: string) => void
+  onSignupSuccess: (email: string, password: string) => void
   onOpenLogin?: () => void
 }
 
@@ -95,7 +95,9 @@ export function SignupModal({ isOpen, onClose, onSignupSuccess, onOpenLogin }: S
         } catch (e) {
           console.error("Failed to store signup email", e)
         }
-        onSignupSuccess(email)
+        // Keep the password only in memory long enough to sign the user in
+        // after Cognito confirms the verification code. It is never persisted.
+        onSignupSuccess(email, password)
 
         // Reset form
         setEmail("")

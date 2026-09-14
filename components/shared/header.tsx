@@ -1,17 +1,28 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { useAuth } from "@/lib/auth-context"
 import { LoginModal } from "@/components/login-modal"
 import { SignupModal } from "@/components/signup-modal"
+import { VerificationPending } from "@/components/verification-pending"
+import { Dialog, DialogContent } from "@/components/ui/dialog"
 import { UserProfile } from "@/components/user-profile"
 import { useState } from "react"
 
 export function Header() {
+  const router = useRouter()
   const { user, isLoading } = useAuth()
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
+  const [verificationEmail, setVerificationEmail] = useState("")
+  const [verificationPassword, setVerificationPassword] = useState("")
+
+  const closeVerification = () => {
+    setVerificationEmail("")
+    setVerificationPassword("")
+  }
 
   return (
     <header className="border-b sticky top-0 z-50 w-full bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60 shadow-sm">
@@ -86,12 +97,36 @@ export function Header() {
       <SignupModal
         isOpen={isSignupModalOpen}
         onClose={() => setIsSignupModalOpen(false)}
-        onSignupSuccess={(email: string) => {}}
+        onSignupSuccess={(email, password) => {
+          setIsSignupModalOpen(false)
+          setVerificationEmail(email)
+          setVerificationPassword(password)
+        }}
         onOpenLogin={() => {
           setIsSignupModalOpen(false)
           setIsLoginModalOpen(true)
         }}
       />
+
+      <Dialog open={Boolean(verificationEmail)} onOpenChange={(open) => !open && closeVerification()}>
+        <DialogContent className="border-0 bg-transparent p-0 shadow-none sm:max-w-md">
+          {verificationEmail && (
+            <VerificationPending
+              email={verificationEmail}
+              password={verificationPassword || undefined}
+              onClose={closeVerification}
+              onConfirmed={(authenticated) => {
+                closeVerification()
+                if (authenticated) {
+                  router.replace("/onboarding")
+                } else {
+                  setIsLoginModalOpen(true)
+                }
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </header>
   )
 }

@@ -5,6 +5,7 @@ import type React from "react"
 import { useEffect, useRef, useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Checkbox } from "@/components/ui/checkbox"
@@ -13,6 +14,7 @@ import type { Address } from "@/components/ship-now/ship-now-form"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
 import { checkAddressServiceability } from "@/lib/serviceability-service"
 import { useToast } from "@/hooks/use-toast"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 interface AddressFormProps {
     onSubmit: (address: Address, saveForFuture: boolean) => void
@@ -183,6 +185,15 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
     const handleSubmit = (e: React.FormEvent) => {
         e.preventDefault()
 
+        if (!isValidPhoneNumber(address.phoneNumber)) {
+            toast({
+                title: "Invalid phone number",
+                description: PHONE_NUMBER_VALIDATION_MESSAGE,
+                variant: "destructive",
+            })
+            return
+        }
+
         if (serviceabilityState !== "serviceable") {
             toast({
                 title: "Select a serviceable address",
@@ -266,7 +277,7 @@ export function AddressForm({ onSubmit, addressType, initialAddress, showSaveOpt
 
             <div>
                 <Label htmlFor="phoneNumber">Phone Number</Label>
-                <Input id="phoneNumber" value={address.phoneNumber} onChange={(e) => handleChange("phoneNumber", e.target.value)} required className="mt-1" />
+                <PhoneInput id="phoneNumber" value={address.phoneNumber} onChange={(e) => handleChange("phoneNumber", e.target.value)} required className="mt-1" />
             </div>
 
             <div>

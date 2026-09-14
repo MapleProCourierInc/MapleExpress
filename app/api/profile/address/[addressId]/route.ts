@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 async function getJsonResponse(response: Response) {
   const text = await response.text()
@@ -22,6 +23,10 @@ export async function PATCH(
   try {
     const { addressId } = await params
     const addressData = await request.json()
+
+    if (!isValidPhoneNumber(addressData?.phoneNumber)) {
+      return NextResponse.json({ message: PHONE_NUMBER_VALIDATION_MESSAGE }, { status: 400 })
+    }
 
     const response = await proxyWithAuthRetry(request, {
       method: "PATCH",

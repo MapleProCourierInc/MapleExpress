@@ -3,6 +3,7 @@ import { revalidatePath } from "next/cache"
 import { updateAdminPlatformContactConfiguration } from "@/lib/admin-platform-configuration-service"
 import { platformConfigErrorResponse, validationError } from "@/app/api/admin/platform-configuration/_utils"
 import type { UpdateContactConfigurationRequest } from "@/types/admin-platform-configuration"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 const REQUIRED_LOCATION_FIELDS = ["addressLine1", "city", "provinceOrState", "postalCode", "countryCode"] as const
 
@@ -19,6 +20,12 @@ export async function PUT(request: NextRequest) {
       }
     })
   }
+
+  Object.entries(body.phones || {}).forEach(([phoneType, phone]) => {
+    if (phone && !isValidPhoneNumber(phone)) {
+      errors.push({ field: `phones.${phoneType}`, message: PHONE_NUMBER_VALIDATION_MESSAGE })
+    }
+  })
 
   if (errors.length) {
     return validationError("Please review the contact configuration.", errors)

@@ -26,6 +26,7 @@ import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -34,6 +35,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Textarea } from "@/components/ui/textarea"
 import { Progress } from "@/components/ui/progress"
 import { AdminWorkingHoursManager } from "@/components/admin/working-hours-manager"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 import type { S3UploadType } from "@/types/aws-s3"
 import type {
   ActivateLegalDocumentRequest,
@@ -538,6 +540,10 @@ export function AdminPlatformConfigurationManager({
 
   const addPhone = () => {
     if (!newPhoneType || !newPhoneValue.trim()) return
+    if (!isValidPhoneNumber(newPhoneValue)) {
+      toast({ title: "Invalid phone number", description: PHONE_NUMBER_VALIDATION_MESSAGE, variant: "destructive" })
+      return
+    }
     setContactForm((prev) => ({
       ...prev,
       phones: { ...prev.phones, [newPhoneType]: newPhoneValue.trim() },
@@ -659,6 +665,19 @@ export function AdminPlatformConfigurationManager({
   }
 
   const saveContact = async () => {
+    const invalidPhone = CONTACT_PHONE_TYPE_OPTIONS.find((option) => {
+      const value = contactForm.phones[option.value].trim()
+      return value && !isValidPhoneNumber(value)
+    })
+    if (invalidPhone) {
+      toast({
+        title: `Invalid ${invalidPhone.label.toLowerCase()}`,
+        description: PHONE_NUMBER_VALIDATION_MESSAGE,
+        variant: "destructive",
+      })
+      return
+    }
+
     const payload: UpdateContactConfigurationRequest = {
       emails: Object.fromEntries(
         CONTACT_EMAIL_TYPE_OPTIONS
@@ -1155,7 +1174,7 @@ export function AdminPlatformConfigurationManager({
                         <Label htmlFor={`phone-${option.value}`}>{option.label}</Label>
                         <p className="mt-1 text-xs text-muted-foreground">{option.value}</p>
                       </div>
-                      <Input
+                      <PhoneInput
                         id={`phone-${option.value}`}
                         value={contactForm.phones[option.value]}
                         onChange={(event) =>
@@ -1164,7 +1183,7 @@ export function AdminPlatformConfigurationManager({
                             phones: { ...prev.phones, [option.value]: event.target.value },
                           }))
                         }
-                        placeholder="+1 902 555 0101"
+                        placeholder="9025550101"
                       />
                       <Button
                         type="button"
@@ -1210,11 +1229,11 @@ export function AdminPlatformConfigurationManager({
                   </div>
                   <div className="space-y-1.5">
                     <Label htmlFor="new-phone-value">Phone Number</Label>
-                    <Input
+                    <PhoneInput
                       id="new-phone-value"
                       value={newPhoneValue}
                       onChange={(event) => setNewPhoneValue(event.target.value)}
-                      placeholder="+1 902 555 0101"
+                      placeholder="9025550101"
                       disabled={!availablePhoneOptions.length}
                     />
                   </div>

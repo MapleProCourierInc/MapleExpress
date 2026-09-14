@@ -17,6 +17,7 @@ import { Switch } from "@/components/ui/switch"
 import { LegalDocumentLink } from "@/components/platform/legal-document-link"
 import { useToast } from "@/hooks/use-toast"
 import { requestAdminQuote, updateRushPriority, type ChargeMap, type OrderResponse } from "@/lib/order-service"
+import { finiteChargeEntries, pricingBreakdownEntries } from "@/lib/pricing-display"
 
 interface OrderPricingProps {
   orderData: OrderResponse
@@ -36,7 +37,7 @@ function formatChargeName(name: string) {
 }
 
 function chargeEntries(charges?: ChargeMap) {
-  return Object.entries(charges ?? {}).filter(([, amount]) => Number.isFinite(amount))
+  return finiteChargeEntries(charges)
 }
 
 function rootQuoteReasons(orderData: OrderResponse) {
@@ -234,7 +235,6 @@ export function OrderPricing({
                             </span>
                             <span>{(item.distanceToDelivery / 1000).toFixed(1)} km</span>
                             <span>{isPriorityDelivery ? "Priority" : "Standard"}</span>
-                            {!item.pricing.customQuoteRequired && <span>{itemCharges.length} charges</span>}
                           </div>
                         </div>
 
@@ -337,7 +337,7 @@ export function OrderPricing({
             </CardHeader>
             <CardContent className="p-5">
               <div className="space-y-4">
-                {chargeEntries(orderData.aggregatedPricing.charges).map(([name, amount]) => (
+                {pricingBreakdownEntries(orderData.aggregatedPricing.charges).map(([name, amount]) => (
                   <div key={name} className="grid grid-cols-[1fr,auto] items-center gap-2">
                     <span className="text-sm">{formatChargeName(name)}</span>
                     <span className="font-medium text-right">{formatCurrency(amount)}</span>

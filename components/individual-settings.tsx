@@ -6,11 +6,13 @@ import type { IndividualProfile } from "@/types/profile"
 import { updateIndividualInformation } from "@/lib/profile-service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Check } from "lucide-react"
 import { format, parseISO } from "date-fns"
+import { isValidOptionalPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 interface IndividualSettingsProps {
   /* Parent might pass a single object or an array with one element */
@@ -47,6 +49,12 @@ export function IndividualSettings({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!normalized) return
+
+    if (!isValidOptionalPhoneNumber(formData.phone)) {
+      setError(PHONE_NUMBER_VALIDATION_MESSAGE)
+      return
+    }
+
     setIsSubmitting(true)
     setError(null)
     setSuccess(false)
@@ -119,7 +127,7 @@ export function IndividualSettings({
 
               <div className="space-y-2">
                 <Label htmlFor="phone">Phone Number</Label>
-                <Input
+                <PhoneInput
                     id="phone"
                     name="phone"
                     value={formData.phone}

@@ -5,6 +5,7 @@ import Link from "next/link"
 import Image from "next/image"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Card, CardContent } from "@/components/ui/card"
 import {
   BadgeDollarSign,
@@ -34,6 +35,7 @@ import { isIndividualAccount } from "@/lib/profile-account-type"
 import { Footer } from "@/components/shared/footer"
 import { usePlatformConfiguration } from "@/components/platform/platform-configuration-provider"
 import { useToast } from "@/hooks/use-toast"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 type ContactRequestResponse = {
   requestId?: string
@@ -127,12 +129,13 @@ const WHY_CHOOSE_US: Array<{ title: string; description: string; icon: LucideIco
 ]
 
 export default function LandingPage() {
+  const router = useRouter()
   const { user, isLoading, me } = useAuth()
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
   const [showVerification, setShowVerification] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
-  // Email is enough for resending verification now
+  const [verificationPassword, setVerificationPassword] = useState("")
 
   // When the page loads, check if we stored a signup email
   useEffect(() => {
@@ -149,6 +152,8 @@ export default function LandingPage() {
 
   // Check user status when user changes
   useEffect(() => {
+    if (isLoading || !user) return
+
     if (user) {
       switch (user.userStatus) {
         case "pendingEmailVerification":
@@ -180,20 +185,20 @@ export default function LandingPage() {
         default:
           setShowVerification(false)
       }
-    } else {
-      setShowVerification(false)
     }
-  }, [user])
+  }, [user, isLoading])
 
-  const handleSignupSuccess = (email: string) => {
+  const handleSignupSuccess = (email: string, password: string) => {
     setIsSignupModalOpen(false)
     setVerificationEmail(email)
+    setVerificationPassword(password)
     setShowVerification(true)
   }
 
   const handleCloseVerification = () => {
     setShowVerification(false)
     setVerificationEmail("")
+    setVerificationPassword("")
     try {
       localStorage.removeItem("maplexpress_signup_email")
     } catch (e) {
@@ -201,9 +206,13 @@ export default function LandingPage() {
     }
   }
 
-  const handleVerificationConfirmed = () => {
+  const handleVerificationConfirmed = (authenticated: boolean) => {
     handleCloseVerification()
-    setIsLoginModalOpen(true)
+    if (authenticated) {
+      router.replace("/onboarding")
+    } else {
+      setIsLoginModalOpen(true)
+    }
   }
 
   // Determine what to show based on user status or signup state
@@ -213,6 +222,7 @@ export default function LandingPage() {
         <div className="container py-20">
           <VerificationPending
             email={verificationEmail || "your email"}
+            password={verificationPassword || undefined}
             onClose={handleCloseVerification}
             onConfirmed={handleVerificationConfirmed}
           />
@@ -230,6 +240,7 @@ export default function LandingPage() {
           <div className="container py-20">
             <VerificationPending
               email={verificationEmail || "your email"}
+              password={verificationPassword || undefined}
               onClose={handleCloseVerification}
               onConfirmed={handleVerificationConfirmed}
             />
@@ -381,6 +392,15 @@ function LandingContent() {
       phoneNumber: String(formData.get("phoneNumber") || "").trim(),
       serviceType: String(formData.get("serviceType") || "").trim(),
       additionalInformation: String(formData.get("additionalInformation") || "").trim() || null,
+    }
+
+    if (!isValidPhoneNumber(requestBody.phoneNumber)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid phone number",
+        description: PHONE_NUMBER_VALIDATION_MESSAGE,
+      })
+      return
     }
 
     setIsSubmittingContact(true)
@@ -625,16 +645,10 @@ function LandingContent() {
                   <label htmlFor="phone" className="text-sm font-medium">
                     Phone Number
                   </label>
-                  <Input
+                  <PhoneInput
                     id="phone"
                     name="phoneNumber"
-                    type="tel"
-                    placeholder="Enter your phone number"
-                    autoComplete="tel"
-                    minLength={7}
-                    maxLength={30}
-                    pattern="[0-9+() .\-]{7,30}"
-                    title="Enter a valid phone number using numbers, spaces, or + ( ) . -"
+                    placeholder="9025550142"
                     required
                   />
                 </div>

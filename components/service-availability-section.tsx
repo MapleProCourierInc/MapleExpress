@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertCircle, CheckCircle2, Loader2, MapPin, XCircle } from "lucide-react"
+import { AlertCircle, ArrowRight, CheckCircle2, Loader2, MapPin, XCircle } from "lucide-react"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
 import { Button } from "@/components/ui/button"
 
@@ -183,6 +183,13 @@ export function ServiceAvailabilitySection() {
                           ? "Same-day pickup and delivery are available for this address."
                           : "Same-day pickup and delivery are not currently available for this address."}
                       </p>
+                      {availabilityState.serviceable ? (
+                        <Button asChild className="mt-3">
+                          <Link href="/ship-now">
+                            Ship Now <ArrowRight className="ml-2 h-4 w-4" />
+                          </Link>
+                        </Button>
+                      ) : null}
                       {!availabilityState.serviceable ? (
                         <p className="text-sm text-muted-foreground">
                           <Link

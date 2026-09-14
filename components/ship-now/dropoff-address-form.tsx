@@ -10,17 +10,19 @@ import { AddressForm } from "@/components/ship-now/address-form"
 import { Plus, Loader2, ArrowRight } from "lucide-react"
 import { getAddresses } from "@/lib/address-service"
 import { useAuth } from "@/lib/auth-context"
+import { isSameShippingAddress } from "@/lib/shipping-address"
 import { useToast } from "@/hooks/use-toast"
 
 interface DropoffAddressFormProps {
   selectedAddress: Address | null
-  onSelectAddress: (address: Address, saveForFuture: boolean) => void
+  pickupAddress: Address | null
+  onSelectAddress: (address: Address, saveForFuture: boolean) => boolean
   onNext: () => void
   onBack: () => void
   onExit?: () => void
 }
 
-export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, onBack, onExit }: DropoffAddressFormProps) {
+export function DropoffAddressForm({ selectedAddress, pickupAddress, onSelectAddress, onNext, onBack, onExit }: DropoffAddressFormProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([])
@@ -55,8 +57,9 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
     fetchAddresses()
   }, [user])
 
+  const isPickupAddress = (address: Address) => isSameShippingAddress(pickupAddress, address)
+
   const handleAddressSelect = (addressId: string) => {
-    setSelectedAddressId(addressId)
     const address = savedAddresses.find((addr) => addr.addressId === addressId)
     if (address) {
       // Convert to the format expected by the form
@@ -76,7 +79,11 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
         isPrimary: address.isPrimary || false,
         coordinates: address.coordinates,
       }
-      onSelectAddress(formattedAddress, false)
+      if (!onSelectAddress(formattedAddress, false)) {
+        setSelectedAddressId(null)
+        return
+      }
+      setSelectedAddressId(addressId)
       // No longer automatically proceed to next step
     }
     setShowNewAddressForm(false)
@@ -93,14 +100,14 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
       ...address,
       addressType: "shipping",
     }
-    onSelectAddress(addressWithType, saveForFuture)
+    if (!onSelectAddress(addressWithType, saveForFuture)) return
     // Proceed to next step - keep this behavior for new addresses
     onNext()
   }
 
   // New function to handle continuing with the selected address
   const handleContinue = () => {
-    if (selectedAddressId) {
+    if (selectedAddressId && selectedAddress && !isPickupAddress(selectedAddress)) {
       onNext()
     }
   }
@@ -146,15 +153,18 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
 
               {savedAddresses.length > 0 && (
                   <RadioGroup value={selectedAddressId || ""} onValueChange={handleAddressSelect} className="space-y-3">
-                    {savedAddresses.map((address) => (
-                        <div key={address.addressId} className="flex items-start space-x-3">
+                    {savedAddresses.map((address) => {
+                      const unavailable = isPickupAddress(address)
+                      return (
+                        <div key={address.addressId} className={`flex items-start space-x-3 ${unavailable ? "opacity-60" : ""}`}>
                           <RadioGroupItem
                               value={address.addressId || ""}
                               id={`address-${address.addressId}`}
                               className="mt-1"
+                              disabled={unavailable}
                           />
                           <div className="flex-1">
-                            <Label htmlFor={`address-${address.addressId}`} className="flex items-start cursor-pointer">
+                            <Label htmlFor={`address-${address.addressId}`} className={`flex items-start ${unavailable ? "cursor-not-allowed" : "cursor-pointer"}`}>
                               <Card className="ship-now-address-card w-full">
                                 <CardContent className="p-4">
                                   <div className="flex justify-between">
@@ -181,9 +191,11 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                                 </CardContent>
                               </Card>
                             </Label>
+                            {unavailable && <p className="mt-1 text-xs text-destructive">Pickup and delivery addresses must be different.</p>}
                           </div>
                         </div>
-                    ))}
+                      )
+                    })}
                   </RadioGroup>
               )}
 
@@ -210,7 +222,11 @@ export function DropoffAddressForm({ selectedAddress, onSelectAddress, onNext, o
                   )}
                 </div>
                 {/* Add Continue button that's enabled only when an address is selected */}
-                <Button onClick={handleContinue} disabled={!selectedAddressId} className="flex items-center gap-2">
+                <Button
+                    onClick={handleContinue}
+                    disabled={!selectedAddressId || Boolean(selectedAddress && isPickupAddress(selectedAddress))}
+                    className="flex items-center gap-2"
+                >
                   Continue
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>

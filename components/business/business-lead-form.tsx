@@ -6,8 +6,10 @@ import { CheckCircle2, Loader2, Send } from "lucide-react"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 type RequestProblem = {
   detail?: string
@@ -59,6 +61,15 @@ export function BusinessLeadForm() {
       phoneNumber: String(formData.get("phoneNumber") || "").trim(),
       serviceType: "Business delivery solutions",
       additionalInformation,
+    }
+
+    if (!isValidPhoneNumber(requestBody.phoneNumber)) {
+      toast({
+        variant: "destructive",
+        title: "Invalid phone number",
+        description: PHONE_NUMBER_VALIDATION_MESSAGE,
+      })
+      return
     }
 
     setIsSubmitting(true)
@@ -156,16 +167,10 @@ export function BusinessLeadForm() {
         </div>
         <div className="space-y-2">
           <Label htmlFor="business-phone">Phone</Label>
-          <Input
+          <PhoneInput
             id="business-phone"
             name="phoneNumber"
-            type="tel"
-            autoComplete="tel"
-            placeholder="+1 902 555 0142"
-            minLength={7}
-            maxLength={30}
-            pattern="[0-9+() .\-]{7,30}"
-            title="Enter a valid phone number using numbers, spaces, or + ( ) . -"
+            placeholder="9025550142"
             required
           />
         </div>

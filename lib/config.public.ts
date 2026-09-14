@@ -12,4 +12,4 @@ export const MONERIS_CHECKOUT_SCRIPT_SRC = process.env.NEXT_PUBLIC_MONERIS_CHECK
 export const MONERIS_CHECKOUT_MODE = process.env.NEXT_PUBLIC_MONERIS_CHECKOUT_MODE || "qa"
 
 // Browser-visible key: restrict it by allowed origins and APIs in Google Cloud.
-export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "AIzaSyCxsqCCKDeAzajXgppEKZvm2H83Vu1I7V0"
+export const GOOGLE_MAPS_API_KEY = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || ""

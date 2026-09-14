@@ -34,6 +34,7 @@ import {
 } from "@/lib/admin-manual-quote-calculations"
 import { apiFetch } from "@/lib/client-api"
 import type { ShippingOrder } from "@/lib/order-service"
+import { pricingBreakdownEntries, resolvePricingTotal } from "@/lib/pricing-display"
 import type { PricingV2Model } from "@/types/pricing"
 import { useToast } from "@/hooks/use-toast"
 import { cn } from "@/lib/utils"
@@ -349,10 +350,6 @@ function chargeEntries(charges?: Record<string, number> | null) {
   return Object.entries(charges || {}).filter(([, amount]) => typeof amount === "number" && Number.isFinite(amount))
 }
 
-function chargesTotal(charges?: Record<string, number> | null) {
-  return chargeEntries(charges).reduce((sum, [, amount]) => sum + amount, 0)
-}
-
 function chargeMapValue(charges: Record<string, number> | null | undefined, label: string) {
   const match = Object.entries(charges || {}).find(
     ([name, amount]) => name.trim().toLowerCase() === label.toLowerCase() && typeof amount === "number" && Number.isFinite(amount),
@@ -459,7 +456,7 @@ function orderCurrency(order?: ShippingOrder | null) {
 }
 
 function orderTotal(order?: ShippingOrder | null) {
-  return order?.aggregatedPricing?.totalAmount ?? chargesTotal(order?.aggregatedPricing?.charges)
+  return resolvePricingTotal(order?.aggregatedPricing)
 }
 
 function orderItemDisplayName(item?: OrderItem | null, index = 0) {
@@ -693,7 +690,7 @@ function MessageBubble({ message }: { message: ManualQuoteMessage }) {
 }
 
 function ChargeBreakdown({ charges, currency }: { charges?: Record<string, number> | null; currency?: string | null }) {
-  const entries = chargeEntries(charges)
+  const entries = pricingBreakdownEntries(charges)
   if (!entries.length) return null
 
   return (
@@ -1031,7 +1028,7 @@ function ShippingOrderSummary({ order }: { order?: ShippingOrder | null }) {
                     ) : null}
                   </div>
                   <span className="font-mono text-sm font-semibold">
-                    {formatCurrency(item.pricing?.totalAmount, item.pricing?.currency || orderCurrency(order))}
+                    {formatCurrency(resolvePricingTotal(item.pricing), item.pricing?.currency || orderCurrency(order))}
                   </span>
                 </div>
               ))

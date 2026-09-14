@@ -13,6 +13,7 @@ import {
   type TrackingEvent,
 } from "@/lib/order-service";
 import { ATLANTIC_TIME_ZONE } from "@/lib/halifax-datetime";
+import { resolvePricingTotal } from "@/lib/pricing-display";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -178,19 +179,16 @@ function statusBadge(status?: string | null, className = "") {
   );
 }
 
-function money(value?: number | null) {
+function money(value?: number | null, currency = "CAD") {
   if (typeof value !== "number") return "N/A";
   return new Intl.NumberFormat("en-CA", {
     style: "currency",
-    currency: "CAD",
+    currency,
   }).format(value);
 }
 
 function itemPrice(item: OrderItem) {
-  if (typeof item.pricing?.totalAmount === "number") return item.pricing.totalAmount;
-
-  const charges = Object.values(item.pricing?.charges ?? {});
-  return charges.length ? charges.reduce((total, charge) => total + charge, 0) : null;
+  return resolvePricingTotal(item.pricing);
 }
 
 function formatOrderDate(value?: string | null) {
@@ -527,7 +525,7 @@ function PackageCard({ item, index }: { item: OrderItem; index: number }) {
           <div className="mb-4 flex items-start justify-between gap-3">
             <h4 className="text-sm font-bold text-slate-950">Tracking History</h4>
             <span className="whitespace-nowrap text-lg font-bold text-slate-950">
-              {money(itemPrice(item))}
+              {money(itemPrice(item), item.pricing?.currency || "CAD")}
             </span>
           </div>
 
@@ -1056,7 +1054,10 @@ export function Shipments() {
                   <div className="rounded-xl border border-slate-200 bg-white p-5">
                     <p className="mb-1 text-[10px] font-bold uppercase text-slate-500">Total Price</p>
                     <p className="text-xl font-bold text-slate-950">
-                      {money(selectedOrder.aggregatedPricing?.totalAmount ?? selectedSummary?.amount)}
+                      {money(
+                        selectedOrder.aggregatedPricing?.totalAmount ?? selectedSummary?.amount,
+                        selectedOrder.aggregatedPricing?.currency || "CAD",
+                      )}
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-white p-5">

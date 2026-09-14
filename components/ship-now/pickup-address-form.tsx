@@ -10,16 +10,18 @@ import { AddressForm } from "@/components/ship-now/address-form"
 import { Plus, Loader2, ArrowRight } from "lucide-react"
 import { getAddresses } from "@/lib/address-service"
 import { useAuth } from "@/lib/auth-context"
+import { isSameShippingAddress } from "@/lib/shipping-address"
 import { useToast } from "@/hooks/use-toast"
 
 interface PickupAddressFormProps {
   selectedAddress: Address | null
-  onSelectAddress: (address: Address, saveForFuture: boolean) => void
+  dropoffAddresses: Address[]
+  onSelectAddress: (address: Address, saveForFuture: boolean) => boolean
   onNext: () => void
   onBack: () => void
 }
 
-export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, onBack }: PickupAddressFormProps) {
+export function PickupAddressForm({ selectedAddress, dropoffAddresses, onSelectAddress, onNext, onBack }: PickupAddressFormProps) {
   const { user } = useAuth()
   const { toast } = useToast()
   const [savedAddresses, setSavedAddresses] = useState<Address[]>([])
@@ -54,8 +56,10 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
     fetchAddresses()
   }, [user])
 
+  const isUsedAsDropoff = (address: Address) =>
+    dropoffAddresses.some((dropoffAddress) => isSameShippingAddress(address, dropoffAddress))
+
   const handleAddressSelect = (addressId: string) => {
-    setSelectedAddressId(addressId)
     const address = savedAddresses.find((addr) => addr.addressId === addressId)
     if (address) {
       // Convert to the format expected by the form
@@ -75,7 +79,11 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
         isPrimary: address.isPrimary || false,
         coordinates: address.coordinates,
       }
-      onSelectAddress(formattedAddress, false)
+      if (!onSelectAddress(formattedAddress, false)) {
+        setSelectedAddressId(null)
+        return
+      }
+      setSelectedAddressId(addressId)
       // No longer automatically proceed to next step
     }
     setShowNewAddressForm(false)
@@ -92,14 +100,14 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
       ...address,
       addressType: "pickup",
     }
-    onSelectAddress(addressWithType, saveForFuture)
+    if (!onSelectAddress(addressWithType, saveForFuture)) return
     // Proceed to next step - keep this behavior for new addresses
     onNext()
   }
 
   // New function to handle continuing with the selected address
   const handleContinue = () => {
-    if (selectedAddressId) {
+    if (selectedAddressId && selectedAddress && !isUsedAsDropoff(selectedAddress)) {
       onNext()
     }
   }
@@ -145,15 +153,18 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
 
               {savedAddresses.length > 0 && (
                   <RadioGroup value={selectedAddressId || ""} onValueChange={handleAddressSelect} className="space-y-3">
-                    {savedAddresses.map((address) => (
-                        <div key={address.addressId} className="flex items-start space-x-3">
+                    {savedAddresses.map((address) => {
+                      const unavailable = isUsedAsDropoff(address)
+                      return (
+                        <div key={address.addressId} className={`flex items-start space-x-3 ${unavailable ? "opacity-60" : ""}`}>
                           <RadioGroupItem
                               value={address.addressId || ""}
                               id={`address-${address.addressId}`}
                               className="mt-1"
+                              disabled={unavailable}
                           />
                           <div className="flex-1">
-                            <Label htmlFor={`address-${address.addressId}`} className="flex items-start cursor-pointer">
+                            <Label htmlFor={`address-${address.addressId}`} className={`flex items-start ${unavailable ? "cursor-not-allowed" : "cursor-pointer"}`}>
                               <Card className="ship-now-address-card w-full">
                                 <CardContent className="p-4">
                                   <div className="flex justify-between">
@@ -173,16 +184,18 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
                                           <p className="mt-1 text-sm italic">{address.deliveryInstructions}</p>
                                       )}
                                     </div>
-                                    {address.isPrimary && (
-                                        <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Primary</span>
-                                    )}
+                                       {address.isPrimary && (
+                                          <span className="text-xs bg-primary/10 text-primary px-2 py-1 rounded-full">Primary</span>
+                                        )}
                                   </div>
                                 </CardContent>
                               </Card>
                             </Label>
+                            {unavailable && <p className="mt-1 text-xs text-destructive">Already used as a delivery address.</p>}
                           </div>
                         </div>
-                    ))}
+                      )
+                    })}
                   </RadioGroup>
               )}
 
@@ -202,7 +215,11 @@ export function PickupAddressForm({ selectedAddress, onSelectAddress, onNext, on
                   Back
                 </Button>
                 {/* Add Continue button that's enabled only when an address is selected */}
-                <Button onClick={handleContinue} disabled={!selectedAddressId} className="flex items-center gap-2">
+                <Button
+                    onClick={handleContinue}
+                    disabled={!selectedAddressId || Boolean(selectedAddress && isUsedAsDropoff(selectedAddress))}
+                    className="flex items-center gap-2"
+                >
                   Continue
                   <ArrowRight className="h-4 w-4 ml-1" />
                 </Button>

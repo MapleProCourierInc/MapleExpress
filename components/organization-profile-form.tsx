@@ -6,10 +6,12 @@ import { useState } from "react"
 import { useAuth } from "@/lib/auth-context"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2 } from "lucide-react"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 export function OrganizationProfileForm() {
   const { user, createOrganizationProfile } = useAuth()
@@ -30,6 +32,12 @@ export function OrganizationProfileForm() {
 
     if (!user) {
       setError("User not authenticated")
+      setIsSubmitting(false)
+      return
+    }
+
+    if (!isValidPhoneNumber(phone)) {
+      setError(PHONE_NUMBER_VALIDATION_MESSAGE)
       setIsSubmitting(false)
       return
     }
@@ -116,9 +124,8 @@ export function OrganizationProfileForm() {
 
           <div className="space-y-2">
             <Label htmlFor="phone">Phone Number</Label>
-            <Input
+            <PhoneInput
               id="phone"
-              type="tel"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
               placeholder="e.g., 1234567890"

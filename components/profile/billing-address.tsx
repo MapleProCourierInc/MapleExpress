@@ -15,11 +15,13 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { useToast } from "@/hooks/use-toast"
 import { preventGooglePlacesDialogDismiss } from "@/lib/google-places-dialog"
 import { updateProfileBillingAddress } from "@/lib/profile-service"
 import { cn } from "@/lib/utils"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 import type { ProfileBillingAddress } from "@/types/profile-billing-address"
 
 interface BillingAddressDialogProps {
@@ -158,6 +160,15 @@ export function BillingAddressDialog({
       toast({
         title: "Complete the billing address",
         description: validationMessage,
+        variant: "destructive",
+      })
+      return
+    }
+
+    if (!isValidPhoneNumber(formData.phoneNumber)) {
+      toast({
+        title: "Invalid phone number",
+        description: PHONE_NUMBER_VALIDATION_MESSAGE,
         variant: "destructive",
       })
       return
@@ -317,9 +328,8 @@ export function BillingAddressDialog({
 
           <div className="space-y-1.5">
             <Label htmlFor={fieldId("phone-number")}>Phone Number</Label>
-            <Input
+            <PhoneInput
               id={fieldId("phone-number")}
-              type="tel"
               value={formData.phoneNumber}
               onChange={(event) => updateField("phoneNumber", event.target.value)}
               disabled={isSaving}

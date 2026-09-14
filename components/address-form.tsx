@@ -6,12 +6,14 @@ import { useState, useEffect } from "react"
 import type { Address, AddressInput } from "@/types/address"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Switch } from "@/components/ui/switch"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Loader2 } from "lucide-react"
 import { AddressAutocomplete } from "@/components/address-autocomplete"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 interface AddressFormProps {
   address?: Address
@@ -43,6 +45,7 @@ const COUNTRIES = [
 
 export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: AddressFormProps) {
   const [isBusinessAddress, setIsBusinessAddress] = useState(!!address?.company)
+  const [phoneError, setPhoneError] = useState("")
   const [formData, setFormData] = useState<AddressInput>({
     fullName: address?.fullName || "",
     company: address?.company || "",
@@ -81,6 +84,7 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
     setFormData((prev) => ({ ...prev, [name]: value }))
+    if (name === "phoneNumber") setPhoneError("")
   }
 
   const handleSelectChange = (name: string, value: string) => {
@@ -143,6 +147,12 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!isValidPhoneNumber(formData.phoneNumber)) {
+      setPhoneError(PHONE_NUMBER_VALIDATION_MESSAGE)
+      return
+    }
+
     onSubmit(formData)
   }
 
@@ -274,7 +284,7 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
 
         <div className="space-y-1">
           <Label htmlFor="phoneNumber">Phone Number</Label>
-          <Input
+          <PhoneInput
               id="phoneNumber"
               name="phoneNumber"
               value={formData.phoneNumber}
@@ -283,6 +293,7 @@ export function AddressForm({ address, onSubmit, onCancel, isSubmitting }: Addre
               required
               className="border-gray-300 focus:border-primary focus:ring-1 focus:ring-primary"
           />
+          {phoneError ? <p className="text-xs text-destructive">{phoneError}</p> : null}
         </div>
 
         <div className="space-y-1">

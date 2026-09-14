@@ -54,6 +54,7 @@ import {
   type ManualQuoteTicketSummary,
 } from "@/lib/manual-quote-service"
 import type { ShippingOrder } from "@/lib/order-service"
+import { pricingBreakdownEntries } from "@/lib/pricing-display"
 import { useToast } from "@/hooks/use-toast"
 import { ConversationChatPanel } from "@/components/shared/conversation-chat-panel"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -435,7 +436,7 @@ function PackagePricingBadge({ type }: { type: MergedPackagePricingRow["pricingT
 }
 
 function ChargeBreakdown({ charges, currency }: { charges?: Record<string, number> | null; currency?: string | null }) {
-  const entries = chargeEntries(charges)
+  const entries = pricingBreakdownEntries(charges)
   if (!entries.length) return null
 
   return (

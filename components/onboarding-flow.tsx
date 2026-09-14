@@ -5,10 +5,16 @@ import { Building2, UserRound, ArrowLeft, Loader2 } from "lucide-react"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useAuth } from "@/lib/auth-context"
 import type { OnboardingPayload } from "@/lib/onboarding-service"
+import {
+  isValidOptionalPhoneNumber,
+  isValidPhoneNumber,
+  PHONE_NUMBER_VALIDATION_MESSAGE,
+} from "@/lib/phone-validation"
 
 type Mode = "selection" | "personal" | "business"
 
@@ -43,6 +49,12 @@ export function OnboardingFlow() {
   const handlePersonalSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setFormError(null)
+
+    if (!isValidOptionalPhoneNumber(phone)) {
+      setFormError(PHONE_NUMBER_VALIDATION_MESSAGE)
+      return
+    }
+
     setIsSubmitting(true)
 
     const payload: OnboardingPayload = {
@@ -76,6 +88,16 @@ export function OnboardingFlow() {
   const handleBusinessSubmit = async (e: FormEvent) => {
     e.preventDefault()
     setFormError(null)
+
+    if (!isValidPhoneNumber(businessPhone)) {
+      setFormError(`Business ${PHONE_NUMBER_VALIDATION_MESSAGE.toLowerCase()}`)
+      return
+    }
+    if (!isValidPhoneNumber(contactPhone)) {
+      setFormError(`Point of contact ${PHONE_NUMBER_VALIDATION_MESSAGE.toLowerCase()}`)
+      return
+    }
+
     setIsSubmitting(true)
 
     const payload: OnboardingPayload = {
@@ -181,7 +203,7 @@ export function OnboardingFlow() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone (optional)</Label>
-                  <Input id="phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                  <PhoneInput id="phone" value={phone} onChange={(e) => setPhone(e.target.value)} />
                 </div>
               </div>
 
@@ -200,7 +222,7 @@ export function OnboardingFlow() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="businessPhone">Business Phone</Label>
-                  <Input id="businessPhone" value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} required />
+                  <PhoneInput id="businessPhone" value={businessPhone} onChange={(e) => setBusinessPhone(e.target.value)} required />
                 </div>
               </div>
 
@@ -240,7 +262,7 @@ export function OnboardingFlow() {
                 <div className="grid md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="contactPhone">Phone</Label>
-                    <Input id="contactPhone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} required />
+                    <PhoneInput id="contactPhone" value={contactPhone} onChange={(e) => setContactPhone(e.target.value)} required />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="contactPosition">Position (optional)</Label>

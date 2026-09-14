@@ -5,6 +5,7 @@ import { useCallback, useEffect, useRef, useState } from "react"
 import { AlertCircle, ArrowLeft, Loader2, Lock, MapPin, Pencil, Plus, ShieldCheck } from "lucide-react"
 
 import { BillingAddressDialog, BillingAddressSummary } from "@/components/profile/billing-address"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
@@ -13,6 +14,7 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { useToast } from "@/hooks/use-toast"
 import { useAuth } from "@/lib/auth-context"
 import type { OrderResponse } from "@/lib/order-service"
+import { pricingBreakdownEntries } from "@/lib/pricing-display"
 import { checkoutPayment, toCheckoutBillingAddress } from "@/lib/payment-service"
 import { finalizeMonerisPaymentViaApi, loadMonerisScript, type FinalizePaymentResponse } from "@/lib/moneris/moneris-service"
 import { MONERIS_CHECKOUT_MODE } from "@/lib/config.public"
@@ -318,6 +320,16 @@ export function PaymentForm({
       return
     }
 
+    if (!isValidPhoneNumber(billingAddress.phoneNumber)) {
+      setIsBillingAddressDialogOpen(true)
+      toast({
+        title: "Update your billing phone number",
+        description: PHONE_NUMBER_VALIDATION_MESSAGE,
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsInitiatingCheckout(true)
 
     try {
@@ -355,9 +367,7 @@ export function PaymentForm({
     }
   }
 
-  const charges = Object.entries(orderData.aggregatedPricing.charges ?? {}).filter(([, amount]) =>
-    Number.isFinite(amount),
-  )
+  const charges = pricingBreakdownEntries(orderData.aggregatedPricing.charges)
 
   const isLoading = isInitiatingCheckout || isFinalizingMoneris || isProcessing
 

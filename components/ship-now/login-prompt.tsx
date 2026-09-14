@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { useRouter } from "next/navigation"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { LoginModal } from "@/components/login-modal"
@@ -9,12 +10,15 @@ import { Package } from "lucide-react"
 import { VerificationPending } from "@/components/verification-pending"
 
 export function LoginPrompt() {
+  const router = useRouter()
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false)
   const [isSignupModalOpen, setIsSignupModalOpen] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
+  const [verificationPassword, setVerificationPassword] = useState("")
 
   const handleCloseVerification = () => {
     setVerificationEmail("")
+    setVerificationPassword("")
     try {
       localStorage.removeItem("maplexpress_signup_email")
     } catch (e) {
@@ -22,14 +26,19 @@ export function LoginPrompt() {
     }
   }
 
-  const handleSignupSuccess = (email: string) => {
+  const handleSignupSuccess = (email: string, password: string) => {
     setIsSignupModalOpen(false)
     setVerificationEmail(email)
+    setVerificationPassword(password)
   }
 
-  const handleVerificationConfirmed = () => {
+  const handleVerificationConfirmed = (authenticated: boolean) => {
     handleCloseVerification()
-    setIsLoginModalOpen(true)
+    if (authenticated) {
+      router.replace("/onboarding")
+    } else {
+      setIsLoginModalOpen(true)
+    }
   }
 
   if (verificationEmail) {
@@ -37,6 +46,7 @@ export function LoginPrompt() {
       <div className="container py-20 flex items-center justify-center">
         <VerificationPending
           email={verificationEmail}
+          password={verificationPassword || undefined}
           onClose={handleCloseVerification}
           onConfirmed={handleVerificationConfirmed}
         />

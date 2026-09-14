@@ -11,15 +11,17 @@ import { Label } from "@/components/ui/label"
 
 type VerificationPendingProps = {
   email: string
+  password?: string
   onClose?: () => void
-  onConfirmed?: () => void
+  onConfirmed?: (authenticated: boolean) => void
 }
 
-export function VerificationPending({ email, onClose, onConfirmed }: VerificationPendingProps) {
-  const { confirmEmail, resendVerificationEmail } = useAuth()
+export function VerificationPending({ email, password, onClose, onConfirmed }: VerificationPendingProps) {
+  const { confirmEmail, login, resendVerificationEmail } = useAuth()
   const [confirmationCode, setConfirmationCode] = useState("")
   const [isConfirming, setIsConfirming] = useState(false)
   const [confirmSuccess, setConfirmSuccess] = useState(false)
+  const [confirmationMessage, setConfirmationMessage] = useState("")
   const [isResending, setIsResending] = useState(false)
   const [resendSuccess, setResendSuccess] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -27,6 +29,7 @@ export function VerificationPending({ email, onClose, onConfirmed }: Verificatio
   useEffect(() => {
     setConfirmationCode("")
     setConfirmSuccess(false)
+    setConfirmationMessage("")
     setResendSuccess(false)
     setError(null)
   }, [email])
@@ -45,9 +48,28 @@ export function VerificationPending({ email, onClose, onConfirmed }: Verificatio
 
       if (result.success) {
         setConfirmSuccess(true)
-        setTimeout(() => {
-          onConfirmed?.()
-        }, 1200)
+        try {
+          localStorage.removeItem("maplexpress_signup_email")
+        } catch (storageError) {
+          console.error("Failed to clear signup email", storageError)
+        }
+        setConfirmationMessage(password ? "Email verified. Signing you in..." : "Your email has been confirmed.")
+
+        if (password) {
+          const loginResult = await login(email, password)
+
+          if (loginResult.success) {
+            setConfirmationMessage("You're verified and signed in. Opening account setup...")
+            setTimeout(() => onConfirmed?.(true), 600)
+            return
+          }
+
+          setConfirmationMessage("Your email is verified, but automatic sign-in was unsuccessful.")
+          setTimeout(() => onConfirmed?.(false), 1200)
+          return
+        }
+
+        setTimeout(() => onConfirmed?.(false), 1200)
       } else {
         setError(result.message)
       }
@@ -113,7 +135,7 @@ export function VerificationPending({ email, onClose, onConfirmed }: Verificatio
           <Alert className="bg-green-50 border-green-200">
             <CheckCircle className="h-4 w-4 text-green-600" />
             <AlertDescription className="text-green-600">
-              Your email has been confirmed. Redirecting you to login...
+              {confirmationMessage}
             </AlertDescription>
           </Alert>
         )}

@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
+import { isValidOptionalPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 export async function PATCH(request: NextRequest) {
   try {
@@ -9,6 +10,12 @@ export async function PATCH(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ message: "userId is required" }, { status: 400 })
+    }
+    if (!isValidOptionalPhoneNumber(profileData.phone)) {
+      return NextResponse.json({ message: `Organization ${PHONE_NUMBER_VALIDATION_MESSAGE.toLowerCase()}` }, { status: 400 })
+    }
+    if (!isValidOptionalPhoneNumber(profileData.pointOfContact?.phone)) {
+      return NextResponse.json({ message: `Point of contact ${PHONE_NUMBER_VALIDATION_MESSAGE.toLowerCase()}` }, { status: 400 })
     }
 
     return await proxyWithAuthRetry(request, {

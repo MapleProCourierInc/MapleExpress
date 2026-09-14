@@ -146,6 +146,7 @@ export function RateEstimator() {
   const [isLoginOpen, setIsLoginOpen] = useState(false)
   const [isSignupOpen, setIsSignupOpen] = useState(false)
   const [verificationEmail, setVerificationEmail] = useState("")
+  const [verificationPassword, setVerificationPassword] = useState("")
   const [shipAfterLogin, setShipAfterLogin] = useState(false)
   const requestIds = useRef<Record<AddressKind, number>>({ pickup: 0, delivery: 0 })
 
@@ -536,6 +537,7 @@ export function RateEstimator() {
         isOpen={isLoginOpen}
         onClose={() => setIsLoginOpen(false)}
         onOpenSignup={() => {
+          setShipAfterLogin(false)
           setIsLoginOpen(false)
           setIsSignupOpen(true)
         }}
@@ -543,24 +545,43 @@ export function RateEstimator() {
       <SignupModal
         isOpen={isSignupOpen}
         onClose={() => setIsSignupOpen(false)}
-        onSignupSuccess={(email) => {
+        onSignupSuccess={(email, password) => {
+          setShipAfterLogin(false)
           setIsSignupOpen(false)
           setVerificationEmail(email)
+          setVerificationPassword(password)
         }}
         onOpenLogin={() => {
           setIsSignupOpen(false)
           setIsLoginOpen(true)
         }}
       />
-      <Dialog open={Boolean(verificationEmail)} onOpenChange={(open) => !open && setVerificationEmail("")}>
+      <Dialog
+        open={Boolean(verificationEmail)}
+        onOpenChange={(open) => {
+          if (!open) {
+            setVerificationEmail("")
+            setVerificationPassword("")
+          }
+        }}
+      >
         <DialogContent className="border-0 bg-transparent p-0 shadow-none sm:max-w-md">
           {verificationEmail && (
             <VerificationPending
               email={verificationEmail}
-              onClose={() => setVerificationEmail("")}
-              onConfirmed={() => {
+              password={verificationPassword || undefined}
+              onClose={() => {
                 setVerificationEmail("")
-                setIsLoginOpen(true)
+                setVerificationPassword("")
+              }}
+              onConfirmed={(authenticated) => {
+                setVerificationEmail("")
+                setVerificationPassword("")
+                if (authenticated) {
+                  router.replace("/onboarding")
+                } else {
+                  setIsLoginOpen(true)
+                }
               }}
             />
           )}

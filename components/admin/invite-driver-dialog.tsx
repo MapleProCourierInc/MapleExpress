@@ -14,9 +14,11 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import type { ApiErrorResponse } from "@/types/admin-drivers"
 import { apiFetch } from "@/lib/client-api"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 type FormState = {
   email: string
@@ -77,6 +79,10 @@ export function InviteDriverDialog() {
         errors[field] = "Required"
       }
     })
+
+    if (form.phone.trim() && !isValidPhoneNumber(form.phone)) {
+      errors.phone = PHONE_NUMBER_VALIDATION_MESSAGE
+    }
 
     if (form.dob && !isValidDateOnly(form.dob)) {
       errors.dob = "Enter a valid date"
@@ -170,7 +176,7 @@ export function InviteDriverDialog() {
 
           <div className="space-y-1">
             <Label htmlFor="invite-phone">Phone</Label>
-            <Input id="invite-phone" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} />
+            <PhoneInput id="invite-phone" value={form.phone} onChange={(e) => updateField("phone", e.target.value)} required />
             {fieldErrors.phone ? <p className="text-xs text-destructive">{fieldErrors.phone}</p> : null}
           </div>
 

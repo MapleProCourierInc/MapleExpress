@@ -6,10 +6,12 @@ import type { OrganizationProfile } from "@/types/profile"
 import { updateOrganizationInformation } from "@/lib/profile-service"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
+import { PhoneInput } from "@/components/phone-input"
 import { Label } from "@/components/ui/label"
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { AlertCircle, Loader2, Check } from "lucide-react"
+import { isValidOptionalPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 interface OrganizationSettingsProps {
   profile: OrganizationProfile | OrganizationProfile[]
@@ -95,6 +97,15 @@ export function OrganizationSettings({
     /* Final validation guard */
     if (!validateWebsite(formData.website)) {
       setWebsiteError("Please enter a valid URL")
+      return
+    }
+
+    if (!isValidOptionalPhoneNumber(formData.phone)) {
+      setError(`Organization ${PHONE_NUMBER_VALIDATION_MESSAGE.toLowerCase()}`)
+      return
+    }
+    if (!isValidOptionalPhoneNumber(formData.pointOfContact.phone)) {
+      setError(`Point of contact ${PHONE_NUMBER_VALIDATION_MESSAGE.toLowerCase()}`)
       return
     }
 
@@ -193,7 +204,7 @@ export function OrganizationSettings({
 
                 <div className="space-y-2">
                   <Label htmlFor="phone">Phone&nbsp;Number</Label>
-                  <Input
+                  <PhoneInput
                       id="phone"
                       name="phone"
                       value={formData.phone}
@@ -259,7 +270,7 @@ export function OrganizationSettings({
 
                   <div className="space-y-2">
                     <Label htmlFor="contactPhone">Phone</Label>
-                    <Input
+                    <PhoneInput
                         id="contactPhone"
                         name="phone"
                         value={formData.pointOfContact.phone}

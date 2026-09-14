@@ -3,6 +3,7 @@ import {
   submitPublicQuoteRequest,
   type PublicQuoteRequest,
 } from "@/lib/public-quote-request-service"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 function problem(status: number, title: string, detail: string) {
   return NextResponse.json(
@@ -26,10 +27,15 @@ export async function POST(request: NextRequest) {
     return problem(400, "Invalid quote request", "A valid quote request is required.")
   }
 
+  const quoteRequest = body as Partial<PublicQuoteRequest>
+  if (!isValidPhoneNumber(quoteRequest.phoneNumber)) {
+    return problem(400, "Invalid phone number", PHONE_NUMBER_VALIDATION_MESSAGE)
+  }
+
   try {
     const forwardedFor = request.headers.get("x-forwarded-for") || request.headers.get("x-real-ip")
     const response = await submitPublicQuoteRequest(
-      body as PublicQuoteRequest,
+      quoteRequest as PublicQuoteRequest,
       forwardedFor,
     )
     const responseHeaders = new Headers()

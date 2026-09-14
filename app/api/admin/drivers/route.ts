@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { revalidatePath } from "next/cache"
 import { inviteAdminDriver } from "@/lib/admin-drivers-service"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 function isValidDateOnly(value: string) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false
@@ -27,13 +28,15 @@ export async function POST(request: NextRequest) {
   const required = ["email", "firstName", "lastName", "phone", "dob", "station"] as const
   const missing = required.filter((field) => !payload[field])
   const invalidDateOfBirth = Boolean(payload.dob) && !isValidDateOnly(payload.dob)
+  const invalidPhone = Boolean(payload.phone) && !isValidPhoneNumber(payload.phone)
 
-  if (missing.length || invalidDateOfBirth) {
+  if (missing.length || invalidDateOfBirth || invalidPhone) {
     return NextResponse.json(
       {
         message: "Please complete all required fields.",
         errors: [
           ...missing.map((field) => ({ field, message: "Required" })),
+          ...(invalidPhone ? [{ field: "phone", message: PHONE_NUMBER_VALIDATION_MESSAGE }] : []),
           ...(invalidDateOfBirth ? [{ field: "dob", message: "Enter a valid date of birth" }] : []),
         ],
       },

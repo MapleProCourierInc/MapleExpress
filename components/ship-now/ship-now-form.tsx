@@ -16,6 +16,7 @@ import { Button } from "@/components/ui/button"
 import { useToast } from "@/hooks/use-toast"
 import { Plus, ArrowRight } from "lucide-react"
 import { createAddress } from "@/lib/address-service"
+import { isSameShippingAddress } from "@/lib/shipping-address"
 import type { PickupWindowSelection as PickupWindowSelectionValue } from "@/types/working-hours"
 import {
   cancelOrder,
@@ -76,6 +77,11 @@ export type Address = {
 export type ShippingOrder = {
   packages: PackageItem[]
   pickupAddress: Address | null
+}
+
+function matchingDropoffIndex(order: ShippingOrder, pickupAddress = order.pickupAddress) {
+  if (!pickupAddress) return -1
+  return order.packages.findIndex((pkg) => isSameShippingAddress(pickupAddress, pkg.dropoffAddress))
 }
 
 const createEmptyPackage = (): PackageItem => ({
@@ -273,6 +279,10 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     }
   }, [currentStep])
 
+  useEffect(() => {
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" })
+  }, [currentStep])
+
   const showFlowError = (title: string, error: unknown, fallback: string) => {
     toast({
       title,
@@ -396,8 +406,22 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
     setHasDraftChanges(true)
   }
 
+  const showSameAddressError = (packageIndex: number) => {
+    toast({
+      title: "Pickup and delivery must be different",
+      description: `Choose a different delivery address for package ${packageIndex + 1}.`,
+      variant: "destructive",
+    })
+  }
+
   // Handle setting pickup address
-  const handleSetPickupAddress = async (address: Address, saveForFuture: boolean) => {
+  const handleSetPickupAddress = (address: Address, saveForFuture: boolean) => {
+    const matchingPackageIndex = matchingDropoffIndex(order, address)
+    if (matchingPackageIndex >= 0) {
+      showSameAddressError(matchingPackageIndex)
+      return false
+    }
+
     setOrder((prev) => ({
       ...prev,
       pickupAddress: address,
@@ -406,72 +430,85 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
     // Save address to database if requested
     if (saveForFuture && user) {
-      try {
-        // Convert to the format expected by the API
-        const addressData = {
-          fullName: address.fullName,
-          company: address.company,
-          streetAddress: address.streetAddress,
-          addressLine2: address.addressLine2,
-          city: address.city,
-          province: address.province,
-          postalCode: address.postalCode,
-          country: address.country,
-          phoneNumber: address.phoneNumber,
-          deliveryInstructions: address.deliveryInstructions,
-          addressType: address.addressType,
-          isPrimary: address.isPrimary || false,
-          coordinates: address.coordinates,
-        }
+      // Convert to the format expected by the API
+      const addressData = {
+        fullName: address.fullName,
+        company: address.company,
+        streetAddress: address.streetAddress,
+        addressLine2: address.addressLine2,
+        city: address.city,
+        province: address.province,
+        postalCode: address.postalCode,
+        country: address.country,
+        phoneNumber: address.phoneNumber,
+        deliveryInstructions: address.deliveryInstructions,
+        addressType: address.addressType,
+        isPrimary: address.isPrimary || false,
+        coordinates: address.coordinates,
+      }
 
-        await createAddress(addressData)
-      } catch (err) {
+      void createAddress(addressData).catch((err) => {
         console.error("Error saving address:", err)
         toast({
           title: "Address was not saved",
           description: "Your order can continue, but this pickup address will not be available for future orders.",
         })
-      }
+      })
     }
+
+    return true
   }
 
   // Handle setting dropoff address for current package
-  const handleSetDropoffAddress = async (address: Address, saveForFuture: boolean) => {
+  const handleSetDropoffAddress = (address: Address, saveForFuture: boolean) => {
+    if (isSameShippingAddress(order.pickupAddress, address)) {
+      showSameAddressError(currentPackageIndex)
+      return false
+    }
+
     handleUpdatePackage({ dropoffAddress: address })
 
     // Save address to database if requested
     if (saveForFuture && user) {
-      try {
-        // Convert to the format expected by the API
-        const addressData = {
-          fullName: address.fullName,
-          company: address.company,
-          streetAddress: address.streetAddress,
-          addressLine2: address.addressLine2,
-          city: address.city,
-          province: address.province,
-          postalCode: address.postalCode,
-          country: address.country,
-          phoneNumber: address.phoneNumber,
-          deliveryInstructions: address.deliveryInstructions,
-          addressType: address.addressType,
-          isPrimary: address.isPrimary || false,
-          coordinates: address.coordinates,
-        }
+      // Convert to the format expected by the API
+      const addressData = {
+        fullName: address.fullName,
+        company: address.company,
+        streetAddress: address.streetAddress,
+        addressLine2: address.addressLine2,
+        city: address.city,
+        province: address.province,
+        postalCode: address.postalCode,
+        country: address.country,
+        phoneNumber: address.phoneNumber,
+        deliveryInstructions: address.deliveryInstructions,
+        addressType: address.addressType,
+        isPrimary: address.isPrimary || false,
+        coordinates: address.coordinates,
+      }
 
-        await createAddress(addressData)
-      } catch (err) {
+      void createAddress(addressData).catch((err) => {
         console.error("Error saving address:", err)
         toast({
           title: "Address was not saved",
           description: "Your order can continue, but this delivery address will not be available for future orders.",
         })
-      }
+      })
     }
+
+    return true
   }
 
   // Handle creating draft order
   const handleCreateDraftOrder = async () => {
+    const matchingPackageIndex = matchingDropoffIndex(order)
+    if (matchingPackageIndex >= 0) {
+      showSameAddressError(matchingPackageIndex)
+      setCurrentPackageIndex(matchingPackageIndex)
+      setCurrentStep("DROPOFF_ADDRESS")
+      return
+    }
+
     setIsSubmitting(true)
 
     try {
@@ -636,6 +673,11 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
 
   // Handle continuing to add more or review
   const handleContinueAfterDropoff = () => {
+    if (isSameShippingAddress(order.pickupAddress, currentPackage.dropoffAddress)) {
+      showSameAddressError(currentPackageIndex)
+      return
+    }
+
     setPackageAddingIndex(null)
     setHasDraftChangesBeforePackageAdd(null)
     setCurrentStep("ADD_MORE")
@@ -734,9 +776,18 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
         }
         break
       case "PICKUP_ADDRESS":
+        const matchingPackageIndex = matchingDropoffIndex(order)
+        if (matchingPackageIndex >= 0) {
+          showSameAddressError(matchingPackageIndex)
+          return
+        }
         setCurrentStep("DROPOFF_ADDRESS")
         break
       case "DROPOFF_ADDRESS":
+        if (isSameShippingAddress(order.pickupAddress, currentPackage.dropoffAddress)) {
+          showSameAddressError(currentPackageIndex)
+          return
+        }
         setCurrentStep("ADD_MORE")
         break
       case "ADD_MORE":
@@ -794,7 +845,8 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
       case "PICKUP_ADDRESS":
         return order.pickupAddress !== null
       case "DROPOFF_ADDRESS":
-        return currentPackage.dropoffAddress !== null
+        return currentPackage.dropoffAddress !== null &&
+          !isSameShippingAddress(order.pickupAddress, currentPackage.dropoffAddress)
       default:
         return true
     }
@@ -847,6 +899,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
             {currentStep === "PICKUP_ADDRESS" && (
                 <PickupAddressForm
                     selectedAddress={order.pickupAddress}
+                    dropoffAddresses={order.packages.flatMap((pkg) => pkg.dropoffAddress ? [pkg.dropoffAddress] : [])}
                     onSelectAddress={handleSetPickupAddress}
                     onNext={handleNextStep}
                     onBack={handlePrevStep}
@@ -863,6 +916,7 @@ export function ShipNowForm({ resumePaymentOrderId }: { resumePaymentOrderId?: s
                   )}
                   <DropoffAddressForm
                       selectedAddress={currentPackage.dropoffAddress}
+                      pickupAddress={order.pickupAddress}
                       onSelectAddress={handleSetDropoffAddress}
                       onNext={handleContinueAfterDropoff}
                       onBack={handlePrevStep}

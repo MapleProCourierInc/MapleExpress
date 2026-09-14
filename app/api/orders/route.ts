@@ -1,6 +1,16 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { ORDER_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
+
+function hasInvalidOrderPhone(body: any) {
+  if (!Array.isArray(body?.orderItems) || body.orderItems.length === 0) return false
+  return body.orderItems.some(
+    (item: any) =>
+      !isValidPhoneNumber(item?.pickup?.address?.phoneNumber) ||
+      !isValidPhoneNumber(item?.dropoff?.address?.phoneNumber),
+  )
+}
 
 export async function GET(request: NextRequest) {
   try {
@@ -19,6 +29,9 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json()
+    if (hasInvalidOrderPhone(body)) {
+      return NextResponse.json({ message: PHONE_NUMBER_VALIDATION_MESSAGE }, { status: 400 })
+    }
     const proxiedBody = JSON.stringify(body)
 
     console.log("[api/orders] POST body forwarded to order-ms:", JSON.stringify(body, null, 2))
@@ -38,6 +51,9 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const body = await request.json()
+    if (hasInvalidOrderPhone(body)) {
+      return NextResponse.json({ message: PHONE_NUMBER_VALIDATION_MESSAGE }, { status: 400 })
+    }
     const proxiedBody = JSON.stringify(body)
 
     console.log("[api/orders] PUT body forwarded to order-ms:", JSON.stringify(body, null, 2))

@@ -77,12 +77,21 @@ export function LoginModal({ isOpen, onClose, onOpenSignup }: LoginModalProps) {
           {showVerification ? (
             <VerificationPending
               email={email}
+              password={password}
               onClose={() => {
                 setShowVerification(false)
                 onClose()
               }}
-              onConfirmed={() => {
+              onConfirmed={(authenticated) => {
                 setShowVerification(false)
+                if (authenticated) {
+                  setEmail("")
+                  setPassword("")
+                  onClose()
+                  router.replace("/onboarding")
+                } else {
+                  setError("Your email is verified. Please sign in to continue.")
+                }
               }}
             />
           ) : (

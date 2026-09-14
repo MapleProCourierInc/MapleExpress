@@ -1,6 +1,7 @@
 import { type NextRequest, NextResponse } from "next/server"
 import { PROFILE_SERVICE_URL, getEndpointUrl } from "@/lib/config.server"
 import { proxyWithAuthRetry } from "@/lib/authenticated-proxy"
+import { isValidPhoneNumber, PHONE_NUMBER_VALIDATION_MESSAGE } from "@/lib/phone-validation"
 
 export async function POST(request: NextRequest) {
   try {
@@ -9,6 +10,9 @@ export async function POST(request: NextRequest) {
 
     if (!userId || !firstName || !lastName || !dateOfBirth || !phone) {
       return NextResponse.json({ message: "Missing required fields" }, { status: 400 })
+    }
+    if (!isValidPhoneNumber(phone)) {
+      return NextResponse.json({ message: PHONE_NUMBER_VALIDATION_MESSAGE }, { status: 400 })
     }
 
     return await proxyWithAuthRetry(request, {

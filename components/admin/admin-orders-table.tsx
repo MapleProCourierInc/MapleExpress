@@ -47,6 +47,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import { ATLANTIC_TIME_ZONE } from "@/lib/halifax-datetime"
+import { pricingBreakdownEntries, resolvePricingTotal } from "@/lib/pricing-display"
 import { cn } from "@/lib/utils"
 import type {
   AdminOrder,
@@ -240,18 +241,13 @@ function packageDimensions(item: AdminOrderItem) {
 }
 
 function packagePrice(item: AdminOrderItem) {
-  const total = item.pricing?.totalAmount
-  if (typeof total === "number" && Number.isFinite(total)) return total
-
-  const charges = Object.values(item.pricing?.charges || {}).filter(
-    (charge): charge is number => typeof charge === "number" && Number.isFinite(charge),
-  )
-  return charges.length ? charges.reduce((sum, charge) => sum + charge, 0) : null
+  return resolvePricingTotal(item.pricing)
 }
 
 function OrderDetailSheet({ order, onClose }: { order: AdminOrder | null; onClose: () => void }) {
   const pickupWindow = order ? scheduledPickupWindow(order) : null
   const currency = order?.aggregatedPricing?.currency || "CAD"
+  const pricingEntries = pricingBreakdownEntries(order?.aggregatedPricing?.charges)
 
   return (
     <Sheet open={Boolean(order)} onOpenChange={(open) => { if (!open) onClose() }}>
@@ -372,8 +368,8 @@ function OrderDetailSheet({ order, onClose }: { order: AdminOrder | null; onClos
                   <p className="mt-1 text-xs text-muted-foreground">Aggregated charges recorded by order management.</p>
                 </div>
                 <div className="space-y-2 p-4 text-sm">
-                  {Object.entries(order.aggregatedPricing?.charges || {}).length ? (
-                    Object.entries(order.aggregatedPricing?.charges || {}).map(([charge, amount]) => (
+                  {pricingEntries.length ? (
+                    pricingEntries.map(([charge, amount]) => (
                       <div key={charge} className="flex items-center justify-between gap-4">
                         <span className="text-muted-foreground">{humanize(charge)}</span>
                         <span className="font-medium">{formatMoney(amount, currency)}</span>
