@@ -54,8 +54,7 @@ const CONTACT_FIELD_LABELS: Record<string, string> = {
   lastName: "Last name",
   email: "Email",
   phoneNumber: "Phone number",
-  serviceType: "Service type",
-  additionalInformation: "Additional information",
+  request: "How can we help?",
 }
 
 function contactRequestErrorDescription(problem: ContactRequestProblem | null) {
@@ -390,8 +389,7 @@ function LandingContent() {
       lastName: String(formData.get("lastName") || "").trim(),
       email: String(formData.get("email") || "").trim(),
       phoneNumber: String(formData.get("phoneNumber") || "").trim(),
-      serviceType: String(formData.get("serviceType") || "").trim(),
-      additionalInformation: String(formData.get("additionalInformation") || "").trim() || null,
+      request: String(formData.get("request") || "").trim(),
     }
 
     if (!isValidPhoneNumber(requestBody.phoneNumber)) {
@@ -653,28 +651,17 @@ function LandingContent() {
                   />
                 </div>
                 <div className="space-y-2">
-                  <label htmlFor="service" className="text-sm font-medium">
-                    Service Type
-                  </label>
-                  <Input
-                    id="service"
-                    name="serviceType"
-                    placeholder="Enter the service you need"
-                    maxLength={100}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
                   <label htmlFor="message" className="text-sm font-medium">
-                    Additional Information
+                    How Can We Help?
                   </label>
                   <textarea
                     id="message"
-                    name="additionalInformation"
+                    name="request"
                     rows={4}
                     maxLength={4000}
+                    required
                     className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    placeholder="Tell us more about your shipping needs"
+                    placeholder="Tell us how we can help"
                   ></textarea>
                 </div>
                 <Button type="submit" className="w-full" disabled={isSubmittingContact}>

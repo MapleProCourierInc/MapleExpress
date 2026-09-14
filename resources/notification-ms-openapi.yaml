@@ -46,8 +46,7 @@ paths:
               lastName: Smith
               email: jane.smith@example.com
               phoneNumber: +1 902 555 0142
-              serviceType: Same-day delivery
-              additionalInformation: Two pallets from Halifax to Moncton, ready Friday morning.
+              request: Two pallets from Halifax to Moncton, ready Friday morning.
       responses:
         "202":
           description: The quote request was accepted by AWS SES and recorded.
@@ -422,7 +421,7 @@ components:
         - lastName
         - email
         - phoneNumber
-        - serviceType
+        - request
       properties:
         firstName:
           type: string
@@ -446,15 +445,10 @@ components:
           maxLength: 30
           pattern: '^[0-9+() .\-]{7,30}$'
           example: +1 902 555 0142
-        serviceType:
+        request:
           type: string
           minLength: 1
-          maxLength: 100
-          example: Same-day delivery
-        additionalInformation:
-          type: string
           maxLength: 4000
-          nullable: true
           example: Two pallets from Halifax to Moncton, ready Friday morning.
     PublicQuoteRequestResponse:
       type: object

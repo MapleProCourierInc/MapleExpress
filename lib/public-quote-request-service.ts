@@ -7,8 +7,7 @@ export type PublicQuoteRequest = {
   lastName: string
   email: string
   phoneNumber: string
-  serviceType: string
-  additionalInformation?: string | null
+  request: string
 }
 
 export function submitPublicQuoteRequest(body: PublicQuoteRequest, forwardedFor?: string | null) {

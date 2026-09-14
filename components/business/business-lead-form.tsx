@@ -22,8 +22,7 @@ const FIELD_LABELS: Record<string, string> = {
   lastName: "Last name",
   email: "Email",
   phoneNumber: "Phone number",
-  serviceType: "Service type",
-  additionalInformation: "Business details",
+  request: "Business details",
 }
 
 function requestErrorDescription(problem: RequestProblem | null) {
@@ -45,7 +44,7 @@ export function BusinessLeadForm() {
 
     const form = event.currentTarget
     const formData = new FormData(form)
-    const additionalInformation = [
+    const businessDetails = [
       `Company: ${String(formData.get("company") || "").trim()}`,
       `Average deliveries per week: ${String(formData.get("averageDeliveriesPerWeek") || "").trim()}`,
       `Typical pickup postal code: ${String(formData.get("pickupPostalCode") || "").trim()}`,
@@ -59,8 +58,7 @@ export function BusinessLeadForm() {
       lastName: String(formData.get("lastName") || "").trim(),
       email: String(formData.get("email") || "").trim(),
       phoneNumber: String(formData.get("phoneNumber") || "").trim(),
-      serviceType: "Business delivery solutions",
-      additionalInformation,
+      request: businessDetails,
     }
 
     if (!isValidPhoneNumber(requestBody.phoneNumber)) {
